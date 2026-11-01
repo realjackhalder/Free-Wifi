@@ -18,6 +18,9 @@ const CLIENT_CONFIG_PATH = path.join(__dirname, 'firebase-client.json');
 let isInitialized = false;
 let firestoreDb = null;
 let firebaseAuth = null;
+let firebaseStorage = null;
+
+const DEFAULT_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'free-wifi-portal.firebasestorage.app';
 
 /**
  * Initialize Firebase Admin with service account JSON or environment variables
@@ -28,6 +31,7 @@ function initFirebase() {
     isInitialized = true;
     firestoreDb = admin.firestore();
     firebaseAuth = admin.auth();
+    firebaseStorage = typeof admin.storage === 'function' ? admin.storage() : null;
     return true;
   }
 
@@ -36,11 +40,13 @@ function initFirebase() {
     if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
       const serviceAccount = JSON.parse(fs.readFileSync(SERVICE_ACCOUNT_PATH, 'utf-8'));
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: DEFAULT_STORAGE_BUCKET
       });
       isInitialized = true;
       firestoreDb = admin.firestore();
       firebaseAuth = admin.auth();
+      firebaseStorage = typeof admin.storage === 'function' ? admin.storage() : null;
       console.log('✅ [FIREBASE] Successfully initialized with firebase-service-account.json');
       return true;
     }
@@ -49,30 +55,61 @@ function initFirebase() {
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: DEFAULT_STORAGE_BUCKET
       });
       isInitialized = true;
       firestoreDb = admin.firestore();
       firebaseAuth = admin.auth();
+      firebaseStorage = typeof admin.storage === 'function' ? admin.storage() : null;
       console.log('✅ [FIREBASE] Successfully initialized with FIREBASE_SERVICE_ACCOUNT env');
       return true;
     }
 
     // 3. Application Default Credentials (e.g. Google Cloud / Cloud Functions)
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.FIREBASE_CONFIG) {
-      admin.initializeApp();
+      admin.initializeApp({
+        storageBucket: DEFAULT_STORAGE_BUCKET
+      });
       isInitialized = true;
       firestoreDb = admin.firestore();
       firebaseAuth = admin.auth();
+      firebaseStorage = typeof admin.storage === 'function' ? admin.storage() : null;
       console.log('✅ [FIREBASE] Initialized with Application Default Credentials');
       return true;
     }
 
-    console.log('ℹ️ [FIREBASE] Not configured yet. (Place firebase-service-account.json in root to enable Cloud Firestore)');
+    console.log('ℹ️ [FIREBASE] Not configured yet. (Place firebase-service-account.json in root to enable Cloud Firestore & Storage)');
     return false;
   } catch (err) {
     console.warn('⚠️ [FIREBASE] Initialization warning:', err.message);
     return false;
+  }
+}
+
+/**
+ * Upload a payment slip to Firebase Cloud Storage and return public/signed URL
+ */
+async function uploadSlipToStorage(localFilePath, destinationFileName, mimeType = 'image/jpeg') {
+  if (!isInitialized || !admin || typeof admin.storage !== 'function') return null;
+  try {
+    const bucket = admin.storage().bucket();
+    await bucket.upload(localFilePath, {
+      destination: `slips/${destinationFileName}`,
+      metadata: {
+        contentType: mimeType
+      }
+    });
+    const file = bucket.file(`slips/${destinationFileName}`);
+    const [signedUrl] = await file.getSignedUrl({
+      action: 'read',
+      expires: '03-01-2036'
+    });
+    console.log(`✅ [FIREBASE STORAGE] Slip uploaded to Cloud Storage: slips/${destinationFileName}`);
+    return signedUrl;
+  } catch (err) {
+    console.warn('[FIREBASE STORAGE] Slip upload error:', err.message);
+    return null;
   }
 }
 
@@ -145,6 +182,8 @@ module.exports = {
   isReady: () => isInitialized && !!firestoreDb,
   getDb: () => firestoreDb,
   getAuth: () => firebaseAuth,
+  getStorage: () => firebaseStorage,
+  uploadSlipToStorage,
   verifyIdToken,
   getClientConfig,
   saveClientConfig,

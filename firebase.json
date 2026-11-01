@@ -28,6 +28,7 @@
     "providers": {
       "googleSignIn": {
         "oAuthBrandDisplayName": "Free Wi-Fi Portal",
+        "supportEmail": "realjackhalder@gmail.com",
         "authorizedRedirectUris": [
           "https://free-wifi-portal.firebaseapp.com/__/auth/handler",
           "http://localhost"
@@ -38,5 +39,8 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }

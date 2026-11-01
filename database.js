@@ -65,12 +65,19 @@ async function initDb() {
       ip_address TEXT NOT NULL,
       mac_address TEXT,
       filename TEXT NOT NULL,
+      cloud_url TEXT,
       qr_payload TEXT UNIQUE NOT NULL,
       amount INTEGER DEFAULT 150,
       status TEXT DEFAULT 'verified',
       uploaded_at INTEGER NOT NULL
     )
   `);
+
+  try {
+    await run(`ALTER TABLE slips ADD COLUMN cloud_url TEXT`);
+  } catch (e) {
+    /* column already exists */
+  }
 
   await run(`
     CREATE TABLE IF NOT EXISTS ip_logs (
@@ -315,13 +322,14 @@ async function deleteAccount(email) {
 // Payment Slips & IP Log Operations (Firestore + SQLite Hybrid)
 // ============================================================================
 
-async function recordSlip({ email, ip, mac, filename, qrPayload, amount = 150, status = 'verified' }) {
+async function recordSlip({ email, ip, mac, filename, qrPayload, amount = 150, status = 'verified', cloudUrl = null }) {
   const cleanEmail = email.trim().toLowerCase();
   const slipData = {
     email: cleanEmail,
     ip_address: ip || '127.0.0.1',
     mac_address: mac || null,
     filename,
+    cloud_url: cloudUrl || null,
     qr_payload: qrPayload,
     amount,
     status,
@@ -337,9 +345,9 @@ async function recordSlip({ email, ip, mac, filename, qrPayload, amount = 150, s
   }
 
   return await run(
-    `INSERT INTO slips (email, ip_address, mac_address, filename, qr_payload, amount, status, uploaded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [cleanEmail, slipData.ip_address, slipData.mac_address, filename, qrPayload, amount, status, slipData.uploaded_at]
+    `INSERT INTO slips (email, ip_address, mac_address, filename, cloud_url, qr_payload, amount, status, uploaded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [cleanEmail, slipData.ip_address, slipData.mac_address, filename, cloudUrl || null, qrPayload, amount, status, slipData.uploaded_at]
   );
 }
 
