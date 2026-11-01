@@ -1587,126 +1587,6 @@ ${
   </div>
 </div>
 
-<!-- Google Account Dialog Modal (Matching Official Google Account Chooser UI) -->
-<div id="google-dialog" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-3 sm:p-4 z-50 backdrop-blur-sm" onclick="if(event.target.id==='google-dialog')closeGoogleDialog()">
-  <div class="bg-[#131314] text-[#e8eaed] rounded-[28px] max-w-[420px] w-full p-6 sm:p-7 relative shadow-2xl border border-[#303134] animate-fade max-h-[95vh] overflow-y-auto" style="font-family: -apple-system, BlinkMacSystemFont, 'Google Sans', Roboto, 'Segoe UI', Helvetica, Arial, sans-serif;">
-    
-    <!-- Top Bar: Google Logo + Brand Text + Close Button -->
-    <div class="flex items-center justify-between mb-2">
-      <div class="flex items-center space-x-2.5">
-        <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-        </svg>
-        <span class="text-sm font-medium text-[#e8eaed]" data-i18n="google_dialog_brand">Sign in with Google</span>
-      </div>
-      <button type="button" onclick="closeGoogleDialog()" title="Close" class="text-[#9aa0a6] hover:text-[#e8eaed] text-2xl font-normal leading-none p-1 transition">&times;</button>
-    </div>
-
-    <!-- App Branding Icon -->
-    <div class="w-11 h-11 rounded-xl bg-black border border-[#3c4043] flex items-center justify-center mt-5 mb-4 shadow-sm">
-      <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"/>
-      </svg>
-    </div>
-
-    <!-- Title and Subtitle -->
-    <h2 class="text-[26px] sm:text-[28px] font-normal text-[#e8eaed] tracking-tight leading-tight" data-i18n="google_choose_account">Choose an account</h2>
-    <p class="text-sm text-[#9aa0a6] mt-1 mb-5">
-      <span data-i18n="google_to_continue">to continue to</span> <span class="font-medium text-[#8ab4f8]">Free Wi-Fi</span>
-    </p>
-
-    <!-- Account Chooser List -->
-    <div class="border-t border-[#3c4043]">
-      <!-- Primary Account: Jack Halder -->
-      <button type="button" onclick="selectGoogleAccount('realjackhalder@gmail.com', 'Jack Halder', 'avatar-jack')" class="w-full flex items-center py-3.5 px-2.5 rounded-xl hover:bg-[#202124] active:bg-[#303134] transition text-left group">
-        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAACiUlEQVR4AdXB3WscVRjA4d/7njNndjfs7KRpExFMqTfe9Fra/r0FQdAKUihUEESoCiJVqAU/MN0km92tzWaTzc7MmTlH9ra0mnp3nkeKooi8Zndvl9333mc+n1OOSkSVXr+HiLBRVTUiQtd1lGXJYGuANYY/f/+Dm7c+oBwNcbmjqWs28jzD5TkhBKyx7N/cZ3I0xtqM2nu89wyLIXVV8+jhYw7HR7zO8gaz6YzV6hI1jn6vjxqLqhJjh4gSuo47d+/xy89P8U3NmgBiUGtYLJbcvv0RIqAqOJeh1mBUsTbDWouqYf/DWwiCiBBjoK5qPrn/KYfjI97E8hariwuyzHHuMvqDPq1vEBHUCKqGnZ1r2Czj/PyCGMHliiBMjqfEqLRdR4yBLoJtA8YajLGICqpC6CDGQNt1HB9O+OKzL5mezHgby7/wvuHv+ZTta9cZjkp82xJ9QER48PkDrt/YZWN1uebG3h6npwuqquJyvaKpGyDieo48z9BGyawhcxkhdqhC1wWefPs9jx4+5r9YruD01UtWF+ds7+zQH2yRZRYQVIAYCaGlrtZkVmmbCt+0RDYEoiBAJBJDx4aI4fmz53z91Te8OBhzFZYrapqa6eSYvNejKEqGoxG9wRZtCCwXC9q2xRiLGkvdeKxVICICIYIRYb2u+fXZb/z041MO/nrBu7C8o7qqmFcnzGcnnL56iXMO5xzL5RLfNHjvWSzO2C6HrFaXzE6mnJ0tmRxPGB8c8n9JURSRBCiJUBKhJEJJhJIIJRFKIpREKIlQEqEkQkmEkgglEUoilEQoiVASoSRCSYSSCCURSiKURCiJUBKhJEJJhJIIJRH247t3SIH94cl3pEBJhJKIfwC8RAa9McHN5QAAAABJRU5ErkJggg==" alt="Jack Halder" class="w-10 h-10 rounded-full object-cover border border-[#5f6368] mr-3.5 flex-shrink-0 shadow-sm" />
-        <div class="flex-grow min-w-0">
-          <div class="text-[14px] font-semibold text-[#e8eaed] truncate group-hover:text-white">Jack Halder</div>
-          <div class="text-[13px] text-[#9aa0a6] truncate">realjackhalder@gmail.com</div>
-        </div>
-      </button>
-
-      <!-- Optional Second Account if previously saved in localStorage -->
-      <div id="google-secondary-account" class="hidden border-t border-[#3c4043]">
-        <button type="button" onclick="selectSecondaryGoogleAccount()" class="w-full flex items-center py-3.5 px-2.5 rounded-xl hover:bg-[#202124] active:bg-[#303134] transition text-left group">
-          <div id="secondary-avatar" class="w-10 h-10 rounded-full bg-[#1a73e8] text-white font-bold flex items-center justify-center mr-3.5 flex-shrink-0 text-base shadow-sm">G</div>
-          <div class="flex-grow min-w-0">
-            <div id="secondary-name" class="text-[14px] font-semibold text-[#e8eaed] truncate group-hover:text-white">User</div>
-            <div id="secondary-email" class="text-[13px] text-[#9aa0a6] truncate">user@gmail.com</div>
-          </div>
-        </button>
-      </div>
-
-      <!-- Use another account -->
-      <div class="border-t border-[#3c4043]">
-        <button type="button" onclick="toggleUseAnotherAccount()" class="w-full flex items-center py-3.5 px-2.5 rounded-xl hover:bg-[#202124] active:bg-[#303134] transition text-left group">
-          <div class="w-10 h-10 rounded-full border border-[#5f6368] flex items-center justify-center mr-3.5 flex-shrink-0 text-[#9aa0a6] group-hover:text-[#e8eaed]">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </div>
-          <span class="text-[14px] font-semibold text-[#e8eaed] group-hover:text-white" data-i18n="google_use_another">Use another account</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Expandable Custom Account Input -->
-    <form id="google-another-form" onsubmit="submitCustomGoogleAccount(event)" class="hidden pt-3 pb-2 px-3 space-y-3 bg-[#1e1f20] rounded-xl border border-[#3c4043] my-2">
-      <div>
-        <label class="block text-[11px] font-medium text-[#9aa0a6] mb-1" data-i18n="google_enter_email">Google Email</label>
-        <input type="email" id="dlg-custom-email" required placeholder="username@gmail.com" class="w-full bg-[#131314] border border-[#5f6368] focus:border-[#8ab4f8] rounded-lg px-3 py-2 text-sm text-[#e8eaed] placeholder-[#5f6368] outline-none" />
-      </div>
-      <div>
-        <label class="block text-[11px] font-medium text-[#9aa0a6] mb-1">Display Name</label>
-        <input type="text" id="dlg-custom-name" placeholder="Your Name" class="w-full bg-[#131314] border border-[#5f6368] focus:border-[#8ab4f8] rounded-lg px-3 py-2 text-sm text-[#e8eaed] placeholder-[#5f6368] outline-none" />
-      </div>
-      <div class="flex items-center space-x-2 pt-1">
-        <button type="submit" class="flex-1 bg-[#8ab4f8] hover:bg-[#a8c7fa] text-[#041e49] font-bold rounded-lg py-2 text-xs transition" data-i18n="google_continue_btn">
-          Continue with Google
-        </button>
-        <button type="button" onclick="toggleUseAnotherAccount()" class="px-3 py-2 text-xs text-[#9aa0a6] hover:text-[#e8eaed]">
-          Cancel
-        </button>
-      </div>
-    </form>
-
-    <!-- Disclaimer -->
-    <div class="border-t border-[#3c4043] mt-4 mb-3 pt-3">
-      <p class="text-[12px] text-[#9aa0a6] leading-relaxed">
-        <span data-i18n="google_disclaimer_pre">Before using this app, you can review Free Wi-Fi's</span>
-        <a href="#privacy" onclick="alert('Privacy Policy: We protect your privacy and only use Google account for Free Wi-Fi access.');return false;" class="text-[#8ab4f8] hover:underline font-medium" data-i18n="google_privacy_policy">Privacy Policy</a>
-        <span data-i18n="google_and">and</span>
-        <a href="#terms" onclick="alert('Terms of Service: Free Wi-Fi 60-minute daily service or 30-day VIP pass.');return false;" class="text-[#8ab4f8] hover:underline font-medium" data-i18n="google_terms_service">Terms of Service</a>.
-      </p>
-    </div>
-
-    <!-- Official Google Popup fallback trigger -->
-    <button type="button" onclick="openNativeGooglePopup()" class="w-full mb-3 py-1.5 text-[11px] text-[#8ab4f8] hover:text-[#a8c7fa] hover:underline flex items-center justify-center space-x-1.5 opacity-90 transition">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-      <span data-i18n="google_direct_popup_btn">Open official Google Sign-In window</span>
-    </button>
-
-    <!-- Footer Bar: Language dropdown + Links -->
-    <div class="flex items-center justify-between text-xs text-[#9aa0a6] pt-1">
-      <div class="flex items-center space-x-1 cursor-pointer">
-        <select id="google-dlg-lang-select" onchange="setLanguage(this.value)" class="bg-transparent text-[#9aa0a6] hover:text-[#e8eaed] cursor-pointer outline-none border-none text-[12px] font-medium pr-1">
-          <option value="en" class="bg-[#1e1f20] text-[#e8eaed]">English (United States)</option>
-          <option value="th" class="bg-[#1e1f20] text-[#e8eaed]">ไทย (Thai)</option>
-          <option value="mm" class="bg-[#1e1f20] text-[#e8eaed]">မြန်မာ (Myanmar)</option>
-        </select>
-      </div>
-      <div class="space-x-3.5 text-[12px]">
-        <a href="https://t.me/petharsupport" target="_blank" class="hover:text-[#e8eaed] transition" data-i18n="google_help">Help</a>
-        <a href="#privacy" onclick="alert('Google Sign-In uses standard OAuth 2.0.');return false;" class="hover:text-[#e8eaed] transition" data-i18n="google_privacy">Privacy</a>
-        <a href="#terms" onclick="alert('Free Wi-Fi Service Terms: 1 Hour free per 24 hours per account.');return false;" class="hover:text-[#e8eaed] transition" data-i18n="google_terms">Terms</a>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
 // ============================================================================
 // Trilingual I18N Dictionary (Thai 🇹🇭 | Burmese 🇲🇲 | English 🇬🇧)
@@ -2005,8 +1885,6 @@ function onFileSelected(input) {
   }
 }
 
-const JACK_AVATAR_B64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAACiUlEQVR4AdXB3WscVRjA4d/7njNndjfs7KRpExFMqTfe9Fra/r0FQdAKUihUEESoCiJVqAU/MN0km92tzWaTzc7MmTlH9ra0mnp3nkeKooi8Zndvl9333mc+n1OOSkSVXr+HiLBRVTUiQtd1lGXJYGuANYY/f/+Dm7c+oBwNcbmjqWs28jzD5TkhBKyx7N/cZ3I0xtqM2nu89wyLIXVV8+jhYw7HR7zO8gaz6YzV6hI1jn6vjxqLqhJjh4gSuo47d+/xy89P8U3NmgBiUGtYLJbcvv0RIqAqOJeh1mBUsTbDWouqYf/DWwiCiBBjoK5qPrn/KYfjI97E8hariwuyzHHuMvqDPq1vEBHUCKqGnZ1r2Czj/PyCGMHliiBMjqfEqLRdR4yBLoJtA8YajLGICqpC6CDGQNt1HB9O+OKzL5mezHgby7/wvuHv+ZTta9cZjkp82xJ9QER48PkDrt/YZWN1uebG3h6npwuqquJyvaKpGyDieo48z9BGyawhcxkhdqhC1wWefPs9jx4+5r9YruD01UtWF+ds7+zQH2yRZRYQVIAYCaGlrtZkVmmbCt+0RDYEoiBAJBJDx4aI4fmz53z91Te8OBhzFZYrapqa6eSYvNejKEqGoxG9wRZtCCwXC9q2xRiLGkvdeKxVICICIYIRYb2u+fXZb/z041MO/nrBu7C8o7qqmFcnzGcnnL56iXMO5xzL5RLfNHjvWSzO2C6HrFaXzE6mnJ0tmRxPGB8c8n9JURSRBCiJUBKhJEJJhJIIJRFKIpREKIlQEqEkQkmEkgglEUoilEQoiVASoSRCSYSSCCURSiKURCiJUBKhJEJJhJIIJRH247t3SIH94cl3pEBJhJKIfwC8RAa9McHN5QAAAABJRU5ErkJggg==';
-
 const DEFAULT_FIREBASE_CONFIG = {
   apiKey: "AIzaSyCr-hr5oeYdwUUdQgywHTl5VobOJ_ZNZ14",
   authDomain: "free-wifi-portal.firebaseapp.com",
@@ -2038,145 +1916,117 @@ function initFirebaseClient() {
 }
 initFirebaseClient();
 
-// Google Auth Trigger: Opens the authentic Google "Choose an account" dialog (Image 3)
+// Handle redirect result if signInWithRedirect was used by browser
+if (window.firebase && firebase.auth) {
+  firebase.auth().getRedirectResult().then(async (result) => {
+    if (result && result.user) {
+      const user = result.user;
+      const idToken = await user.getIdToken();
+      const email = user.email;
+      const name = user.displayName || email.split('@')[0];
+      const picture = user.photoURL || null;
+      const mode = localStorage.getItem('pending_auth_mode') || 'free';
+
+      showToast({
+        msg_th: 'เข้าสู่ระบบด้วย ' + email + ' สำเร็จ! กำลังเปิดใช้งาน Wi-Fi...',
+        msg_en: 'Signed in as ' + email + '! Activating Wi-Fi...'
+      });
+
+      if (mode === 'free') {
+        await submitFreeTrial(email, name, picture, idToken);
+      } else {
+        await submitGoogleLogin(email, idToken);
+      }
+    }
+  }).catch((err) => {
+    console.warn('getRedirectResult notice:', err.message);
+  });
+}
+
+// Trigger Google Sign-In Popup Window (Real Google Account Chooser)
 function triggerGoogleAuth(mode) {
   pendingAuthMode = mode || 'free';
-  openGoogleDialog(mode);
-}
+  localStorage.setItem('pending_auth_mode', pendingAuthMode);
 
-function openGoogleDialog(mode) {
-  pendingAuthMode = mode || 'free';
-  const dlg = document.getElementById('google-dialog');
-  if (!dlg) return;
-  dlg.classList.remove('hidden');
-
-  // Check if a secondary account was stored in localStorage
-  const lastEmail = localStorage.getItem('portal_last_email');
-  const lastName = localStorage.getItem('portal_last_name');
-  const secRow = document.getElementById('google-secondary-account');
-  if (secRow) {
-    if (lastEmail && lastEmail.toLowerCase() !== 'realjackhalder@gmail.com') {
-      secRow.classList.remove('hidden');
-      document.getElementById('secondary-name').textContent = lastName || lastEmail.split('@')[0];
-      document.getElementById('secondary-email').textContent = lastEmail;
-      document.getElementById('secondary-avatar').textContent = (lastName || lastEmail).charAt(0).toUpperCase();
-    } else {
-      secRow.classList.add('hidden');
-    }
+  initFirebaseClient();
+  if (!window.firebase || !firebase.auth) {
+    showToast({ 
+      ok: false, 
+      msg_th: 'กำลังโหลดระบบ Google กรุณารอสักครู่...', 
+      msg_mm: 'Google စနစ် ဖွင့်နေပါသည်...', 
+      msg_en: 'Loading Google SDK, please wait...' 
+    });
+    return;
   }
 
-  // Hide the custom email input by default
-  const form = document.getElementById('google-another-form');
-  if (form) form.classList.add('hidden');
-
-  // Sync language dropdown inside modal
-  const langSel = document.getElementById('google-dlg-lang-select');
-  if (langSel) langSel.value = currentLang;
-}
-
-function closeGoogleDialog() {
-  const dlg = document.getElementById('google-dialog');
-  if (dlg) dlg.classList.add('hidden');
-}
-
-function toggleUseAnotherAccount() {
-  const form = document.getElementById('google-another-form');
-  if (form) {
-    form.classList.toggle('hidden');
-    if (!form.classList.contains('hidden')) {
-      const inp = document.getElementById('dlg-custom-email');
-      if (inp) inp.focus();
-    }
-  }
-}
-
-async function selectGoogleAccount(email, name, avatarKey) {
-  closeGoogleDialog();
   showToast({ 
-    msg_th: 'กำลังเข้าสู่ระบบ Google: ' + name + '...', 
-    msg_mm: 'Google အကောင့်ဝင်နေပါသည်: ' + name + '...', 
-    msg_en: 'Signing in with Google: ' + name + '...' 
+    msg_th: 'กำลังเปิดหน้าต่างลงชื่อเข้าใช้ Google เพื่อเลือกบัญชี...', 
+    msg_mm: 'Google အကောင့် ရွေးချယ်ရန် ဖွင့်နေပါသည်...', 
+    msg_en: 'Opening Google Sign-In window to select account...' 
   });
 
-  localStorage.setItem('portal_last_email', email);
-  localStorage.setItem('portal_last_name', name);
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+  // Forces Google to show the real account selection screen ("Choose an account")
+  provider.setCustomParameters({
+    prompt: 'select_account'
+  });
 
-  const pic = avatarKey === 'avatar-jack' ? JACK_AVATAR_B64 : null;
-  if (pendingAuthMode === 'free') {
-    await submitFreeTrial(email, name, pic);
-  } else {
-    await submitGoogleLogin(email);
-  }
-}
-
-async function selectSecondaryGoogleAccount() {
-  const email = localStorage.getItem('portal_last_email');
-  const name = localStorage.getItem('portal_last_name') || email.split('@')[0];
-  if (email) {
-    await selectGoogleAccount(email, name, null);
-  }
-}
-
-async function submitCustomGoogleAccount(e) {
-  if (e && e.preventDefault) e.preventDefault();
-  const email = document.getElementById('dlg-custom-email').value.trim();
-  const name = document.getElementById('dlg-custom-name').value.trim() || email.split('@')[0];
-  if (!email || !email.includes('@')) {
-    return showToast({ ok: false, msg_th: 'กรุณากรอกอีเมลให้ถูกต้อง', msg_en: 'Please enter a valid email address' });
-  }
-  await selectGoogleAccount(email, name, null);
-}
-
-// Open official Google browser popup window using Firebase Web SDK
-async function openNativeGooglePopup() {
-  initFirebaseClient();
-  if (firebaseReady && window.firebase && firebase.auth) {
-    try {
-      showToast({ 
-        msg_th: 'กำลังเปิดหน้าต่างลงชื่อเข้าใช้ Google...', 
-        msg_mm: 'Google အကောင့်ဝင်ရန် ဖွင့်နေပါသည်...', 
-        msg_en: 'Opening Google Sign-In...' 
-      });
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.addScope('email');
-      provider.addScope('profile');
-      provider.setCustomParameters({ prompt: 'select_account' });
-      
-      closeGoogleDialog();
-      const result = await firebase.auth().signInWithPopup(provider);
+  // Call signInWithPopup synchronously within the click event loop to prevent popup blocking
+  firebase.auth().signInWithPopup(provider)
+    .then(async (result) => {
+      if (!result || !result.user) return;
       const user = result.user;
       const idToken = await user.getIdToken();
       const email = user.email;
       const name = user.displayName || email.split('@')[0];
       const picture = user.photoURL || null;
 
-      localStorage.setItem('portal_last_email', email);
-      localStorage.setItem('portal_last_name', name);
+      showToast({
+        msg_th: 'เข้าสู่ระบบด้วย Google สำเร็จ: ' + email,
+        msg_mm: 'Google အကောင့်ဝင်ရောက်မှု အောင်မြင်ပါသည်: ' + email,
+        msg_en: 'Signed in with Google: ' + email
+      });
 
       if (pendingAuthMode === 'free') {
         await submitFreeTrial(email, name, picture, idToken);
       } else {
         await submitGoogleLogin(email, idToken);
       }
-      return;
-    } catch (popupErr) {
-      console.warn('Native Google popup notice:', popupErr.message);
-      if (popupErr.code === 'auth/popup-closed-by-user') return;
-      showToast({ 
-        ok: false, 
-        msg_th: 'หน้าต่าง Google ถูกบล็อก ให้เลือกบัญชีด้านล่าง', 
-        msg_en: 'Popup was blocked, please choose your account below' 
-      });
-      openGoogleDialog(pendingAuthMode);
-    }
-  } else {
-    showToast({ 
-      ok: false, 
-      msg_th: 'ไม่สามารถติดต่อ Google SDK ได้ ให้เลือกบัญชีด้านล่าง', 
-      msg_en: 'Google SDK offline, please choose your account below' 
+    })
+    .catch((err) => {
+      console.warn('Firebase Google Sign-In error:', err);
+      if (err.code === 'auth/popup-blocked') {
+        // If the browser blocks the popup window, redirect directly so the user still gets Google
+        showToast({
+          msg_th: 'เบราว์เซอร์บล็อกหน้าต่างป๊อปอัป กำลังเปิดหน้า Google โดยตรง...',
+          msg_en: 'Popup blocked by browser. Redirecting directly to Google...'
+        });
+        setTimeout(() => {
+          firebase.auth().signInWithRedirect(provider);
+        }, 600);
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        showToast({
+          ok: false,
+          msg_th: 'คุณปิดหน้าต่างลงชื่อเข้าใช้ Google',
+          msg_mm: 'Google အကောင့်ဝင်ခြင်းကို ပယ်ဖျက်လိုက်ပါသည်',
+          msg_en: 'Sign-in window was closed'
+        });
+      } else if (err.code === 'auth/unauthorized-domain') {
+        showToast({
+          ok: false,
+          msg_th: 'โดเมนนี้ (' + window.location.hostname + ') ยังไม่ได้เพิ่มใน Firebase Authorized Domains',
+          msg_en: 'Domain (' + window.location.hostname + ') is not in Firebase Authorized Domains'
+        });
+      } else {
+        showToast({
+          ok: false,
+          msg_th: 'เข้าสู่ระบบไม่สำเร็จ: ' + (err.message || err.code),
+          msg_en: 'Login error: ' + (err.message || err.code)
+        });
+      }
     });
-    openGoogleDialog(pendingAuthMode);
-  }
 }
 
 let currentEmail = { free: '', login: '' };
