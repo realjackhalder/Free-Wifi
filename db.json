@@ -1,5 +1,16 @@
 {
-  "sessions": {},
+  "accounts": {
+    "0812345678": {
+      "phone": "0812345678",
+      "pin": "1234",
+      "plan": "free-1h",
+      "expiresAt": 1793536850643,
+      "lastTrialAt": 1793533250643,
+      "activeIp": "127.0.0.1",
+      "activeMac": "localhost",
+      "blocked": false
+    }
+  },
   "usedSlips": [],
   "settings": {
     "monthlyPrice": 150,

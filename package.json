@@ -1,24 +1,16 @@
 {
-  "name": "free-wifi",
-  "version": "1.0.0",
-  "description": "",
+  "name": "free-wifi-captive-portal",
+  "version": "2.0.0",
+  "description": "Telecom-style Wi-Fi Captive Portal (True Free WiFi / AIS style)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "http://localhost:26831/realjackhalder/Free-Wifi"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "express": "^5.3.0",
-    "express-rate-limit": "^8.7.2",
+    "express": "^4.21.0",
+    "multer": "^1.4.5-lts.1",
     "jimp": "^0.22.12",
-    "jsqr": "^1.4.0",
-    "multer": "^2.5.0"
+    "jsqr": "^1.4.0"
   }
 }

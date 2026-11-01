@@ -3,3 +3,4 @@ uploads/*
 !uploads/.gitkeep
 public/qr.jpg
 public/qr.png
+db.json
