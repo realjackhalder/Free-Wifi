@@ -1,10 +1,11 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const multer = require('multer');
 const Jimp = require('jimp');
 const jsQR = require('jsqr');
+const rateLimit = require('express-rate-limit');
 const { allowIp, revokeIp, DRY_RUN } = require('./firewall');
 
 const app = express();
@@ -47,7 +48,12 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 function readDb() {
   try {
     const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    if (!parsed.sessions) parsed.sessions = {};
+    if (!parsed.sessions || typeof parsed.sessions !== 'object') parsed.sessions = {};
+    const safeSessions = Object.create(null);
+    for (const [key, value] of Object.entries(parsed.sessions)) {
+      safeSessions[getSafeSessionKey(key)] = value;
+    }
+    parsed.sessions = safeSessions;
     if (!Array.isArray(parsed.usedSlips)) parsed.usedSlips = [];
     if (!parsed.settings) parsed.settings = { monthlyPrice: 150, trialMinutes: 60, adminPin: '1234' };
     if (typeof parsed.settings.monthlyPrice !== 'number') parsed.settings.monthlyPrice = 150;
@@ -56,7 +62,7 @@ function readDb() {
     return parsed;
   } catch (error) {
     return {
-      sessions: {},
+      sessions: Object.create(null),
       usedSlips: [],
       settings: { monthlyPrice: 150, trialMinutes: 60, adminPin: '1234' },
     };
@@ -77,14 +83,22 @@ function normalizeIp(raw) {
   return ip.replace('::ffff:', '');
 }
 
+function getSafeSessionKey(key) {
+  const normalized = String(key || '').trim();
+  if (!normalized) return 'unknown-client';
+  if (['__proto__', 'prototype', 'constructor'].includes(normalized)) return `client:${normalized}`;
+  return normalized;
+}
+
 function getClientIp(req) {
   return normalizeIp(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '');
 }
 
 function getMacForIp(ip) {
   if (!ip || ip === '127.0.0.1' || ip === '::1') return Promise.resolve(ip || 'localhost');
+  if (!/^[a-fA-F0-9:.]+$/.test(ip)) return Promise.resolve(ip);
   return new Promise((resolve) => {
-    exec(`arp -n ${ip}`, (error, stdout) => {
+    execFile('arp', ['-n', ip], (error, stdout) => {
       if (error || !stdout) return resolve(ip);
       const match = stdout.match(/(([0-9a-f]{1,2}:){5}[0-9a-f]{1,2})/i);
       resolve(match ? match[1].toLowerCase() : ip);
@@ -95,7 +109,8 @@ function getMacForIp(ip) {
 async function getClientId(req) {
   const ip = getClientIp(req);
   const mac = await getMacForIp(ip);
-  return { ip, mac: mac || ip, key: mac || ip };
+  const rawKey = mac || ip;
+  return { ip, mac: mac || ip, key: getSafeSessionKey(rawKey) };
 }
 
 function sessionState(session) {
@@ -121,6 +136,14 @@ function getQrPath() {
   if (fs.existsSync(png)) return png;
   return null;
 }
+
+function getUploadedFilePath(file) {
+  const filename = path.basename(file?.filename || '');
+  if (!filename) return null;
+  return path.join(UPLOAD_DIR, filename);
+}
+
+const uploadLimiter = rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
 
 function renderPortal({ client, session, settings }) {
   const state = sessionState(session);
@@ -285,7 +308,7 @@ function renderAdmin({ db, pin }) {
 </html>`;
 }
 
-app.get('/my-qr', (req, res) => {
+app.get('/my-qr', uploadLimiter, (req, res) => {
   const qrPath = getQrPath();
   if (qrPath) return res.sendFile(qrPath);
   res.type('image/svg+xml').send(
@@ -325,24 +348,26 @@ app.post('/api/trial', async (req, res) => {
   res.json({ message: 'Free trial activated for 1 hour.' });
 });
 
-app.post('/api/verify-slip', upload.single('slip'), async (req, res) => {
+app.post('/api/verify-slip', uploadLimiter, upload.single('slip'), async (req, res) => {
   const db = readDb();
   const client = await getClientId(req);
   if (!req.file) return res.status(400).json({ message: 'Please upload a slip image.' });
+  const filePath = getUploadedFilePath(req.file);
+  if (!filePath) return res.status(400).json({ message: 'Invalid slip image upload.' });
 
   try {
-    const image = await Jimp.read(req.file.path);
+    const image = await Jimp.read(filePath);
     const { data, width, height } = image.bitmap;
     const qr = jsQR(new Uint8ClampedArray(data), width, height);
     const payload = qr && typeof qr.data === 'string' ? qr.data.trim() : '';
 
     if (!payload || payload.length < 25) {
-      fs.unlinkSync(req.file.path);
+      fs.unlinkSync(filePath);
       return res.status(400).json({ message: 'No valid bank QR payload found in slip.' });
     }
 
     if (db.usedSlips.includes(payload)) {
-      fs.unlinkSync(req.file.path);
+      fs.unlinkSync(filePath);
       return res.status(409).json({ message: 'This slip has already been used.' });
     }
 
@@ -352,7 +377,7 @@ app.post('/api/verify-slip', upload.single('slip'), async (req, res) => {
     session.mac = client.mac;
     session.plan = '30-Day Monthly';
     session.expiresAt = now() + 30 * 24 * 60 * 60 * 1000;
-    session.slipFile = req.file.filename;
+    session.slipFile = path.basename(req.file.filename);
     session.slipPayload = payload;
     db.sessions[client.key] = session;
     writeDb(db);
@@ -360,7 +385,7 @@ app.post('/api/verify-slip', upload.single('slip'), async (req, res) => {
 
     res.json({ message: 'Slip verified. 30-day access granted.' });
   } catch (error) {
-    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.status(400).json({ message: 'Could not process this image. Please upload a clearer slip screenshot.' });
   }
 });
@@ -376,14 +401,16 @@ app.get('/admin', (req, res) => {
 
 const adminUpload = multer({ dest: UPLOAD_DIR });
 
-app.post('/admin/upload-qr', adminUpload.single('qr'), (req, res) => {
+app.post('/admin/upload-qr', uploadLimiter, adminUpload.single('qr'), (req, res) => {
   const db = readDb();
   if (!isAdmin(req, db)) return res.status(403).send('Forbidden');
   if (!req.file) return res.status(400).send('No file uploaded');
+  const filePath = getUploadedFilePath(req.file);
+  if (!filePath) return res.status(400).send('Invalid upload');
 
   const target = path.join(PUBLIC_DIR, 'qr.jpg');
-  fs.copyFileSync(req.file.path, target);
-  fs.unlinkSync(req.file.path);
+  fs.copyFileSync(filePath, target);
+  fs.unlinkSync(filePath);
   res.redirect(`/admin?pin=${encodeURIComponent(req.query.pin || req.body.pin)}`);
 });
 
@@ -407,8 +434,8 @@ app.post('/admin/session/:sessionId/approve', async (req, res) => {
   const db = readDb();
   if (!isAdmin(req, db)) return res.status(403).send('Forbidden');
 
-  const sessionId = decodeURIComponent(req.params.sessionId);
-  const session = db.sessions[sessionId];
+  const sessionId = getSafeSessionKey(decodeURIComponent(req.params.sessionId));
+  const session = Object.prototype.hasOwnProperty.call(db.sessions, sessionId) ? db.sessions[sessionId] : null;
   if (session) {
     session.plan = '30-Day Monthly';
     session.expiresAt = now() + 30 * 24 * 60 * 60 * 1000;
@@ -423,8 +450,8 @@ app.post('/admin/session/:sessionId/revoke', async (req, res) => {
   const db = readDb();
   if (!isAdmin(req, db)) return res.status(403).send('Forbidden');
 
-  const sessionId = decodeURIComponent(req.params.sessionId);
-  const session = db.sessions[sessionId];
+  const sessionId = getSafeSessionKey(decodeURIComponent(req.params.sessionId));
+  const session = Object.prototype.hasOwnProperty.call(db.sessions, sessionId) ? db.sessions[sessionId] : null;
   if (session) {
     session.expiresAt = 0;
     session.plan = `${session.plan || 'Unknown'} (Revoked)`;
