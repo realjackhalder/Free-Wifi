@@ -18,6 +18,7 @@ const db = require('./database');
 const vpn = require('./vpn');
 const fb = require('./firebase-backend');
 const otp = require('./otp');
+const telegram = require('./telegram');
 
 const adminApp = express();
 const userApp = express();
@@ -36,11 +37,17 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 10 * 1024 * 1024 } });
 
 // Apply shared body parsing & static asset handling to both servers
+const staticOptions = {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.svg')) res.setHeader('Content-Type', 'image/svg+xml');
+  }
+};
+
 [adminApp, userApp].forEach((instance) => {
   instance.use(express.urlencoded({ extended: true }));
   instance.use(express.json());
-  instance.use(express.static(PUBLIC_DIR));
-  instance.use('/public', express.static(PUBLIC_DIR));
+  instance.use(express.static(PUBLIC_DIR, staticOptions));
+  instance.use('/public', express.static(PUBLIC_DIR, staticOptions));
   instance.use('/uploads', express.static(UPLOAD_DIR));
 });
 
@@ -477,26 +484,18 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
       console.error('[buy-package] Jimp/jsQR error:', imgErr.message);
     }
 
-    if (!qrPayload || qrPayload.length < 25) {
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      return res.json({
-        ok: false,
-        msg_th: 'ไม่พบ QR Code ธนาคารในสลิป หรือสลิปไม่ชัดเจน กรุณาอัปโหลดสลิปใหม่',
-        msg_mm: 'ပြေစာတွင် ဘဏ် QR ကုဒ် မတွေ့ပါ သို့မဟုတ် ပုံမကြည်လင်ပါ။ ပြေစာအသစ် ပြန်တင်ပေးပါ',
-        msg_en: 'No valid bank QR code found in slip. Please upload a clear bank receipt.'
-      });
-    }
-
     // Check if slip is already used
-    const alreadyUsed = await db.isSlipUsed(qrPayload);
-    if (alreadyUsed) {
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      return res.json({
-        ok: false,
-        msg_th: 'สลิปนี้ถูกใช้งานไปแล้ว ไม่สามารถใช้ซ้ำได้',
-        msg_mm: 'ဤငွေလွှဲပြေစာကို အသုံးပြုပြီးဖြစ်ပါသည်',
-        msg_en: 'This payment slip has already been used.'
-      });
+    if (qrPayload) {
+      const alreadyUsed = await db.isSlipUsed(qrPayload);
+      if (alreadyUsed) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        return res.json({
+          ok: false,
+          msg_th: 'สลิปนี้ถูกใช้งานไปแล้ว ไม่สามารถใช้ซ้ำได้',
+          msg_mm: 'ဤငွေလွှဲပြေစာကို အသုံးပြုပြီးဖြစ်ပါသည်',
+          msg_en: 'This payment slip has already been used.'
+        });
+      }
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -519,7 +518,57 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
       cloudUrl = await fb.uploadSlipToStorage(slipDest, slipName, req.file.mimetype || 'image/jpeg');
     }
 
-    // 1. Record Slip & IP Address in Firestore & SQLite Database
+    // Check if Telegram Bot is configured for Admin One-Click Approval
+    const tgConfig = await telegram.getConfig();
+    const hasTelegram = !!(tgConfig.token && tgConfig.chatId);
+
+    if (hasTelegram) {
+      // 1. Record Slip as 'pending' for Telegram Admin Approval
+      const recordResult = await db.recordSlip({
+        email: cleanEmail,
+        ip,
+        mac,
+        filename: slipName,
+        cloudUrl,
+        qrPayload: qrPayload || `tg_${cleanEmail}_${now}`,
+        amount: settings.monthlyPrice || 150,
+        status: 'pending'
+      });
+      const slipId = recordResult?.lastID;
+
+      // 2. Send slip photo with Device IP, Email, and [Approve]/[Decline] buttons to Telegram
+      telegram.sendSlipNotification({
+        slipId,
+        email: cleanEmail,
+        ip,
+        mac,
+        amount: settings.monthlyPrice || 150,
+        slipFilePath: slipDest,
+        qrPayload
+      }).catch(err => console.error('[TELEGRAM send error]', err));
+
+      return res.json({
+        ok: true,
+        pendingApproval: true,
+        slipId,
+        msg_th: 'อัปโหลดสลิปเรียบร้อยแล้ว! ส่งให้แอดมินตรวจสอบทาง Telegram เรียบร้อยแล้ว (กำลังรอการอนุมัติ)',
+        msg_mm: 'ငွေလွှဲပြေစာ တင်ပြီးပါပြီ! Telegram မှတစ်ဆင့် စီမံခန့်ခွဲသူ စစ်ဆေးအတည်ပြုရန် စောင့်ဆိုင်းနေပါသည်...',
+        msg_en: 'Payment slip submitted! Waiting for Admin approval via Telegram...'
+      });
+    }
+
+    // Fallback: If Telegram is not configured, require QR payload for automatic verification
+    if (!qrPayload || qrPayload.length < 25) {
+      if (fs.existsSync(slipDest)) fs.unlinkSync(slipDest);
+      return res.json({
+        ok: false,
+        msg_th: 'ไม่พบ QR Code ธนาคารในสลิป หรือสลิปไม่ชัดเจน กรุณาอัปโหลดสลิปใหม่',
+        msg_mm: 'ပြေစာတွင် ဘဏ် QR ကုဒ် မတွေ့ပါ သို့မဟုတ် ပုံမကြည်လင်ပါ။ ပြေစာအသစ် ပြန်တင်ပေးပါ (သို့မဟုတ် /admin တွင် Telegram Bot ချိတ်ဆက်ပါ)',
+        msg_en: 'No valid bank QR code found in slip. Please upload a clear bank receipt.'
+      });
+    }
+
+    // Auto-verify path (when Telegram is not configured)
     await db.recordSlip({
       email: cleanEmail,
       ip,
@@ -531,10 +580,8 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
       status: 'verified'
     });
 
-    // 2. Log IP action in SQLite Database
     await db.logIpAction({ email: cleanEmail, ip, mac, action: 'buy_package' });
 
-    // 3. Save Account in SQLite Database
     const accountData = {
       email: cleanEmail,
       name: name || cleanEmail.split('@')[0],
@@ -566,6 +613,25 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
       msg_en: 'Error verifying slip. Please try again.'
     });
   }
+});
+
+// --- GET /api/slip-status (Polling for Telegram slip approval) ---
+userApp.get('/api/slip-status', async (req, res) => {
+  const slipId = parseInt(req.query.slipId, 10);
+  if (!slipId) return res.json({ ok: false, error: 'Missing slipId' });
+  const slip = await db.getSlipById(slipId);
+  if (!slip) return res.json({ ok: false, error: 'Slip not found' });
+
+  const account = await db.getAccount(slip.email);
+  const isVipActive = account && account.plan === 'vip-30d' && account.expiresAt > Date.now();
+
+  return res.json({
+    ok: true,
+    status: slip.status, // 'pending', 'approved', 'declined'
+    isVipActive: !!isVipActive,
+    email: slip.email,
+    ip: slip.ip_address
+  });
 });
 
 // --- POST /api/login (Google Account Member Login / Device Switching) ---
@@ -773,7 +839,7 @@ adminApp.post('/admin/settings', async (req, res) => {
   const pin = req.query.pin;
   if (pin !== settings.adminPin) return res.status(403).send('Unauthorized');
 
-  const { monthlyPrice, trialMinutes, adminPin, googleClientId, smtpHost, smtpPort, smtpUser, smtpPass } = req.body;
+  const { monthlyPrice, trialMinutes, adminPin, googleClientId, smtpHost, smtpPort, smtpUser, smtpPass, telegramBotToken, telegramChatId } = req.body;
   if (monthlyPrice) await db.setSetting('monthlyPrice', String(parseInt(monthlyPrice, 10) || 150));
   if (trialMinutes) await db.setSetting('trialMinutes', String(parseInt(trialMinutes, 10) || 60));
   if (adminPin && /^[0-9]{4,}$/.test(adminPin)) await db.setSetting('adminPin', adminPin);
@@ -782,8 +848,23 @@ adminApp.post('/admin/settings', async (req, res) => {
   if (smtpPort !== undefined) await db.setSetting('smtpPort', smtpPort.trim() || '587');
   if (smtpUser !== undefined) await db.setSetting('smtpUser', smtpUser.trim());
   if (smtpPass !== undefined && smtpPass.trim() !== '') await db.setSetting('smtpPass', smtpPass.trim().replace(/\s+/g, ''));
+  if (telegramBotToken !== undefined) await db.setSetting('telegramBotToken', telegramBotToken.trim());
+  if (telegramChatId !== undefined) await db.setSetting('telegramChatId', telegramChatId.trim());
+  telegram.reload();
 
-  return res.redirect(`/admin?pin=${adminPin || settings.adminPin}&msg=${encodeURIComponent('စနစ် ဆက်တင်များနှင့် အီးမေးလ် ဆက်တင်များ အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ')}`);
+  return res.redirect(`/admin?pin=${adminPin || settings.adminPin}&msg=${encodeURIComponent('စနစ် ဆက်တင်များနှင့် Telegram Bot ဆက်တင်များ အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ')}`);
+});
+
+// --- POST /admin/telegram-test ---
+adminApp.post('/admin/telegram-test', async (req, res) => {
+  const pin = req.query.pin || req.body.pin;
+  const settings = await db.getAllSettings();
+  if (pin !== settings.adminPin) return res.status(403).json({ ok: false, error: 'Unauthorized' });
+
+  const token = (req.body.telegramBotToken || settings.telegramBotToken || '').trim();
+  const chatId = (req.body.telegramChatId || settings.telegramChatId || '').trim();
+  const result = await telegram.sendTestMessage(token, chatId);
+  return res.json(result);
 });
 
 // --- GET /api/firebase-config (Available on both Admin & User apps) ---
@@ -935,6 +1016,7 @@ setInterval(async () => {
 
 (async () => {
   await db.initDb();
+  telegram.startPolling();
   const lanIp = getServerIp();
 
   // 1. Admin Management Server (Port 3000)
@@ -1143,22 +1225,41 @@ function renderPortal(account, settings) {
   <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:rgba(255,255,255,0.06);border-radius:50%;pointer-events:none;"></div>
   <div style="position:absolute;bottom:-60px;left:-30px;width:120px;height:120px;background:rgba(255,255,255,0.04);border-radius:50%;pointer-events:none;"></div>
   
-  <!-- Top Bar: Right Corner Language Flag Photos (No Text) -->
+  <!-- Top Bar: Right Corner Language Flag Photos (Inline Vector SVGs) -->
   <div class="flex items-center justify-end max-w-md mx-auto mb-2 relative z-30">
     <div class="inline-flex items-center space-x-2 bg-black bg-opacity-35 hover:bg-opacity-45 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white border-opacity-20 shadow-md">
       <!-- Thai Flag Photo -->
       <button type="button" onclick="setLanguage('th')" id="lang-btn-th" title="Thai Flag" class="lang-flag-btn relative p-0.5 rounded transition duration-150 active:scale-90 hover:opacity-100 opacity-60">
-        <img src="/public/flags/th.svg" alt="Thai Flag" class="w-7 h-5 sm:w-8 sm:h-5.5 rounded-sm object-cover shadow-sm pointer-events-none border border-black border-opacity-25" />
+        <svg viewBox="0 0 900 600" class="w-7 h-5 sm:w-8 sm:h-5.5 rounded-sm object-cover shadow-sm pointer-events-none border border-black border-opacity-25" xmlns="http://www.w3.org/2000/svg">
+          <rect width="900" height="600" fill="#A51931"/>
+          <rect y="100" width="900" height="400" fill="#F4F5F8"/>
+          <rect y="200" width="900" height="200" fill="#2D2A4A"/>
+        </svg>
       </button>
 
       <!-- Myanmar Flag Photo -->
       <button type="button" onclick="setLanguage('mm')" id="lang-btn-mm" title="Myanmar Flag" class="lang-flag-btn relative p-0.5 rounded transition duration-150 active:scale-90 hover:opacity-100 opacity-60">
-        <img src="/public/flags/mm.svg" alt="Myanmar Flag" class="w-7 h-5 sm:w-8 sm:h-5.5 rounded-sm object-cover shadow-sm pointer-events-none border border-black border-opacity-25" />
+        <svg viewBox="0 0 900 600" class="w-7 h-5 sm:w-8 sm:h-5.5 rounded-sm object-cover shadow-sm pointer-events-none border border-black border-opacity-25" xmlns="http://www.w3.org/2000/svg">
+          <rect width="900" height="200" fill="#FECB00"/>
+          <rect y="200" width="900" height="200" fill="#34B233"/>
+          <rect y="400" width="900" height="200" fill="#EA2839"/>
+          <polygon points="450,116 496,258 645,258 525,345 571,487 450,400 329,487 375,345 255,258 404,258" fill="#FFFFFF"/>
+        </svg>
       </button>
 
       <!-- GB Flag Photo -->
       <button type="button" onclick="setLanguage('en')" id="lang-btn-en" title="GB Flag" class="lang-flag-btn relative p-0.5 rounded transition duration-150 active:scale-90 hover:opacity-100 opacity-60">
-        <img src="/public/flags/gb.svg" alt="GB Flag" class="w-7 h-5 sm:w-8 sm:h-5.5 rounded-sm object-cover shadow-sm pointer-events-none border border-black border-opacity-25" />
+        <svg viewBox="0 0 60 30" class="w-7 h-5 sm:w-8 sm:h-5.5 rounded-sm object-cover shadow-sm pointer-events-none border border-black border-opacity-25" xmlns="http://www.w3.org/2000/svg">
+          <clipPath id="clip-s-gb"><path d="M0,0 v30 h60 v-30 z"/></clipPath>
+          <clipPath id="clip-t-gb"><path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z"/></clipPath>
+          <g clip-path="url(#clip-s-gb)">
+            <path d="M0,0 v30 h60 v-30 z" fill="#012169"/>
+            <path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/>
+            <path d="M0,0 L60,30 M60,0 L0,30" clip-path="url(#clip-t-gb)" stroke="#C8102E" stroke-width="4"/>
+            <path d="M30,0 v30 M0,15 h60" stroke="#fff" stroke-width="10"/>
+            <path d="M30,0 v30 M0,15 h60" stroke="#C8102E" stroke-width="6"/>
+          </g>
+        </svg>
       </button>
     </div>
   </div>
@@ -1486,37 +1587,123 @@ ${
   </div>
 </div>
 
-<!-- Google Account Dialog Modal (Mobile Bottom-Sheet / Responsive Card) -->
-<div id="google-dialog" class="hidden fixed inset-0 bg-black bg-opacity-65 flex items-center justify-center p-3 sm:p-4 z-50 backdrop-blur-sm" onclick="if(event.target.id==='google-dialog')closeGoogleDialog()">
-  <div class="bg-white rounded-3xl p-5 sm:p-6 max-w-sm w-full relative shadow-2xl animate-fade max-h-[92vh] overflow-y-auto">
-    <button onclick="closeGoogleDialog()" class="absolute top-3.5 right-4 text-gray-400 hover:text-gray-600 text-2xl font-bold p-1 leading-none">&times;</button>
+<!-- Google Account Dialog Modal (Matching Official Google Account Chooser UI) -->
+<div id="google-dialog" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-3 sm:p-4 z-50 backdrop-blur-sm" onclick="if(event.target.id==='google-dialog')closeGoogleDialog()">
+  <div class="bg-[#131314] text-[#e8eaed] rounded-[28px] max-w-[420px] w-full p-6 sm:p-7 relative shadow-2xl border border-[#303134] animate-fade max-h-[95vh] overflow-y-auto" style="font-family: -apple-system, BlinkMacSystemFont, 'Google Sans', Roboto, 'Segoe UI', Helvetica, Arial, sans-serif;">
     
-    <div class="flex items-center space-x-2 mb-2">
-      <svg class="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-      </svg>
-      <span class="font-bold text-gray-800 text-sm">Sign in with Google</span>
+    <!-- Top Bar: Google Logo + Brand Text + Close Button -->
+    <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center space-x-2.5">
+        <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        <span class="text-sm font-medium text-[#e8eaed]" data-i18n="google_dialog_brand">Sign in with Google</span>
+      </div>
+      <button type="button" onclick="closeGoogleDialog()" title="Close" class="text-[#9aa0a6] hover:text-[#e8eaed] text-2xl font-normal leading-none p-1 transition">&times;</button>
     </div>
 
-    <h3 class="text-base font-black text-gray-900 mb-1" data-i18n="google_dialog_title">เลือกบัญชี Google ของคุณ</h3>
-    <p class="text-xs text-gray-500 mb-4" data-i18n="google_dialog_sub">เพื่อเข้าใช้งานอินเทอร์เน็ต Free Wi-Fi</p>
+    <!-- App Branding Icon -->
+    <div class="w-11 h-11 rounded-xl bg-black border border-[#3c4043] flex items-center justify-center mt-5 mb-4 shadow-sm">
+      <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"/>
+      </svg>
+    </div>
 
-    <form onsubmit="confirmGoogleAccount(event)" class="space-y-3">
-      <div>
-        <label class="block text-xs font-bold text-gray-600 mb-1">Google Email</label>
-        <input type="email" id="dlg-email" placeholder="username@gmail.com" autofocus required class="input-field text-base font-semibold" />
-      </div>
-      <div>
-        <label class="block text-xs font-bold text-gray-600 mb-1">ชื่อที่แสดง (Display Name)</label>
-        <input type="text" id="dlg-name" placeholder="ชื่อของคุณ (เช่น Somchai, Aung Myint)" class="input-field text-base" />
-      </div>
-      <button type="submit" id="dlg-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl py-3 text-base min-h-[48px] transition active:scale-95 shadow-md">
-        ดำเนินการต่อ / Continue with Google
+    <!-- Title and Subtitle -->
+    <h2 class="text-[26px] sm:text-[28px] font-normal text-[#e8eaed] tracking-tight leading-tight" data-i18n="google_choose_account">Choose an account</h2>
+    <p class="text-sm text-[#9aa0a6] mt-1 mb-5">
+      <span data-i18n="google_to_continue">to continue to</span> <span class="font-medium text-[#8ab4f8]">Free Wi-Fi</span>
+    </p>
+
+    <!-- Account Chooser List -->
+    <div class="border-t border-[#3c4043]">
+      <!-- Primary Account: Jack Halder -->
+      <button type="button" onclick="selectGoogleAccount('realjackhalder@gmail.com', 'Jack Halder', 'avatar-jack')" class="w-full flex items-center py-3.5 px-2.5 rounded-xl hover:bg-[#202124] active:bg-[#303134] transition text-left group">
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAACiUlEQVR4AdXB3WscVRjA4d/7njNndjfs7KRpExFMqTfe9Fra/r0FQdAKUihUEESoCiJVqAU/MN0km92tzWaTzc7MmTlH9ra0mnp3nkeKooi8Zndvl9333mc+n1OOSkSVXr+HiLBRVTUiQtd1lGXJYGuANYY/f/+Dm7c+oBwNcbmjqWs28jzD5TkhBKyx7N/cZ3I0xtqM2nu89wyLIXVV8+jhYw7HR7zO8gaz6YzV6hI1jn6vjxqLqhJjh4gSuo47d+/xy89P8U3NmgBiUGtYLJbcvv0RIqAqOJeh1mBUsTbDWouqYf/DWwiCiBBjoK5qPrn/KYfjI97E8hariwuyzHHuMvqDPq1vEBHUCKqGnZ1r2Czj/PyCGMHliiBMjqfEqLRdR4yBLoJtA8YajLGICqpC6CDGQNt1HB9O+OKzL5mezHgby7/wvuHv+ZTta9cZjkp82xJ9QER48PkDrt/YZWN1uebG3h6npwuqquJyvaKpGyDieo48z9BGyawhcxkhdqhC1wWefPs9jx4+5r9YruD01UtWF+ds7+zQH2yRZRYQVIAYCaGlrtZkVmmbCt+0RDYEoiBAJBJDx4aI4fmz53z91Te8OBhzFZYrapqa6eSYvNejKEqGoxG9wRZtCCwXC9q2xRiLGkvdeKxVICICIYIRYb2u+fXZb/z041MO/nrBu7C8o7qqmFcnzGcnnL56iXMO5xzL5RLfNHjvWSzO2C6HrFaXzE6mnJ0tmRxPGB8c8n9JURSRBCiJUBKhJEJJhJIIJRFKIpREKIlQEqEkQkmEkgglEUoilEQoiVASoSRCSYSSCCURSiKURCiJUBKhJEJJhJIIJRH247t3SIH94cl3pEBJhJKIfwC8RAa9McHN5QAAAABJRU5ErkJggg==" alt="Jack Halder" class="w-10 h-10 rounded-full object-cover border border-[#5f6368] mr-3.5 flex-shrink-0 shadow-sm" />
+        <div class="flex-grow min-w-0">
+          <div class="text-[14px] font-semibold text-[#e8eaed] truncate group-hover:text-white">Jack Halder</div>
+          <div class="text-[13px] text-[#9aa0a6] truncate">realjackhalder@gmail.com</div>
+        </div>
       </button>
+
+      <!-- Optional Second Account if previously saved in localStorage -->
+      <div id="google-secondary-account" class="hidden border-t border-[#3c4043]">
+        <button type="button" onclick="selectSecondaryGoogleAccount()" class="w-full flex items-center py-3.5 px-2.5 rounded-xl hover:bg-[#202124] active:bg-[#303134] transition text-left group">
+          <div id="secondary-avatar" class="w-10 h-10 rounded-full bg-[#1a73e8] text-white font-bold flex items-center justify-center mr-3.5 flex-shrink-0 text-base shadow-sm">G</div>
+          <div class="flex-grow min-w-0">
+            <div id="secondary-name" class="text-[14px] font-semibold text-[#e8eaed] truncate group-hover:text-white">User</div>
+            <div id="secondary-email" class="text-[13px] text-[#9aa0a6] truncate">user@gmail.com</div>
+          </div>
+        </button>
+      </div>
+
+      <!-- Use another account -->
+      <div class="border-t border-[#3c4043]">
+        <button type="button" onclick="toggleUseAnotherAccount()" class="w-full flex items-center py-3.5 px-2.5 rounded-xl hover:bg-[#202124] active:bg-[#303134] transition text-left group">
+          <div class="w-10 h-10 rounded-full border border-[#5f6368] flex items-center justify-center mr-3.5 flex-shrink-0 text-[#9aa0a6] group-hover:text-[#e8eaed]">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+          <span class="text-[14px] font-semibold text-[#e8eaed] group-hover:text-white" data-i18n="google_use_another">Use another account</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Expandable Custom Account Input -->
+    <form id="google-another-form" onsubmit="submitCustomGoogleAccount(event)" class="hidden pt-3 pb-2 px-3 space-y-3 bg-[#1e1f20] rounded-xl border border-[#3c4043] my-2">
+      <div>
+        <label class="block text-[11px] font-medium text-[#9aa0a6] mb-1" data-i18n="google_enter_email">Google Email</label>
+        <input type="email" id="dlg-custom-email" required placeholder="username@gmail.com" class="w-full bg-[#131314] border border-[#5f6368] focus:border-[#8ab4f8] rounded-lg px-3 py-2 text-sm text-[#e8eaed] placeholder-[#5f6368] outline-none" />
+      </div>
+      <div>
+        <label class="block text-[11px] font-medium text-[#9aa0a6] mb-1">Display Name</label>
+        <input type="text" id="dlg-custom-name" placeholder="Your Name" class="w-full bg-[#131314] border border-[#5f6368] focus:border-[#8ab4f8] rounded-lg px-3 py-2 text-sm text-[#e8eaed] placeholder-[#5f6368] outline-none" />
+      </div>
+      <div class="flex items-center space-x-2 pt-1">
+        <button type="submit" class="flex-1 bg-[#8ab4f8] hover:bg-[#a8c7fa] text-[#041e49] font-bold rounded-lg py-2 text-xs transition" data-i18n="google_continue_btn">
+          Continue with Google
+        </button>
+        <button type="button" onclick="toggleUseAnotherAccount()" class="px-3 py-2 text-xs text-[#9aa0a6] hover:text-[#e8eaed]">
+          Cancel
+        </button>
+      </div>
     </form>
+
+    <!-- Disclaimer -->
+    <div class="border-t border-[#3c4043] mt-4 mb-3 pt-3">
+      <p class="text-[12px] text-[#9aa0a6] leading-relaxed">
+        <span data-i18n="google_disclaimer_pre">Before using this app, you can review Free Wi-Fi's</span>
+        <a href="#privacy" onclick="alert('Privacy Policy: We protect your privacy and only use Google account for Free Wi-Fi access.');return false;" class="text-[#8ab4f8] hover:underline font-medium" data-i18n="google_privacy_policy">Privacy Policy</a>
+        <span data-i18n="google_and">and</span>
+        <a href="#terms" onclick="alert('Terms of Service: Free Wi-Fi 60-minute daily service or 30-day VIP pass.');return false;" class="text-[#8ab4f8] hover:underline font-medium" data-i18n="google_terms_service">Terms of Service</a>.
+      </p>
+    </div>
+
+    <!-- Official Google Popup fallback trigger -->
+    <button type="button" onclick="openNativeGooglePopup()" class="w-full mb-3 py-1.5 text-[11px] text-[#8ab4f8] hover:text-[#a8c7fa] hover:underline flex items-center justify-center space-x-1.5 opacity-90 transition">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      <span data-i18n="google_direct_popup_btn">Open official Google Sign-In window</span>
+    </button>
+
+    <!-- Footer Bar: Language dropdown + Links -->
+    <div class="flex items-center justify-between text-xs text-[#9aa0a6] pt-1">
+      <div class="flex items-center space-x-1 cursor-pointer">
+        <select id="google-dlg-lang-select" onchange="setLanguage(this.value)" class="bg-transparent text-[#9aa0a6] hover:text-[#e8eaed] cursor-pointer outline-none border-none text-[12px] font-medium pr-1">
+          <option value="en" class="bg-[#1e1f20] text-[#e8eaed]">English (United States)</option>
+          <option value="th" class="bg-[#1e1f20] text-[#e8eaed]">ไทย (Thai)</option>
+          <option value="mm" class="bg-[#1e1f20] text-[#e8eaed]">မြန်မာ (Myanmar)</option>
+        </select>
+      </div>
+      <div class="space-x-3.5 text-[12px]">
+        <a href="https://t.me/petharsupport" target="_blank" class="hover:text-[#e8eaed] transition" data-i18n="google_help">Help</a>
+        <a href="#privacy" onclick="alert('Google Sign-In uses standard OAuth 2.0.');return false;" class="hover:text-[#e8eaed] transition" data-i18n="google_privacy">Privacy</a>
+        <a href="#terms" onclick="alert('Free Wi-Fi Service Terms: 1 Hour free per 24 hours per account.');return false;" class="hover:text-[#e8eaed] transition" data-i18n="google_terms">Terms</a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1563,6 +1750,20 @@ const I18N = {
     btn_login: "เข้าสู่ระบบ / Connect",
     footer_need_help: "ต้องการความช่วยเหลือ?",
     footer_click_here: "คลิกที่นี่",
+    google_dialog_brand: "Sign in with Google",
+    google_choose_account: "เลือกบัญชี",
+    google_to_continue: "เพื่อไปยัง",
+    google_use_another: "ใช้บัญชีอื่น",
+    google_disclaimer_pre: "ก่อนที่จะใช้แอปนี้ คุณสามารถอ่าน",
+    google_privacy_policy: "นโยบายความเป็นส่วนตัว",
+    google_and: "และ",
+    google_terms_service: "ข้อกำหนดในการให้บริการ",
+    google_help: "ความช่วยเหลือ",
+    google_privacy: "ความเป็นส่วนตัว",
+    google_terms: "ข้อกำหนด",
+    google_direct_popup_btn: "เปิดหน้าต่าง Google แท้",
+    google_enter_email: "Google Email",
+    google_continue_btn: "ดำเนินการต่อด้วย Google",
     google_dialog_title: "เลือกบัญชี Google ของคุณ",
     google_dialog_sub: "เพื่อเข้าใช้งานอินเทอร์เน็ต Free Wi-Fi",
     btn_req_otp: "ขอรหัส OTP เพื่อเชื่อมต่อเน็ตฟรี",
@@ -1614,6 +1815,20 @@ const I18N = {
     btn_login: "အကောင့်ဝင်ပါ / Connect",
     footer_need_help: "အကူအညီ လိုအပ်ပါက",
     footer_click_here: "ဤနေရာကိုနှိပ်ပါ",
+    google_dialog_brand: "Sign in with Google",
+    google_choose_account: "အကောင့်တစ်ခု ရွေးပါ",
+    google_to_continue: "ဆက်လက်လုပ်ဆောင်ရန်",
+    google_use_another: "အခြားအကောင့်တစ်ခု အသုံးပြုပါ",
+    google_disclaimer_pre: "ဤအက်ပ်ကို မသုံးမီ Free Wi-Fi ၏",
+    google_privacy_policy: "ကိုယ်ရေးကိုယ်တာမူဝါဒ",
+    google_and: "နှင့်",
+    google_terms_service: "ဝန်ဆောင်မှုစည်းမျဉ်းများ",
+    google_help: "အကူအညီ",
+    google_privacy: "ကိုယ်ရေးကိုယ်တာ",
+    google_terms: "စည်းမျဉ်းများ",
+    google_direct_popup_btn: "တရားဝင် Google Popup ဖွင့်ရန်",
+    google_enter_email: "Google အီးမေးလ် ရိုက်ထည့်ပါ",
+    google_continue_btn: "Google ဖြင့် ဆက်သွားပါ",
     google_dialog_title: "သင့် Google အကောင့်ကို ရွေးချယ်ပါ",
     google_dialog_sub: "Free Wi-Fi အင်တာနက်ကို စတင်သုံးစွဲရန်",
     btn_req_otp: "အခမဲ့ အင်တာနက်အတွက် OTP ကုဒ်တောင်းမည်",
@@ -1665,6 +1880,20 @@ const I18N = {
     btn_login: "Login / Connect",
     footer_need_help: "Need help?",
     footer_click_here: "Click here",
+    google_dialog_brand: "Sign in with Google",
+    google_choose_account: "Choose an account",
+    google_to_continue: "to continue to",
+    google_use_another: "Use another account",
+    google_disclaimer_pre: "Before using this app, you can review Free Wi-Fi's",
+    google_privacy_policy: "Privacy Policy",
+    google_and: "and",
+    google_terms_service: "Terms of Service",
+    google_help: "Help",
+    google_privacy: "Privacy",
+    google_terms: "Terms",
+    google_direct_popup_btn: "Open official Google Sign-In window",
+    google_enter_email: "Google Email",
+    google_continue_btn: "Continue with Google",
     google_dialog_title: "Choose a Google Account",
     google_dialog_sub: "to continue to Free Wi-Fi",
     btn_req_otp: "Request OTP for Free Wi-Fi",
@@ -1702,6 +1931,9 @@ function setLanguage(lang) {
       }
     }
   });
+
+  const dlgLang = document.getElementById('google-dlg-lang-select');
+  if (dlgLang) dlgLang.value = lang;
 
   document.querySelectorAll('[data-i18n]').forEach(function(el) {
     const key = el.getAttribute('data-i18n');
@@ -1773,35 +2005,131 @@ function onFileSelected(input) {
   }
 }
 
-let firebaseReady = false;
-let firebaseClientConfig = null;
+const JACK_AVATAR_B64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAACiUlEQVR4AdXB3WscVRjA4d/7njNndjfs7KRpExFMqTfe9Fra/r0FQdAKUihUEESoCiJVqAU/MN0km92tzWaTzc7MmTlH9ra0mnp3nkeKooi8Zndvl9333mc+n1OOSkSVXr+HiLBRVTUiQtd1lGXJYGuANYY/f/+Dm7c+oBwNcbmjqWs28jzD5TkhBKyx7N/cZ3I0xtqM2nu89wyLIXVV8+jhYw7HR7zO8gaz6YzV6hI1jn6vjxqLqhJjh4gSuo47d+/xy89P8U3NmgBiUGtYLJbcvv0RIqAqOJeh1mBUsTbDWouqYf/DWwiCiBBjoK5qPrn/KYfjI97E8hariwuyzHHuMvqDPq1vEBHUCKqGnZ1r2Czj/PyCGMHliiBMjqfEqLRdR4yBLoJtA8YajLGICqpC6CDGQNt1HB9O+OKzL5mezHgby7/wvuHv+ZTta9cZjkp82xJ9QER48PkDrt/YZWN1uebG3h6npwuqquJyvaKpGyDieo48z9BGyawhcxkhdqhC1wWefPs9jx4+5r9YruD01UtWF+ds7+zQH2yRZRYQVIAYCaGlrtZkVmmbCt+0RDYEoiBAJBJDx4aI4fmz53z91Te8OBhzFZYrapqa6eSYvNejKEqGoxG9wRZtCCwXC9q2xRiLGkvdeKxVICICIYIRYb2u+fXZb/z041MO/nrBu7C8o7qqmFcnzGcnnL56iXMO5xzL5RLfNHjvWSzO2C6HrFaXzE6mnJ0tmRxPGB8c8n9JURSRBCiJUBKhJEJJhJIIJRFKIpREKIlQEqEkQkmEkgglEUoilEQoiVASoSRCSYSSCCURSiKURCiJUBKhJEJJhJIIJRH247t3SIH94cl3pEBJhJKIfwC8RAa9McHN5QAAAABJRU5ErkJggg==';
 
-// Initialize Firebase Client if config is present
-async function initFirebaseClient() {
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCr-hr5oeYdwUUdQgywHTl5VobOJ_ZNZ14",
+  authDomain: "free-wifi-portal.firebaseapp.com",
+  projectId: "free-wifi-portal",
+  storageBucket: "free-wifi-portal.firebasestorage.app",
+  messagingSenderId: "197252344762",
+  appId: "1:197252344762:web:4830845739d16d12778b83",
+  measurementId: "G-KDRZMJZDMW"
+};
+
+let firebaseReady = false;
+let firebaseClientConfig = window.__FIREBASE_CONFIG__ || DEFAULT_FIREBASE_CONFIG;
+
+// Initialize Firebase Client Synchronously
+function initFirebaseClient() {
   try {
-    const res = await fetch('/api/firebase-config');
-    const data = await res.json();
-    if (data.ok && data.config && data.config.apiKey && data.config.authDomain) {
-      firebaseClientConfig = data.config;
-      if (window.firebase && !firebase.apps.length) {
-        firebase.initializeApp(firebaseClientConfig);
-        if (typeof firebase.analytics === 'function' && firebaseClientConfig.measurementId) {
-          firebase.analytics();
-        }
+    if (window.firebase && !firebase.apps.length) {
+      firebase.initializeApp(firebaseClientConfig);
+      if (typeof firebase.analytics === 'function' && firebaseClientConfig.measurementId) {
+        try { firebase.analytics(); } catch (e) {}
       }
+    }
+    if (window.firebase && firebase.apps.length) {
       firebaseReady = true;
-      console.log('Firebase Web SDK initialized successfully.');
     }
   } catch (err) {
-    console.warn('Firebase client config check:', err.message);
+    console.warn('Firebase init:', err.message);
   }
 }
 initFirebaseClient();
 
-// Google Auth Trigger: Firebase Google Sign-In with Fallback Dialog
-async function triggerGoogleAuth(mode) {
-  pendingAuthMode = mode;
+// Google Auth Trigger: Opens the authentic Google "Choose an account" dialog (Image 3)
+function triggerGoogleAuth(mode) {
+  pendingAuthMode = mode || 'free';
+  openGoogleDialog(mode);
+}
 
+function openGoogleDialog(mode) {
+  pendingAuthMode = mode || 'free';
+  const dlg = document.getElementById('google-dialog');
+  if (!dlg) return;
+  dlg.classList.remove('hidden');
+
+  // Check if a secondary account was stored in localStorage
+  const lastEmail = localStorage.getItem('portal_last_email');
+  const lastName = localStorage.getItem('portal_last_name');
+  const secRow = document.getElementById('google-secondary-account');
+  if (secRow) {
+    if (lastEmail && lastEmail.toLowerCase() !== 'realjackhalder@gmail.com') {
+      secRow.classList.remove('hidden');
+      document.getElementById('secondary-name').textContent = lastName || lastEmail.split('@')[0];
+      document.getElementById('secondary-email').textContent = lastEmail;
+      document.getElementById('secondary-avatar').textContent = (lastName || lastEmail).charAt(0).toUpperCase();
+    } else {
+      secRow.classList.add('hidden');
+    }
+  }
+
+  // Hide the custom email input by default
+  const form = document.getElementById('google-another-form');
+  if (form) form.classList.add('hidden');
+
+  // Sync language dropdown inside modal
+  const langSel = document.getElementById('google-dlg-lang-select');
+  if (langSel) langSel.value = currentLang;
+}
+
+function closeGoogleDialog() {
+  const dlg = document.getElementById('google-dialog');
+  if (dlg) dlg.classList.add('hidden');
+}
+
+function toggleUseAnotherAccount() {
+  const form = document.getElementById('google-another-form');
+  if (form) {
+    form.classList.toggle('hidden');
+    if (!form.classList.contains('hidden')) {
+      const inp = document.getElementById('dlg-custom-email');
+      if (inp) inp.focus();
+    }
+  }
+}
+
+async function selectGoogleAccount(email, name, avatarKey) {
+  closeGoogleDialog();
+  showToast({ 
+    msg_th: 'กำลังเข้าสู่ระบบ Google: ' + name + '...', 
+    msg_mm: 'Google အကောင့်ဝင်နေပါသည်: ' + name + '...', 
+    msg_en: 'Signing in with Google: ' + name + '...' 
+  });
+
+  localStorage.setItem('portal_last_email', email);
+  localStorage.setItem('portal_last_name', name);
+
+  const pic = avatarKey === 'avatar-jack' ? JACK_AVATAR_B64 : null;
+  if (pendingAuthMode === 'free') {
+    await submitFreeTrial(email, name, pic);
+  } else {
+    await submitGoogleLogin(email);
+  }
+}
+
+async function selectSecondaryGoogleAccount() {
+  const email = localStorage.getItem('portal_last_email');
+  const name = localStorage.getItem('portal_last_name') || email.split('@')[0];
+  if (email) {
+    await selectGoogleAccount(email, name, null);
+  }
+}
+
+async function submitCustomGoogleAccount(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const email = document.getElementById('dlg-custom-email').value.trim();
+  const name = document.getElementById('dlg-custom-name').value.trim() || email.split('@')[0];
+  if (!email || !email.includes('@')) {
+    return showToast({ ok: false, msg_th: 'กรุณากรอกอีเมลให้ถูกต้อง', msg_en: 'Please enter a valid email address' });
+  }
+  await selectGoogleAccount(email, name, null);
+}
+
+// Open official Google browser popup window using Firebase Web SDK
+async function openNativeGooglePopup() {
+  initFirebaseClient();
   if (firebaseReady && window.firebase && firebase.auth) {
     try {
       showToast({ 
@@ -1812,7 +2140,9 @@ async function triggerGoogleAuth(mode) {
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.addScope('email');
       provider.addScope('profile');
+      provider.setCustomParameters({ prompt: 'select_account' });
       
+      closeGoogleDialog();
       const result = await firebase.auth().signInWithPopup(provider);
       const user = result.user;
       const idToken = await user.getIdToken();
@@ -1820,48 +2150,37 @@ async function triggerGoogleAuth(mode) {
       const name = user.displayName || email.split('@')[0];
       const picture = user.photoURL || null;
 
-      if (mode === 'free') {
+      localStorage.setItem('portal_last_email', email);
+      localStorage.setItem('portal_last_name', name);
+
+      if (pendingAuthMode === 'free') {
         await submitFreeTrial(email, name, picture, idToken);
       } else {
         await submitGoogleLogin(email, idToken);
       }
       return;
     } catch (popupErr) {
-      console.warn('Firebase popup closed or blocked:', popupErr.message);
-      // Fallback seamlessly to direct confirmation modal so captive portal user is NEVER blocked
+      console.warn('Native Google popup notice:', popupErr.message);
+      if (popupErr.code === 'auth/popup-closed-by-user') return;
+      showToast({ 
+        ok: false, 
+        msg_th: 'หน้าต่าง Google ถูกบล็อก ให้เลือกบัญชีด้านล่าง', 
+        msg_en: 'Popup was blocked, please choose your account below' 
+      });
+      openGoogleDialog(pendingAuthMode);
     }
+  } else {
+    showToast({ 
+      ok: false, 
+      msg_th: 'ไม่สามารถติดต่อ Google SDK ได้ ให้เลือกบัญชีด้านล่าง', 
+      msg_en: 'Google SDK offline, please choose your account below' 
+    });
+    openGoogleDialog(pendingAuthMode);
   }
-
-  // Fallback modal if Firebase client config is not yet set or popup was blocked by restricted browser
-  openGoogleDialogFallback(mode);
-}
-
-function openGoogleDialogFallback(mode) {
-  pendingAuthMode = mode;
-  document.getElementById('google-dialog').classList.remove('hidden');
-  document.getElementById('dlg-email').focus();
-}
-
-function closeGoogleDialog() {
-  document.getElementById('google-dialog').classList.add('hidden');
 }
 
 let currentEmail = { free: '', login: '' };
 let resendTimers = { free: null, login: null };
-
-async function confirmGoogleAccount(e) {
-  e.preventDefault();
-  const email = document.getElementById('dlg-email').value.trim();
-  const name = document.getElementById('dlg-name').value.trim() || email.split('@')[0];
-  closeGoogleDialog();
-
-  if (email) {
-    const inputEl = document.getElementById(pendingAuthMode + '-email');
-    if (inputEl) inputEl.value = email;
-    switchTab(pendingAuthMode === 'free' ? 'tab-free' : 'tab-login');
-    await sendOtpRequest(email, pendingAuthMode, name);
-  }
-}
 
 async function handleRequestOtp(e, mode) {
   if (e && e.preventDefault) e.preventDefault();
@@ -2085,7 +2404,11 @@ async function handleBuyPackage(e) {
     const data = await res.json();
     showToast(data);
     if (data.ok) {
-      setTimeout(() => location.reload(), 1200);
+      if (data.pendingApproval) {
+        showApprovalWaitingModal(data.slipId);
+      } else {
+        setTimeout(() => location.reload(), 1200);
+      }
     } else {
       btn.disabled = false;
       btn.textContent = I18N[currentLang].btn_buy_vip;
@@ -2095,6 +2418,94 @@ async function handleBuyPackage(e) {
     btn.disabled = false;
     btn.textContent = I18N[currentLang].btn_buy_vip;
   }
+}
+
+function showApprovalWaitingModal(slipId) {
+  let modal = document.getElementById('approval-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'approval-modal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4';
+    document.body.appendChild(modal);
+  }
+
+  const lang = currentLang;
+  const title = lang === 'mm' ? 'ငွေလွှဲပြေစာ ပေးပို့ပြီးပါပြီ' : (lang === 'en' ? 'Slip Sent for Approval' : 'ส่งสลิปให้แอดมินแล้ว');
+  const sub = lang === 'mm'
+    ? 'Telegram မှတစ်ဆင့် စီမံခန့်ခွဲသူထံ အကြောင်းကြားစာ ရောက်ရှိသွားပါပြီ။\\nခွင့်ပြုချက် ရရှိသည်နှင့် အင်တာနက် အလိုအလျောက် ပွင့်ပါမည်။'
+    : (lang === 'en'
+      ? 'Payment slip was sent to Admin via Telegram.\\nInternet will unlock automatically once approved.'
+      : 'ส่งสลิปให้แอดมินตรวจสอบทาง Telegram แล้ว ระบบจะเชื่อมต่อให้อัตโนมัติทันทีเมื่อได้รับอนุมัติ');
+
+  modal.innerHTML = \`
+    <div class="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full text-center space-y-4 shadow-2xl border border-blue-100">
+      <div id="modal-icon" class="w-16 h-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-3xl mx-auto animate-bounce">
+        ⏳
+      </div>
+      <h3 id="modal-title" class="text-lg font-black text-gray-900">\${title}</h3>
+      <p id="modal-desc" class="text-xs text-gray-600 leading-relaxed font-medium whitespace-pre-line">\${sub}</p>
+      
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3.5 text-xs font-mono space-y-1.5 text-left">
+        <div class="flex justify-between items-center"><span class="text-gray-400">Slip ID:</span> <span class="font-bold text-gray-800">#\${slipId}</span></div>
+        <div class="flex justify-between items-center"><span class="text-gray-400">Telegram:</span> <span id="modal-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800 animate-pulse">Waiting for Approval...</span></div>
+      </div>
+      
+      <div id="modal-actions" class="pt-1">
+        <p class="text-[11px] text-gray-400">စနစ်မှ အလိုအလျောက် စစ်ဆေးနေပါသည်...</p>
+      </div>
+    </div>
+  \`;
+
+  const pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch('/api/slip-status?slipId=' + slipId);
+      const data = await res.json();
+      if (data.ok) {
+        if (data.status === 'approved' || data.isVipActive) {
+          clearInterval(pollInterval);
+          const iconEl = document.getElementById('modal-icon');
+          const titleEl = document.getElementById('modal-title');
+          const descEl = document.getElementById('modal-desc');
+          const badgeEl = document.getElementById('modal-status-badge');
+          if (iconEl) {
+            iconEl.className = 'w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-3xl mx-auto';
+            iconEl.innerHTML = '🎉';
+          }
+          if (titleEl) titleEl.innerText = lang === 'mm' ? 'အတည်ပြုပြီးပါပြီ!' : (lang === 'en' ? 'Payment Approved!' : 'อนุมัติเรียบร้อยแล้ว!');
+          if (descEl) descEl.innerText = lang === 'mm' ? 'ရက် ၃၀ VIP အင်တာနက် စတင်အသုံးပြုနိုင်ပါပြီ' : (lang === 'en' ? '30-Day VIP Wi-Fi is now active!' : 'แพ็กเกจ VIP 30 วัน เปิดใช้งานแล้ว');
+          if (badgeEl) {
+            badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800';
+            badgeEl.innerText = '✓ APPROVED';
+          }
+          setTimeout(() => location.reload(), 1500);
+        } else if (data.status === 'declined') {
+          clearInterval(pollInterval);
+          const iconEl = document.getElementById('modal-icon');
+          const titleEl = document.getElementById('modal-title');
+          const descEl = document.getElementById('modal-desc');
+          const badgeEl = document.getElementById('modal-status-badge');
+          const actionsEl = document.getElementById('modal-actions');
+          if (iconEl) {
+            iconEl.className = 'w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-3xl mx-auto';
+            iconEl.innerHTML = '❌';
+          }
+          if (titleEl) titleEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာအား လက်မခံပါ' : (lang === 'en' ? 'Slip Declined' : 'สลิปไม่ผ่านการอนุมัติ');
+          if (descEl) descEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာအား စီမံခန့်ခွဲသူမှ ငြင်းပယ်ခဲ့ပါသည် (ငွေလွှဲမှု သေချာစစ်ဆေးပြီး ပြန်တင်ပေးပါ)' : (lang === 'en' ? 'Payment slip was declined by admin. Please check payment and upload again.' : 'สลิปถูกปฏิเสธโดยแอดมิน กรุณาตรวจสอบแล้วลองใหม่อีกครั้ง');
+          if (badgeEl) {
+            badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800';
+            badgeEl.innerText = '✕ DECLINED';
+          }
+          if (actionsEl) {
+            actionsEl.innerHTML = \`
+              <button onclick="document.getElementById('approval-modal').remove(); location.reload();" class="btn-primary w-full py-2.5 text-xs font-bold">
+                \${lang === 'mm' ? 'ပြန်လည် ကြိုးစားမည်' : (lang === 'en' ? 'Try Again' : 'ลองใหม่อีกครั้ง')}
+              </button>
+            \`;
+          }
+        }
+      }
+    } catch (e) {}
+  }, 3000);
 }
 
 async function doLogout(email) {
@@ -2342,9 +2753,15 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
         <td class="py-3 px-3 font-bold text-green-700">${s.amount} ဘတ်</td>
         <td class="py-3 px-3 text-gray-500">${dateStr}</td>
         <td class="py-3 px-3">
-          <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
-            ${s.status === 'verified' ? '✓ စစ်ဆေးပြီး' : s.status}
-          </span>
+          ${
+            s.status === 'approved' || s.status === 'verified'
+              ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">✓ အတည်ပြုပြီး</span>'
+              : (s.status === 'pending'
+                ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 animate-pulse">⏳ စစ်ဆေးဆဲ (Pending)</span>'
+                : (s.status === 'declined'
+                  ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">✕ ပယ်ဖျက်သည်</span>'
+                  : '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-800">' + s.status + '</span>'))
+          }
         </td>
       </tr>
       `;
@@ -2507,6 +2924,35 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
           <p class="text-[10px] text-gray-400 mt-1.5">
             💡 Gmail ဖြင့်ပို့ပါက Google Account > Security > 2-Step Verification > <strong>App Passwords</strong> မှ ၁၆ လုံးပါ စကားဝှက် ရယူထည့်သွင်းပါ။ Spam/Junk မရောက်စေရန် Anti-Spam Headers နှင့် Multi-Part Plain Text အလိုအလျောက် ထည့်သွင်းထားပါသည်။
           </p>
+        </div>
+
+        <div class="pt-3 border-t border-gray-100">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-gray-700">🤖 Telegram Bot ပြေစာ အတည်ပြုစနစ် (One-Click Approval)</span>
+            ${
+              settings.telegramBotToken && settings.telegramChatId
+                ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">✓ ချိတ်ဆက်ထားသည် (Active)</span>'
+                : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800">မချိတ်ဆက်ရသေးပါ</span>'
+            }
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Telegram Bot Token</label>
+              <input type="text" name="telegramBotToken" id="tg-token" value="${settings.telegramBotToken || ''}" placeholder="7123456789:AAH..." class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Admin Chat ID / Group ID</label>
+              <input type="text" name="telegramChatId" id="tg-chatid" value="${settings.telegramChatId || ''}" placeholder="123456789" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-2 flex-wrap gap-2">
+            <p class="text-[10px] text-gray-400">
+              💡 @BotFather မှ Bot Token ရယူပါ။ Chat ID သိလိုပါက @userinfobot သို့ /start ပို့ပါ သို့မဟုတ် bot ထံ /id ပို့ပါ။
+            </p>
+            <button type="button" onclick="testTelegram()" class="px-2.5 py-1 text-[11px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded transition active:scale-95 whitespace-nowrap">
+              Test Message စမ်းသပ်မည်
+            </button>
+          </div>
         </div>
 
         <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">ဆက်တင်များ သိမ်းဆည်းမည်</button>
@@ -2681,6 +3127,31 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
   </div>
 
 </main>
+<script>
+async function testTelegram() {
+  const token = document.getElementById('tg-token').value.trim();
+  const chatId = document.getElementById('tg-chatid').value.trim();
+  if (!token || !chatId) {
+    alert('ကျေးဇူးပြု၍ Telegram Bot Token နှင့် Chat ID ရိုက်ထည့်ပါ');
+    return;
+  }
+  try {
+    const res = await fetch('/admin/telegram-test?pin=${pin}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telegramBotToken: token, telegramChatId: chatId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('✓ Telegram သို့ စမ်းသပ်စာ ပို့ဆောင်ခြင်း အောင်မြင်ပါသည်! သင့် Telegram App ကို စစ်ဆေးကြည့်ပါ။');
+    } else {
+      alert('⚠️ ပို့ဆောင်၍ မရပါ: ' + (data.error || 'Unknown Error'));
+    }
+  } catch (e) {
+    alert('ချိတ်ဆက်မှု ချို့ယွင်းချက်: ' + e.message);
+  }
+}
+</script>
 </body>
 </html>`;
 }

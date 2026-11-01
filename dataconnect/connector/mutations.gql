@@ -1,0 +1,140 @@
+# ============================================================================
+# Firebase SQL Connect — Mutations
+# Free Wi-Fi Captive Portal & Gateway System
+# ============================================================================
+
+# 1. Upsert current authenticated user on captive portal login
+mutation UpsertCurrentUser(
+  $email: String!,
+  $name: String,
+  $picture: String,
+  $googleId: String,
+  $activeIp: String,
+  $activeMac: String,
+  $expiresAt: Timestamp!
+) @auth(level: USER) {
+  user_upsert(data: {
+    uid_expr: "auth.uid",
+    email: $email,
+    name: $name,
+    picture: $picture,
+    googleId: $googleId,
+    activeIp: $activeIp,
+    activeMac: $activeMac,
+    expiresAt: $expiresAt
+  })
+}
+
+# 2. Update user trial time and expiration
+mutation ExtendUserAccess(
+  $uid: String!,
+  $expiresAt: Timestamp!,
+  $lastTrialAt: Timestamp,
+  $plan: String,
+  $activeIp: String,
+  $activeMac: String
+) @auth(expr: "auth != null && (auth.uid == vars.uid || auth.token.role == 'admin')") {
+  user_update(
+    key: { uid: $uid },
+    data: {
+      expiresAt: $expiresAt,
+      lastTrialAt: $lastTrialAt,
+      plan: $plan,
+      activeIp: $activeIp,
+      activeMac: $activeMac
+    }
+  )
+}
+
+# 3. Record a new payment slip
+mutation RecordSlip(
+  $email: String!,
+  $ipAddress: String!,
+  $macAddress: String,
+  $filename: String!,
+  $cloudUrl: String,
+  $qrPayload: String!,
+  $amount: Float!
+) @auth(level: PUBLIC, insecureReason: "Required for unauthenticated or guest users submitting proof-of-payment slips") {
+  slip_insert(data: {
+    email: $email,
+    ipAddress: $ipAddress,
+    macAddress: $macAddress,
+    filename: $filename,
+    cloudUrl: $cloudUrl,
+    qrPayload: $qrPayload,
+    amount: $amount,
+    status: VERIFIED
+  })
+}
+
+# 4. Update slip verification status (Admin or webhook)
+mutation UpdateSlipStatus(
+  $id: UUID!,
+  $status: SlipStatus!
+) @auth(expr: "auth != null && (auth.token.role == 'admin' || auth.token.admin == true)") {
+  slip_update(
+    id: $id,
+    data: {
+      status: $status
+    }
+  )
+}
+
+# 5. Record an access / firewall audit log
+mutation LogIpAction(
+  $email: String,
+  $ipAddress: String!,
+  $macAddress: String,
+  $action: String!
+) @auth(level: PUBLIC, insecureReason: "Captive portal gateway server logs connection probes and IP lifecycle events") {
+  ipLog_insert(data: {
+    email: $email,
+    ipAddress: $ipAddress,
+    macAddress: $macAddress,
+    action: $action
+  })
+}
+
+# 6. Save system configuration setting
+mutation SetSetting(
+  $key: String!,
+  $value: String!,
+  $description: String
+) @auth(expr: "auth != null && (auth.token.role == 'admin' || auth.token.admin == true)") {
+  setting_upsert(data: {
+    key: $key,
+    value: $value,
+    description: $description,
+    updatedAt_expr: "request.time"
+  })
+}
+
+# 7. Register a new WireGuard VPN peer
+mutation RegisterVpnPeer(
+  $phone: String,
+  $label: String!,
+  $clientIp: String!,
+  $publicKey: String!
+) @auth(expr: "auth != null && (auth.token.role == 'admin' || auth.token.admin == true)") {
+  vpnPeer_insert(data: {
+    phone: $phone,
+    label: $label,
+    clientIp: $clientIp,
+    publicKey: $publicKey,
+    enabled: true
+  })
+}
+
+# 8. Toggle VPN peer status
+mutation SetVpnPeerEnabled(
+  $id: UUID!,
+  $enabled: Boolean!
+) @auth(expr: "auth != null && (auth.token.role == 'admin' || auth.token.admin == true)") {
+  vpnPeer_update(
+    id: $id,
+    data: {
+      enabled: $enabled
+    }
+  )
+}

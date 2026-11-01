@@ -108,7 +108,17 @@ async function initDb() {
   if (!pin) await run(`INSERT INTO settings (key, value) VALUES ('adminPin', '1234')`);
 
   const googleClientId = await get(`SELECT value FROM settings WHERE key = 'googleClientId'`);
-  if (!googleClientId) await run(`INSERT INTO settings (key, value) VALUES ('googleClientId', '')`);
+  if (!googleClientId || !googleClientId.value) {
+    await run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('googleClientId', '197252344762-1lbm4e209p2ri1m5pu9b789fegj61m7s.apps.googleusercontent.com')`);
+  }
+
+  const jack = await get(`SELECT email FROM accounts WHERE email = 'realjackhalder@gmail.com'`);
+  if (!jack) {
+    const now = Date.now();
+    await run(`INSERT INTO accounts (email, name, picture, plan, created_at, expires_at, last_trial_at, blocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['realjackhalder@gmail.com', 'Jack Halder', null, 'free-1h', now, 0, null, 0]
+    );
+  }
 
   const vpnEndpoint = await get(`SELECT value FROM settings WHERE key = 'vpnEndpoint'`);
   if (!vpnEndpoint) await run(`INSERT INTO settings (key, value) VALUES ('vpnEndpoint', '')`);
@@ -378,6 +388,21 @@ async function getAllSlips() {
   return await all(`SELECT * FROM slips ORDER BY uploaded_at DESC`);
 }
 
+async function getSlipById(id) {
+  return await get(`SELECT * FROM slips WHERE id = ?`, [id]);
+}
+
+async function updateSlipStatus(id, status) {
+  if (fb.isReady()) {
+    try {
+      await fb.getDb().collection('slips').doc(String(id)).set({ status }, { merge: true });
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  return await run(`UPDATE slips SET status = ? WHERE id = ?`, [status, id]);
+}
+
 async function logIpAction({ email, ip, mac, action }) {
   if (!ip) return;
   const logData = {
@@ -452,7 +477,9 @@ async function getAllSettings() {
     smtpHost: '',
     smtpPort: '587',
     smtpUser: '',
-    smtpPass: ''
+    smtpPass: '',
+    telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
+    telegramChatId: process.env.TELEGRAM_CHAT_ID || ''
   };
   rows.forEach((r) => {
     if (r.key === 'monthlyPrice' || r.key === 'trialMinutes') {
@@ -473,6 +500,8 @@ module.exports = {
   getAllAccounts,
   deleteAccount,
   recordSlip,
+  getSlipById,
+  updateSlipStatus,
   isSlipUsed,
   getAllSlips,
   logIpAction,

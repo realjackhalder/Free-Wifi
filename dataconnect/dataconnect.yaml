@@ -1,0 +1,12 @@
+specVersion: "v1"
+serviceId: "free-wifi-service"
+location: "us-central1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "free_wifi_db"
+      cloudSql:
+        instanceId: "free-wifi-sql"
+      schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]

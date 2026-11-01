@@ -1,0 +1,108 @@
+# ============================================================================
+# Firebase SQL Connect (Data Connect) Schema
+# Free Wi-Fi Captive Portal & Gateway System
+# ============================================================================
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SlipStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  DUPLICATE
+}
+
+# ----------------------------------------------------------------------------
+# User / Wi-Fi Account Table
+# Represents captive portal users authenticated via Firebase Auth or guest trial
+# ----------------------------------------------------------------------------
+type User @table(key: "uid") {
+  uid: String! @default(expr: "auth.uid")
+  email: String! @unique
+  name: String
+  picture: String
+  googleId: String
+  role: UserRole! @default(value: USER)
+  plan: String! @default(value: "free-1h")
+  createdAt: Timestamp! @default(expr: "request.time")
+  expiresAt: Timestamp!
+  lastTrialAt: Timestamp
+  activeIp: String @index
+  activeMac: String
+  isBlocked: Boolean! @default(value: false)
+}
+
+# ----------------------------------------------------------------------------
+# Payment Slips Table
+# Bank transfer / PromptPay slip upload verification for plan upgrades
+# ----------------------------------------------------------------------------
+type Slip @table {
+  id: UUID! @default(expr: "uuidV4()")
+  user: User
+  email: String! @index
+  ipAddress: String!
+  macAddress: String
+  filename: String!
+  cloudUrl: String
+  qrPayload: String! @unique
+  amount: Float! @default(value: 150.0)
+  status: SlipStatus! @default(value: VERIFIED)
+  uploadedAt: Timestamp! @default(expr: "request.time")
+}
+
+# ----------------------------------------------------------------------------
+# Access & IP Audit Logs Table
+# Records captive portal logins, router actions, and firewall events
+# ----------------------------------------------------------------------------
+type IpLog @table {
+  id: UUID! @default(expr: "uuidV4()")
+  user: User
+  email: String
+  ipAddress: String! @index
+  macAddress: String
+  action: String!
+  timestamp: Timestamp! @default(expr: "request.time")
+}
+
+# ----------------------------------------------------------------------------
+# System Settings Table
+# Key-value portal configurations (pricing, trial duration, Telegram bot, etc.)
+# ----------------------------------------------------------------------------
+type Setting @table(key: "key") {
+  key: String!
+  value: String!
+  description: String
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+# ----------------------------------------------------------------------------
+# WireGuard VPN Peers Table
+# Remote client profiles, public keys, and tunnel allocations
+# ----------------------------------------------------------------------------
+type VpnPeer @table {
+  id: UUID! @default(expr: "uuidV4()")
+  user: User
+  phone: String
+  label: String!
+  clientIp: String! @unique
+  publicKey: String! @unique
+  enabled: Boolean! @default(value: true)
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+# ----------------------------------------------------------------------------
+# One-Time Password (OTP) Verifications Table
+# Temporary OTP codes for email verification and portal authentication
+# ----------------------------------------------------------------------------
+type OtpVerification @table {
+  id: UUID! @default(expr: "uuidV4()")
+  email: String! @index
+  otpCode: String!
+  expiresAt: Timestamp!
+  attempts: Int! @default(value: 0)
+  isVerified: Boolean! @default(value: false)
+  createdAt: Timestamp! @default(expr: "request.time")
+}

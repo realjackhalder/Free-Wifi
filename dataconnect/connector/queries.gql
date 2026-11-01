@@ -1,0 +1,128 @@
+# ============================================================================
+# Firebase SQL Connect — Queries
+# Free Wi-Fi Captive Portal & Gateway System
+# ============================================================================
+
+# 1. Get current authenticated user profile
+query GetMyProfile @auth(level: USER) {
+  user(key: { uid_expr: "auth.uid" }) {
+    uid
+    email
+    name
+    picture
+    role
+    plan
+    expiresAt
+    lastTrialAt
+    activeIp
+    activeMac
+    isBlocked
+    createdAt
+  }
+}
+
+# 2. Check if a client IP is authorized and unblocked (used by captive portal gateway)
+query CheckIpAccess($ip: String!) @auth(level: PUBLIC, insecureReason: "Required for captive portal gateway authorization check by device IP") {
+  users(
+    where: {
+      activeIp: { eq: $ip },
+      isBlocked: { eq: false }
+    },
+    limit: 1
+  ) {
+    uid
+    email
+    name
+    plan
+    expiresAt
+    activeIp
+    isBlocked
+  }
+}
+
+# 3. List all accounts for Admin dashboard
+query ListUsers($limit: Int = 100) @auth(expr: "auth != null && (auth.token.role == 'admin' || auth.token.admin == true)") {
+  users(orderBy: [{ createdAt: DESC }], limit: $limit) {
+    uid
+    email
+    name
+    picture
+    role
+    plan
+    expiresAt
+    lastTrialAt
+    activeIp
+    activeMac
+    isBlocked
+    createdAt
+  }
+}
+
+# 4. Check if a slip QR code has already been claimed / used
+query CheckSlipUsed($qrPayload: String!) @auth(level: PUBLIC, insecureReason: "Required for duplicate payment slip fraud prevention before verification") {
+  slips(where: { qrPayload: { eq: $qrPayload } }, limit: 1) {
+    id
+    status
+    uploadedAt
+  }
+}
+
+# 5. List all payment slips for Admin review
+query ListSlips($limit: Int = 50) @auth(expr: "auth != null && (auth.token.role == 'admin' || auth.token.admin == true)") {
+  slips(orderBy: [{ uploadedAt: DESC }], limit: $limit) {
+    id
+    email
+    ipAddress
+    macAddress
+    filename
+    cloudUrl
+    qrPayload
+    amount
+    status
+    uploadedAt
+    user {
+      uid
+      name
+      plan
+    }
+  }
+}
+
+# 6. Read system settings (monthly price, trial minutes, etc.)
+query GetSetting($key: String!) @auth(level: PUBLIC, insecureReason: "Required for public captive portal pricing and trial configuration display") {
+  setting(key: { key: $key }) {
+    key
+    value
+    description
+    updatedAt
+  }
+}
+
+# 7. List recent access / IP audit logs
+query ListRecentLogs($limit: Int = 50) @auth(expr: "auth != null && (auth.token.role == 'admin' || auth.token.admin == true)") {
+  ipLogs(orderBy: [{ timestamp: DESC }], limit: $limit) {
+    id
+    email
+    ipAddress
+    macAddress
+    action
+    timestamp
+  }
+}
+
+# 8. List active WireGuard VPN peers
+query ListVpnPeers @auth(expr: "auth != null && (auth.token.role == 'admin' || auth.token.admin == true)") {
+  vpnPeers(orderBy: [{ createdAt: DESC }]) {
+    id
+    phone
+    label
+    clientIp
+    publicKey
+    enabled
+    createdAt
+    user {
+      email
+      name
+    }
+  }
+}

@@ -1,0 +1,51 @@
+# ============================================================================
+# Firebase SQL Connect — Seed Data (Local Prototyping Only)
+# ============================================================================
+
+mutation SeedLocalDatabase @transaction {
+  # 1. Default System Settings
+  setting_insertMany(data: [
+    { key: "monthlyPrice", value: "150", description: "Default monthly subscription price in THB" },
+    { key: "trialMinutes", value: "60", description: "Free trial duration in minutes" },
+    { key: "adminPin", value: "1234", description: "Quick access portal admin PIN" },
+    { key: "vpnEndpoint", value: "192.168.1.106:51820", description: "WireGuard VPN public endpoint" }
+  ])
+
+  # 2. Demo Users
+  user_insertMany(data: [
+    {
+      uid: "user-admin-demo-01",
+      email: "admin@freewifi.local",
+      name: "Portal Admin",
+      role: ADMIN,
+      plan: "unlimited",
+      expiresAt: "2030-01-01T00:00:00Z",
+      activeIp: "192.168.1.100",
+      activeMac: "AA:BB:CC:DD:EE:01",
+      isBlocked: false
+    },
+    {
+      uid: "user-client-demo-02",
+      email: "guest@freewifi.local",
+      name: "Guest Trial User",
+      role: USER,
+      plan: "free-1h",
+      expiresAt: "2026-11-01T23:59:59Z",
+      activeIp: "192.168.1.105",
+      activeMac: "AA:BB:CC:DD:EE:02",
+      isBlocked: false
+    }
+  ])
+
+  # 3. Initial WireGuard VPN Peer
+  vpnPeer_insertMany(data: [
+    {
+      user: { uid: "user-admin-demo-01" },
+      phone: "0899998888",
+      label: "Remote-VIP-Client",
+      clientIp: "10.8.0.2",
+      publicKey: "FIbeGFSj1ho1ctFjz9c1RtPRY1TH/F0pRXNCsi1/JAo=",
+      enabled: true
+    }
+  ])
+}

@@ -1,0 +1,5 @@
+connectorId: "default"
+generate:
+  javascriptSdk:
+    outputDir: "../../public/src/lib/dataconnect"
+    package: "@free-wifi/dataconnect"
