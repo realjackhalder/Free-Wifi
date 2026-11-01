@@ -6,8 +6,18 @@
       "plan": "free-1h",
       "expiresAt": 1793536850643,
       "lastTrialAt": 1793533250643,
-      "activeIp": "127.0.0.1",
-      "activeMac": "localhost",
+      "activeIp": null,
+      "activeMac": null,
+      "blocked": false
+    },
+    "0123456789": {
+      "phone": "0123456789",
+      "pin": "1111",
+      "plan": "free-1h",
+      "expiresAt": 1793538516878,
+      "lastTrialAt": 1793534916878,
+      "activeIp": null,
+      "activeMac": null,
       "blocked": false
     }
   },
@@ -15,6 +25,28 @@
   "settings": {
     "monthlyPrice": 150,
     "trialMinutes": 60,
-    "adminPin": "1234"
+    "adminPin": "1234",
+    "vpnEndpoint": ""
+  },
+  "vpn": {
+    "enabled": true,
+    "port": 51820,
+    "serverSubnet": "10.8.0.1/24",
+    "serverIp": "10.8.0.1",
+    "endpoint": "192.168.1.106:51820",
+    "serverPrivateKey": "MBOkS18eenNqUFra/hPmNbKmAIBudZRPBEumTgDKpHA=",
+    "serverPublicKey": "yM6f8GyJaJLUMGA4GJW00d8g4jKoqFqziYD9PPCQShk=",
+    "dns": "1.1.1.1, 8.8.8.8",
+    "peers": {
+      "0899998888": {
+        "phone": "0899998888",
+        "label": "Remote-VIP-Client",
+        "clientIp": "10.8.0.2",
+        "privateKey": "sJ3ZNxHZAdFnLqKsYgxx11GloCf/pTV32luP2e/vp2I=",
+        "publicKey": "FIbeGFSj1ho1ctFjz9c1RtPRY1TH/F0pRXNCsi1/JAo=",
+        "createdAt": 1793533918411,
+        "enabled": true
+      }
+    }
   }
 }

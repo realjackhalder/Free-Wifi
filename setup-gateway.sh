@@ -32,8 +32,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
 # Table for authenticated clients
 table <allowed_wifi> persist
 
-# Redirect HTTP (port 80) from unauthenticated clients to portal
-rdr pass on $IFACE inet proto tcp from !<allowed_wifi> to any port 80 -> $PORTAL_IP port 3000
+# Redirect HTTP (port 80) from unauthenticated clients to user portal (port 3001)
+rdr pass on $IFACE inet proto tcp from !<allowed_wifi> to any port 80 -> $PORTAL_IP port 3001
 
 # Allow authenticated clients full internet
 pass out quick inet from <allowed_wifi> to any keep state
@@ -42,8 +42,9 @@ pass out quick inet from <allowed_wifi> to any keep state
 pass out quick inet proto udp from any to any port 53 keep state
 pass out quick inet proto tcp from any to any port 53 keep state
 
-# Allow traffic to portal itself
+# Allow traffic to portal and admin
 pass in quick inet proto tcp from any to $PORTAL_IP port 3000 keep state
+pass in quick inet proto tcp from any to $PORTAL_IP port 3001 keep state
 
 # Block all other outbound from unauthenticated clients
 block out quick inet from any to any
@@ -55,7 +56,8 @@ CONF
 
   echo "[4/4] Done!"
   echo ""
-  echo "Portal running at: http://$PORTAL_IP:3000/portal"
+  echo "Admin Panel: http://$PORTAL_IP:3000"
+  echo "User Portal: http://$PORTAL_IP:3001/portal"
   echo ""
   echo "Commands:"
   echo "  Start server:    node server.js"
@@ -70,8 +72,8 @@ else
   # Flush existing portal rules
   iptables -t nat -F PREROUTING 2>/dev/null || true
   
-  # Redirect port 80 to portal for unauthenticated clients
-  iptables -t nat -A PREROUTING -i "$IFACE" -p tcp --dport 80 -j DNAT --to-destination "$PORTAL_IP:3000"
+  # Redirect port 80 to user portal (port 3001) for unauthenticated clients
+  iptables -t nat -A PREROUTING -i "$IFACE" -p tcp --dport 80 -j DNAT --to-destination "$PORTAL_IP:3001"
   
   # Create allowed chain
   iptables -N WIFI_ALLOWED 2>/dev/null || iptables -F WIFI_ALLOWED
@@ -83,7 +85,8 @@ else
   echo "[3/4] iptables rules applied."
   echo "[4/4] Done!"
   echo ""
-  echo "Portal running at: http://$PORTAL_IP:3000/portal"
+  echo "Admin Panel: http://$PORTAL_IP:3000"
+  echo "User Portal: http://$PORTAL_IP:3001/portal"
   echo ""
   echo "Commands:"
   echo "  Start server:    node server.js"
