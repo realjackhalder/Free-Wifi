@@ -1354,7 +1354,7 @@ ${
 
     <!-- Step 1: Request OTP -->
     <div id="free-step-1" class="space-y-3.5">
-      <button type="button" onclick="triggerGoogleAuth('free')" class="btn-google">
+      <button type="button" onclick="triggerGoogleAuth('free')" id="btn-google-free" class="btn-google">
         <svg class="w-5 h-5 mr-2.5 flex-shrink-0" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -1486,7 +1486,7 @@ ${
 
     <!-- Step 1: Request OTP -->
     <div id="login-step-1" class="space-y-3.5">
-      <button type="button" onclick="triggerGoogleAuth('login')" class="btn-google">
+      <button type="button" onclick="triggerGoogleAuth('login')" id="btn-google-login" class="btn-google">
         <svg class="w-5 h-5 mr-2.5 flex-shrink-0" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -1815,6 +1815,11 @@ function setLanguage(lang) {
   const dlgLang = document.getElementById('google-dlg-lang-select');
   if (dlgLang) dlgLang.value = lang;
 
+  ['btn-google-free', 'btn-google-login'].forEach(function(id) {
+    const btn = document.getElementById(id);
+    if (btn && btn.dataset) delete btn.dataset.originalHtml;
+  });
+
   document.querySelectorAll('[data-i18n]').forEach(function(el) {
     const key = el.getAttribute('data-i18n');
     if (I18N[lang] && I18N[lang][key]) {
@@ -1943,8 +1948,60 @@ if (window.firebase && firebase.auth) {
   });
 }
 
+let isGoogleAuthRunning = false;
+let googleAuthTimeout = null;
+
+function setGoogleAuthLoading(loading) {
+  isGoogleAuthRunning = loading;
+  if (googleAuthTimeout) {
+    clearTimeout(googleAuthTimeout);
+    googleAuthTimeout = null;
+  }
+
+  // Safety watchdog: unlock buttons if popup takes over 60s or hangs
+  if (loading) {
+    googleAuthTimeout = setTimeout(() => {
+      setGoogleAuthLoading(false);
+    }, 60000);
+  }
+
+  const btnFree = document.getElementById('btn-google-free');
+  const btnLogin = document.getElementById('btn-google-login');
+
+  [btnFree, btnLogin].forEach(btn => {
+    if (!btn) return;
+    if (loading) {
+      btn.disabled = true;
+      btn.style.pointerEvents = 'none';
+      btn.style.opacity = '0.7';
+      if (!btn.dataset.originalHtml) {
+        btn.dataset.originalHtml = btn.innerHTML;
+      }
+      const loadingText = currentLang === 'mm' ? 'Google ဖွင့်နေပါသည်...' : (currentLang === 'en' ? 'Opening Google...' : 'กำลังเปิดหน้าต่าง Google...');
+      btn.innerHTML = '<svg class="animate-spin w-5 h-5 mr-2 text-blue-600 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg><span>' + loadingText + '</span>';
+    } else {
+      btn.disabled = false;
+      btn.style.pointerEvents = 'auto';
+      btn.style.opacity = '1';
+      if (btn.dataset.originalHtml) {
+        btn.innerHTML = btn.dataset.originalHtml;
+      }
+    }
+  });
+}
+
 // Trigger Google Sign-In Popup Window (Real Google Account Chooser)
 function triggerGoogleAuth(mode) {
+  if (isGoogleAuthRunning) {
+    showToast({
+      ok: true,
+      msg_th: 'หน้าต่าง Google กำลังเปิดอยู่ กรุณาเลือกบัญชีในหน้าต่างป๊อปอัป',
+      msg_mm: 'Google အကောင့် ရွေးချယ်ရန် ဝင်းဒိုး ဖွင့်ထားဆဲဖြစ်ပါသည်',
+      msg_en: 'Google Sign-In window is already open. Please choose your account there.'
+    });
+    return;
+  }
+
   pendingAuthMode = mode || 'free';
   localStorage.setItem('pending_auth_mode', pendingAuthMode);
 
@@ -1958,6 +2015,8 @@ function triggerGoogleAuth(mode) {
     });
     return;
   }
+
+  setGoogleAuthLoading(true);
 
   showToast({ 
     msg_th: 'กำลังเปิดหน้าต่างลงชื่อเข้าใช้ Google เพื่อเลือกบัญชี...', 
@@ -1997,6 +2056,10 @@ function triggerGoogleAuth(mode) {
     })
     .catch((err) => {
       console.warn('Firebase Google Sign-In error:', err);
+      // Suppress conflicting popup request cancellation so user never sees alarming red banner
+      if (err.code === 'auth/cancelled-popup-request') {
+        return;
+      }
       if (err.code === 'auth/popup-blocked') {
         // If the browser blocks the popup window, redirect directly so the user still gets Google
         showToast({
@@ -2005,7 +2068,7 @@ function triggerGoogleAuth(mode) {
         });
         setTimeout(() => {
           firebase.auth().signInWithRedirect(provider);
-        }, 600);
+        }, 500);
       } else if (err.code === 'auth/popup-closed-by-user') {
         showToast({
           ok: false,
@@ -2026,6 +2089,9 @@ function triggerGoogleAuth(mode) {
           msg_en: 'Login error: ' + (err.message || err.code)
         });
       }
+    })
+    .finally(() => {
+      setGoogleAuthLoading(false);
     });
 }
 
