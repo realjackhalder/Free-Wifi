@@ -765,12 +765,12 @@ userApp.get('/api/session-status', async (req, res) => {
 // --- Serve PromptPay QR Photo (Both User & Admin apps) ---
 const serveMyQr = (req, res) => {
   const candidates = [
-    path.join(PUBLIC_DIR, '150B.jpg'),
-    path.join(PUBLIC_DIR, '150b.jpg'),
+    path.join(PUBLIC_DIR, 'qr.jpg'),
+    path.join(PUBLIC_DIR, 'qr.png'),
     path.join(PUBLIC_DIR, 'thaiqr.jpg'),
     path.join(PUBLIC_DIR, 'thaiqr.png'),
-    path.join(PUBLIC_DIR, 'qr.jpg'),
-    path.join(PUBLIC_DIR, 'qr.png')
+    path.join(PUBLIC_DIR, '150B.jpg'),
+    path.join(PUBLIC_DIR, '150b.jpg')
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return res.sendFile(c);
@@ -1448,7 +1448,7 @@ ${
 
     <div class="bg-gray-50 border border-gray-200 rounded-xl p-3.5 mb-3 text-center">
       <div class="bg-white p-2 rounded-lg border border-gray-200 inline-block shadow-sm">
-        <img src="/my-qr" alt="PromptPay QR" class="w-40 sm:w-48 h-40 sm:h-48 object-contain mx-auto" />
+        <img src="/thaiqr.jpg" onerror="this.onerror=null;this.src='/150B.jpg';" alt="PromptPay QR" class="w-40 sm:w-48 h-40 sm:h-48 object-contain mx-auto" />
       </div>
       <p class="text-xs text-gray-500 mt-2"><span data-i18n="price_label">ยอดชำระ:</span> <strong id="price-display" class="text-blue-600 font-bold" data-i18n="price_amount">${price} บาท</strong></p>
     </div>

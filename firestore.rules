@@ -3,18 +3,22 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Accounts: Users can read/write their own account document
     match /accounts/{email} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
     
-    // Payment Slips: Authenticated users can submit, only admin can delete
+    // Payment Slips: Bank transfer slips for VIP access
     match /slips/{slipId} {
-      allow create: if request.auth != null;
-      allow read: if request.auth != null;
+      allow create, read: if true;
     }
     
     // IP logs & audit
     match /ip_logs/{logId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
+    }
+
+    // OTP verification records
+    match /otps/{email} {
+      allow read, write: if true;
     }
 
     // Public settings: readable by anyone, writable only by admin
