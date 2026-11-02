@@ -481,12 +481,12 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
             <thead>
               <tr class="border-b border-white/10 text-[11px] font-bold text-zinc-400 uppercase tracking-wider bg-white/[0.02]">
                 <th class="py-3 px-4">User / Google Account</th>
-                <th class="py-3 px-3">Plan</th>
-                <th class="py-3 px-3">Device IP</th>
-                <th class="py-3 px-3">MAC Address</th>
-                <th class="py-3 px-3">Remaining Time</th>
-                <th class="py-3 px-3">Status</th>
-                <th class="py-3 px-4 text-right">Actions</th>
+                <th class="py-3 px-3 whitespace-nowrap">Plan</th>
+                <th class="py-3 px-3 whitespace-nowrap">Device IP</th>
+                <th class="py-3 px-3 whitespace-nowrap">MAC Address</th>
+                <th class="py-3 px-3 whitespace-nowrap">Remaining Time</th>
+                <th class="py-3 px-3 whitespace-nowrap">Status</th>
+                <th class="py-3 px-4 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody id="accounts-tbody" class="divide-y divide-white/[0.05]">
@@ -494,9 +494,31 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                 accounts.length === 0
                   ? '<tr><td colspan="7" class="py-12 text-center text-zinc-500">No registered Google accounts found</td></tr>'
                   : accounts.map(a => {
-                      const isExpired = !a.expiresAt || a.expiresAt <= now;
-                      const daysLeft = a.expiresAt && !isExpired ? Math.ceil((a.expiresAt - now) / 86400000) : 0;
-                      const expStr = a.expiresAt ? new Date(a.expiresAt).toLocaleDateString('en-GB') : '-';
+                      const exp = a.expiresAt || (a.expires_at ? new Date(a.expires_at).getTime() : 0);
+                      const isExpired = !exp || exp <= now;
+                      const diff = exp && !isExpired ? (exp - now) : 0;
+                      const d = Math.floor(diff / 86400000);
+                      const h = Math.floor((diff % 86400000) / 3600000);
+                      const m = Math.floor((diff % 3600000) / 60000);
+
+                      let remainStr = '';
+                      if (diff >= 86400000) {
+                        const daysLeft = Math.ceil(diff / 86400000);
+                        remainStr = `${daysLeft}d left`;
+                      } else if (h > 0) {
+                        remainStr = m > 0 ? `${h}h ${m}m left` : `${h}h left`;
+                      } else if (m > 0) {
+                        remainStr = `${m}m left`;
+                      } else if (diff > 0) {
+                        const s = Math.max(1, Math.floor(diff / 1000));
+                        remainStr = `${s}s left`;
+                      }
+
+                      const expDate = exp ? new Date(exp) : null;
+                      const expDateStr = expDate ? expDate.toLocaleDateString('en-GB') : '-';
+                      const expTimeStr = expDate ? expDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+                      const expDetail = d > 0 ? expDateStr : (expTimeStr ? `${expDateStr} ${expTimeStr}` : expDateStr);
+
                       const initial = (a.name ? a.name.charAt(0) : (a.email ? a.email.charAt(0) : 'G')).toUpperCase();
                       const relatedSlip = sortedSlips.find(s => s.email && s.email.toLowerCase() === (a.email || '').toLowerCase() && (s.status || 'pending').toLowerCase() === 'pending');
                       const isPendingSlip = a.plan === 'pending-vip' || !!relatedSlip;
@@ -516,27 +538,25 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                             </div>
                           </div>
                         </td>
-                        <td class="py-3 px-3">
+                        <td class="py-3 px-3 whitespace-nowrap">
                           ${
                             isPendingSlip
-                              ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60 animate-pulse">⏳ Pending Slip</span>`
-                              : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">
-                                  ${a.plan === 'vip-30d' ? '★ 30-Day VIP' : '1-Hour Free'}
-                                </span>`
+                              ? `<span class="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60 animate-pulse">⏳ Pending Slip</span>`
+                              : `<span class="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">${a.plan === 'vip-30d' ? '★ 30-Day VIP' : '1-Hour Free'}</span>`
                           }
                         </td>
                         <td class="py-3 px-3 font-mono text-zinc-200">
                           ${a.activeIp ? `<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${a.activeIp}</span>` : '<span class="text-zinc-500">Offline</span>'}
                         </td>
                         <td class="py-3 px-3 font-mono text-zinc-400">${a.activeMac || '-'}</td>
-                        <td class="py-3 px-3">
+                        <td class="py-3 px-3 whitespace-nowrap">
                           ${
                             isPendingSlip
                               ? '<span class="text-amber-400 font-bold">Awaiting Verification</span>'
-                              : (isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${daysLeft}d left</span> <span class="text-[10px] text-zinc-500">(${expStr})</span>`)
+                              : (isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${remainStr}</span> <span class="text-[10px] text-zinc-500">(${expDetail})</span>`)
                           }
                         </td>
-                        <td class="py-3 px-3">
+                        <td class="py-3 px-3 whitespace-nowrap">
                           ${
                             isPendingSlip
                               ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60">Pending</span>'

@@ -110,6 +110,65 @@
     transform: translateY(-1px);
   }
 
+  /* Small Pill Badges (Plan, Time, Status) */
+  .badge-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    padding: 3.5px 8.5px !important;
+    border-radius: 9999px !important;
+    letter-spacing: 0.02em !important;
+    cursor: default !important;
+    transition: all 0.15s ease !important;
+    user-select: none !important;
+  }
+  .badge-pill:hover {
+    filter: brightness(1.2) !important;
+  }
+  .badge-vip {
+    background: rgba(147, 51, 234, 0.18) !important;
+    color: #d8b4fe !important;
+    border: 1px solid rgba(168, 85, 247, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(147, 51, 234, 0.15) !important;
+  }
+  .badge-trial {
+    background: rgba(14, 165, 233, 0.18) !important;
+    color: #7dd3fc !important;
+    border: 1px solid rgba(56, 189, 248, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(14, 165, 233, 0.15) !important;
+  }
+  .badge-pending {
+    background: rgba(245, 158, 11, 0.18) !important;
+    color: #fde047 !important;
+    border: 1px solid rgba(245, 158, 11, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(245, 158, 11, 0.15) !important;
+  }
+  .badge-time-active {
+    background: rgba(16, 185, 129, 0.18) !important;
+    color: #6ee7b7 !important;
+    border: 1px solid rgba(16, 185, 129, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(16, 185, 129, 0.15) !important;
+    cursor: help !important;
+  }
+  .badge-time-warning {
+    background: rgba(245, 158, 11, 0.18) !important;
+    color: #fcd34d !important;
+    border: 1px solid rgba(245, 158, 11, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(245, 158, 11, 0.15) !important;
+    cursor: help !important;
+  }
+  .badge-time-expired {
+    background: rgba(239, 68, 68, 0.18) !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(239, 68, 68, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(239, 68, 68, 0.15) !important;
+    cursor: help !important;
+  }
+
   /* Frosted Glass Inputs */
   .glisse-input {
     background: rgba(255, 255, 255, 0.05);
@@ -352,12 +411,12 @@
               <thead>
                 <tr class="border-b border-white/10 text-[11px] font-bold text-zinc-400 uppercase tracking-wider bg-white/[0.02]">
                   <th class="py-3 px-4">User / Google Account</th>
-                  <th class="py-3 px-3">Plan</th>
-                  <th class="py-3 px-3">Device IP</th>
-                  <th class="py-3 px-3">MAC Address</th>
-                  <th class="py-3 px-3">Remaining Time</th>
-                  <th class="py-3 px-3">Status</th>
-                  <th class="py-3 px-4 text-right">Actions</th>
+                  <th class="py-3 px-3 whitespace-nowrap" style="min-width: 105px;">Plan</th>
+                  <th class="py-3 px-3 whitespace-nowrap">Device IP</th>
+                  <th class="py-3 px-3 whitespace-nowrap">MAC Address</th>
+                  <th class="py-3 px-3 whitespace-nowrap" style="min-width: 95px;">Remaining Time</th>
+                  <th class="py-3 px-3 whitespace-nowrap" style="min-width: 80px;">Status</th>
+                  <th class="py-3 px-4 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody id="accounts-tbody" class="divide-y divide-white/[0.05]">
@@ -925,6 +984,14 @@
         refreshData();
       }
       setupFirestoreRealtimeListeners();
+      if (!window._accountTimer) {
+        window._accountTimer = setInterval(() => {
+          if (currentAccounts && currentAccounts.length) {
+            renderAccountsTable(currentAccounts);
+            updateStatCounters();
+          }
+        }, 30000);
+      }
     }
 
     function doAdminLogout() {
@@ -1119,8 +1186,29 @@
       tbody.innerHTML = accounts.map(a => {
         const exp = a.expiresAt || (a.expires_at ? new Date(a.expires_at).getTime() : 0);
         const isExpired = !exp || exp <= now;
-        const daysLeft = exp && !isExpired ? Math.ceil((exp - now) / 86400000) : 0;
-        const expStr = exp ? new Date(exp).toLocaleDateString('en-GB') : '-';
+        const diff = exp && !isExpired ? (exp - now) : 0;
+        const d = Math.floor(diff / 86400000);
+        const h = Math.floor((diff % 86400000) / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+
+        let remainStr = '';
+        if (diff >= 86400000) {
+          const daysLeft = Math.ceil(diff / 86400000);
+          remainStr = `${daysLeft}d left`;
+        } else if (h > 0) {
+          remainStr = m > 0 ? `${h}h ${m}m left` : `${h}h left`;
+        } else if (m > 0) {
+          remainStr = `${m}m left`;
+        } else if (diff > 0) {
+          const s = Math.max(1, Math.floor(diff / 1000));
+          remainStr = `${s}s left`;
+        }
+
+        const expDate = exp ? new Date(exp) : null;
+        const expDateStr = expDate ? expDate.toLocaleDateString('en-GB') : '-';
+        const expTimeStr = expDate ? expDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+        const expDetail = d > 0 ? expDateStr : (expTimeStr ? `${expDateStr} ${expTimeStr}` : expDateStr);
+
         const initial = (a.name ? a.name.charAt(0) : (a.email ? a.email.charAt(0) : 'G')).toUpperCase();
         const isVip = a.plan === 'vip-30d' || a.package_type === 'vip_30d';
         const relatedSlip = currentSlips.find(s => s.email && s.email.toLowerCase() === (a.email || '').toLowerCase() && (s.status || 'pending').toLowerCase() === 'pending');
@@ -1141,27 +1229,25 @@
               </div>
             </div>
           </td>
-          <td class="py-3 px-3">
+          <td class="py-3 px-3 whitespace-nowrap">
             ${
               isPendingSlip
-                ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60 animate-pulse">⏳ Pending Slip</span>`
-                : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isVip ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">
-                    ${isVip ? '★ 30-Day VIP' : '1-Hour Free'}
-                  </span>`
+                ? `<span class="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60 animate-pulse">⏳ Pending Slip</span>`
+                : `<span class="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-bold ${isVip ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">${isVip ? '★ 30-Day VIP' : '1-Hour Free'}</span>`
             }
           </td>
           <td class="py-3 px-3 font-mono text-zinc-200">
             ${(a.activeIp || a.ip) ? `<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${a.activeIp || a.ip}</span>` : '<span class="text-zinc-500">Offline</span>'}
           </td>
           <td class="py-3 px-3 font-mono text-zinc-400">${a.activeMac || a.mac || '-'}</td>
-          <td class="py-3 px-3">
+          <td class="py-3 px-3 whitespace-nowrap">
             ${
               isPendingSlip
                 ? '<span class="text-amber-400 font-bold">Awaiting Verification</span>'
-                : (isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${daysLeft}d left</span> <span class="text-[10px] text-zinc-500">(${expStr})</span>`)
+                : (isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${remainStr}</span> <span class="text-[10px] text-zinc-500">(${expDetail})</span>`)
             }
           </td>
-          <td class="py-3 px-3">
+          <td class="py-3 px-3 whitespace-nowrap">
             ${
               isPendingSlip
                 ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60">Pending</span>'
