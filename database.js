@@ -212,6 +212,38 @@ async function getAccountByIp(ip) {
     };
   }
 
+  // Check if this IP's MAC address belongs to a device with an active, unexpired account
+  try {
+    const { getMacForIp, allowIp } = require('./firewall');
+    const mac = await getMacForIp(ip);
+    if (mac && mac !== 'localhost' && mac !== ip && !mac.startsWith('00:00:00')) {
+      const macRow = await get(
+        `SELECT * FROM accounts WHERE (active_mac = ? OR last_mac = ?) AND expires_at > ? AND blocked = 0 ORDER BY expires_at DESC LIMIT 1`,
+        [mac, mac, now]
+      );
+      if (macRow) {
+        // Re-associate new IP with this active account so phone never gets prompted again while plan is active
+        await run(`UPDATE accounts SET active_ip = ?, last_ip = ? WHERE email = ?`, [ip, ip, macRow.email]);
+        allowIp(ip).catch(() => {});
+        return {
+          email: macRow.email,
+          name: macRow.name,
+          picture: macRow.picture,
+          googleId: macRow.google_id,
+          plan: macRow.plan,
+          createdAt: macRow.created_at,
+          expiresAt: macRow.expires_at,
+          lastTrialAt: macRow.last_trial_at,
+          activeIp: ip,
+          activeMac: mac,
+          blocked: !!macRow.blocked
+        };
+      }
+    }
+  } catch (macErr) {
+    /* quiet catch */
+  }
+
   // Throttle Firestore direct fallback to prevent DNS request latency & quota exhaustion
   // (Note: server.js already syncs Firestore to SQLite every 3 seconds)
   if (now - lastFsFallbackLookup < 4000) {

@@ -1714,6 +1714,7 @@ function renderPortal(account, settings, expiredAccount = null, clientIp = '', c
   window.__CLIENT_IP__ = "${clientIp || ''}";
   window.__CLIENT_MAC__ = "${clientMac || ''}";
   window.__GATEWAY_IP__ = "${gatewayIp || ''}";
+  window.__ACTIVE_ACCOUNT__ = ${account ? JSON.stringify(account) : 'null'};
   window.__EXPIRED_ACCOUNT__ = ${expiredAccount ? JSON.stringify(expiredAccount) : 'null'};
 </script>
 `;

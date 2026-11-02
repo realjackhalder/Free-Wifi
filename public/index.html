@@ -2381,7 +2381,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (e) {}
 
-  // Check active session (Server API check first, then local session)
+  // 1. Immediate server-injected active session check
+  if (window.__ACTIVE_ACCOUNT__) {
+    saveActiveSession(window.__ACTIVE_ACCOUNT__);
+    showConnectedView(window.__ACTIVE_ACCOUNT__);
+    return;
+  }
+
+  // 2. Check active session (Server API check first, then local session)
   try {
     const resp = await safeFetchJson('/api/session-status', {}, 2000);
     const sessionAcc = (resp.ok && resp.data && (resp.data.account || (resp.data.active && resp.data.email ? resp.data : null)));
@@ -2402,9 +2409,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const localSession = getActiveSession();
-  if (localSession) {
+  if (localSession && (!localSession.expiresAt || Date.now() < localSession.expiresAt)) {
     showConnectedView(localSession);
   } else {
+    if (localSession && localSession.expiresAt && Date.now() >= localSession.expiresAt) {
+      clearActiveSession();
+      localStorage.setItem('wifi_expired_notice', 'true');
+    }
     showLoginView();
     checkExpiredSessionNotice();
   }
