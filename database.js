@@ -185,6 +185,8 @@ async function getAccount(email) {
   };
 }
 
+let lastFsFallbackLookup = 0;
+
 async function getAccountByIp(ip) {
   if (!ip) return null;
   const now = Date.now();
@@ -209,6 +211,13 @@ async function getAccountByIp(ip) {
       blocked: !!row.blocked
     };
   }
+
+  // Throttle Firestore direct fallback to prevent DNS request latency & quota exhaustion
+  // (Note: server.js already syncs Firestore to SQLite every 3 seconds)
+  if (now - lastFsFallbackLookup < 4000) {
+    return null;
+  }
+  lastFsFallbackLookup = now;
 
   // Check Cloud Firestore for active session on this IP (Admin SDK or REST API fallback)
   if (fb.isReady()) {
