@@ -78,6 +78,16 @@ async function initDb() {
   } catch (e) {
     /* column already exists */
   }
+  try {
+    await run(`ALTER TABLE accounts ADD COLUMN last_ip TEXT`);
+  } catch (e) {
+    /* column already exists */
+  }
+  try {
+    await run(`ALTER TABLE accounts ADD COLUMN last_mac TEXT`);
+  } catch (e) {
+    /* column already exists */
+  }
 
   await run(`
     CREATE TABLE IF NOT EXISTS ip_logs (
@@ -260,8 +270,8 @@ async function saveAccount(acc) {
 
   // Always save to local SQLite
   return await run(
-    `INSERT INTO accounts (email, name, picture, google_id, plan, created_at, expires_at, last_trial_at, active_ip, active_mac, blocked)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO accounts (email, name, picture, google_id, plan, created_at, expires_at, last_trial_at, active_ip, active_mac, last_ip, last_mac, blocked)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(email) DO UPDATE SET
        name = COALESCE(excluded.name, accounts.name),
        picture = COALESCE(excluded.picture, accounts.picture),
@@ -271,6 +281,8 @@ async function saveAccount(acc) {
        last_trial_at = excluded.last_trial_at,
        active_ip = excluded.active_ip,
        active_mac = excluded.active_mac,
+       last_ip = COALESCE(excluded.active_ip, accounts.last_ip),
+       last_mac = COALESCE(excluded.active_mac, accounts.last_mac),
        blocked = excluded.blocked`,
     [
       email,
@@ -283,6 +295,8 @@ async function saveAccount(acc) {
       accountData.lastTrialAt,
       accountData.activeIp,
       accountData.activeMac,
+      accountData.activeIp || null,
+      accountData.activeMac || null,
       accountData.blocked ? 1 : 0
     ]
   );
@@ -502,11 +516,63 @@ async function getAllSettings() {
   return settings;
 }
 
+async function getExpiredAccount({ ip, mac, email } = {}) {
+  const now = Date.now();
+  let row = null;
+  if (email) {
+    row = await get(
+      `SELECT * FROM accounts WHERE LOWER(email) = LOWER(?) AND expires_at <= ? AND blocked = 0 ORDER BY expires_at DESC LIMIT 1`,
+      [email.trim(), now]
+    );
+  }
+  if (!row && ip && ip !== '127.0.0.1' && ip !== '::1') {
+    row = await get(
+      `SELECT * FROM accounts WHERE (active_ip = ? OR last_ip = ?) AND expires_at <= ? AND blocked = 0 ORDER BY expires_at DESC LIMIT 1`,
+      [ip, ip, now]
+    );
+  }
+  if (!row && mac && mac !== 'localhost') {
+    row = await get(
+      `SELECT * FROM accounts WHERE (active_mac = ? OR last_mac = ?) AND expires_at <= ? AND blocked = 0 ORDER BY expires_at DESC LIMIT 1`,
+      [mac, mac, now]
+    );
+  }
+  if (!row && (ip || mac)) {
+    const logRow = await get(
+      `SELECT email FROM ip_logs WHERE (ip_address = ? OR mac_address = ?) AND email IS NOT NULL AND email != '' ORDER BY timestamp DESC LIMIT 1`,
+      [ip || '', mac || '']
+    );
+    if (logRow && logRow.email) {
+      row = await get(
+        `SELECT * FROM accounts WHERE LOWER(email) = LOWER(?) AND expires_at <= ? AND blocked = 0 ORDER BY expires_at DESC LIMIT 1`,
+        [logRow.email, now]
+      );
+    }
+  }
+  if (!row) return null;
+  return {
+    email: row.email,
+    name: row.name,
+    picture: row.picture,
+    googleId: row.google_id,
+    plan: row.plan,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    lastTrialAt: row.last_trial_at,
+    activeIp: row.active_ip,
+    activeMac: row.active_mac,
+    lastIp: row.last_ip,
+    lastMac: row.last_mac,
+    blocked: !!row.blocked
+  };
+}
+
 module.exports = {
   initDb,
   getAccount,
   getAccountByIp,
   findAccountByIp: getAccountByIp,
+  getExpiredAccount,
   saveAccount,
   getAllAccounts,
   deleteAccount,
