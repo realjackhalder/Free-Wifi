@@ -754,21 +754,32 @@
   <!-- MODAL: RECEIPT LIGHTBOX (Image Inspector)                             -->
   <!-- ===================================================================== -->
   <div id="lightbox-modal" class="fixed inset-0 z-50 glisse-modal-backdrop hidden flex items-center justify-center p-4" onclick="closeLightbox(event)">
-    <div class="glisse-card p-4 sm:p-6 max-w-2xl w-full relative space-y-3 bg-zinc-950" onclick="event.stopPropagation()">
+    <div class="glisse-card p-4 sm:p-5 max-w-sm sm:max-w-md w-full relative space-y-3 bg-zinc-950/95 border border-white/15 shadow-2xl" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between pb-2 border-b border-white/10">
-        <h4 id="lightbox-title" class="font-bold text-white text-sm">Receipt Inspector</h4>
-        <button onclick="closeLightbox()" class="text-zinc-400 hover:text-white text-lg">✕</button>
+        <div class="flex items-center space-x-2">
+          <span class="text-base">🧾</span>
+          <h4 id="lightbox-title" class="font-bold text-white text-xs sm:text-sm truncate max-w-[160px] sm:max-w-[200px]">Receipt Inspector</h4>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <button type="button" onclick="zoomLightbox(-0.25)" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-xs font-bold" title="Zoom Out">−</button>
+          <button type="button" onclick="resetLightboxZoom()" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-[10px] font-bold" title="Reset Zoom">100%</button>
+          <button type="button" onclick="zoomLightbox(0.25)" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-xs font-bold" title="Zoom In">+</button>
+          <button onclick="closeLightbox()" class="text-zinc-400 hover:text-white text-lg ml-1 px-1.5">✕</button>
+        </div>
       </div>
-      <div class="w-full max-h-[70vh] overflow-auto flex items-center justify-center rounded-2xl bg-black/60 p-2 border border-white/10">
-        <img id="lightbox-img" src="" alt="Receipt" class="max-w-full max-h-[65vh] object-contain rounded-xl" />
+      <div class="w-full max-h-[48vh] sm:max-h-[420px] overflow-auto flex items-center justify-center rounded-2xl bg-black/80 p-2 sm:p-3 border border-white/10">
+        <img id="lightbox-img" src="" alt="Receipt" onclick="toggleLightboxZoom()" class="max-h-[44vh] sm:max-h-[380px] max-w-[260px] sm:max-w-[320px] w-auto h-auto object-contain rounded-xl shadow-2xl transition-transform duration-150 cursor-zoom-in" />
       </div>
-      <div class="flex items-center justify-end space-x-2 pt-2">
-        <a id="lightbox-download" href="" download="receipt.jpg" class="glisse-btn-secondary px-4 py-1.5 rounded-xl text-xs font-bold">
-          ⬇️ Download Receipt
-        </a>
-        <button onclick="closeLightbox()" class="glisse-btn-primary px-4 py-1.5 rounded-xl text-xs font-bold">
-          Close
-        </button>
+      <div class="flex items-center justify-between pt-1">
+        <span class="text-[10px] text-zinc-500 font-medium">Click image to zoom</span>
+        <div class="flex items-center space-x-2">
+          <a id="lightbox-download" href="" download="receipt.jpg" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1">
+            <span>⬇️</span> Download
+          </a>
+          <button onclick="closeLightbox()" class="glisse-btn-primary px-3.5 py-1.5 rounded-xl text-xs font-bold">
+            Close
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1239,7 +1250,9 @@
       document.getElementById('grant-modal').classList.add('hidden');
     }
 
+    let lightboxZoom = 1;
     function openLightbox(url, title) {
+      resetLightboxZoom();
       document.getElementById('lightbox-img').src = url;
       document.getElementById('lightbox-title').innerText = title || 'Receipt Inspector';
       document.getElementById('lightbox-download').href = url;
@@ -1247,6 +1260,26 @@
     }
     function closeLightbox() {
       document.getElementById('lightbox-modal').classList.add('hidden');
+      resetLightboxZoom();
+    }
+    function zoomLightbox(delta) {
+      lightboxZoom = Math.min(2.5, Math.max(0.6, lightboxZoom + delta));
+      applyLightboxZoom();
+    }
+    function resetLightboxZoom() {
+      lightboxZoom = 1;
+      applyLightboxZoom();
+    }
+    function toggleLightboxZoom() {
+      lightboxZoom = lightboxZoom === 1 ? 1.75 : 1;
+      applyLightboxZoom();
+    }
+    function applyLightboxZoom() {
+      const img = document.getElementById('lightbox-img');
+      if (img) {
+        img.style.transform = `scale(${lightboxZoom})`;
+        img.className = img.className.replace(/cursor-zoom-(in|out)/, '') + (lightboxZoom > 1 ? ' cursor-zoom-out' : ' cursor-zoom-in');
+      }
     }
 
     // Client Filters
