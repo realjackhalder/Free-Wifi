@@ -326,15 +326,6 @@ Free Wi-Fi Team
       </td>
     </tr>
 
-    <!-- In-Email "Copy code" Pill Button -->
-    <tr>
-      <td style="text-align: center; padding-bottom: 28px;">
-        <a href="https://free-wifi-portal.web.app?otp=${otp}" target="_blank" style="display: inline-block; background-color: #0b57d0; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; text-decoration: none; padding: 11px 32px; border-radius: 24px; box-shadow: 0 2px 6px rgba(11,87,208,0.25);">
-          Copy code
-        </a>
-      </td>
-    </tr>
-
     <!-- Security Disclaimers -->
     <tr>
       <td style="border-top: 1px solid #f3f4f6; padding-top: 20px; font-size: 13px; line-height: 1.6; color: #6b7280;">
