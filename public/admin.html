@@ -809,20 +809,25 @@
         settingsObj[k] = v;
       }
 
-      let handled = false;
+      let serverSaved = false;
       try {
         const res = await fetch(`/admin/settings?pin=${encodeURIComponent(activePin)}`, {
           method: 'POST',
           body: params
         });
-        if (res.ok) handled = true;
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && !contentType.includes('text/html')) {
+          serverSaved = true;
+        }
       } catch (e) {}
 
-      if (!handled && window.firebase && firebase.firestore) {
+      // Always sync settings to Cloud Firestore so Firebase Hosting and all gateways stay synced
+      let cloudSaved = false;
+      if (window.firebase && firebase.firestore) {
         try {
           const db = firebase.firestore();
           await db.collection('settings').doc('config').set(settingsObj, { merge: true });
-          handled = true;
+          cloudSaved = true;
         } catch (err) {
           console.warn('Firestore save settings:', err);
         }
@@ -834,7 +839,7 @@
         sessionStorage.setItem('admin_pin', newPin);
       }
 
-      showFlash(handled ? 'System settings saved successfully' : 'Saved settings', false);
+      showFlash((serverSaved || cloudSaved) ? 'System settings saved successfully' : 'Saved settings', false);
       refreshData();
     }
 
@@ -866,20 +871,59 @@
         return;
       }
 
+      let testSuccess = false;
+      let errorMsg = null;
+
+      // 1. Try local server API first
       try {
-        const res = await fetch(`/admin/telegram-test?pin=${encodeURIComponent(activePin)}`, {
+        const res = await fetch(`/admin/telegram-test?pin=${encodeURIComponent(activePin || '')}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ telegramBotToken: token, telegramChatId: chatId })
+          body: JSON.stringify({ telegramBotToken: token, telegramChatId: chatId, pin: activePin || '' })
         });
-        const data = await res.json();
-        if (data.success) {
-          alert('✓ Test message sent successfully to Telegram! Please check your Telegram App.');
-        } else {
-          alert('⚠️ Failed to send: ' + (data.error || 'Unknown Error'));
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
+          const data = await res.json();
+          if (data.success || data.ok) {
+            testSuccess = true;
+          } else {
+            errorMsg = data.error || 'Unknown Error';
+          }
         }
-      } catch (e) {
-        alert('Connection error: ' + e.message);
+      } catch (e) {}
+
+      // 2. Direct Telegram Bot API fallback (works everywhere, including Firebase Hosting)
+      if (!testSuccess && !errorMsg) {
+        try {
+          const tgRes = await fetch(`https://api.telegram.org/bot${encodeURIComponent(token)}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `🔔 <b>Free Wi-Fi Gateway</b>\n\n✅ Telegram Bot connected successfully!\n🕒 Time: ${new Date().toLocaleString()}\n🌐 Dashboard: Admin Portal`,
+              parse_mode: 'HTML'
+            })
+          });
+          const contentType = tgRes.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const tgData = await tgRes.json();
+            if (tgData.ok) {
+              testSuccess = true;
+            } else {
+              errorMsg = tgData.description || 'Failed to send message via Telegram Bot API';
+            }
+          } else {
+            errorMsg = 'Received unexpected response from Telegram server';
+          }
+        } catch (e) {
+          errorMsg = e.message;
+        }
+      }
+
+      if (testSuccess) {
+        alert('✓ Test message sent successfully to Telegram! Please check your Telegram App.');
+      } else {
+        alert('⚠️ Telegram Error: ' + (errorMsg || 'Failed to send message. Please verify Bot Token and Chat ID.'));
       }
     }
   </script>
