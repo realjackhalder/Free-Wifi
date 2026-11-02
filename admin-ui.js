@@ -1160,6 +1160,9 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
     function closeGrantModal() {
       document.getElementById('grant-modal').classList.add('hidden');
     }
+    function confirmDeleteSlip() {
+      return confirm('Permanently delete this slip record?');
+    }
 
     window.allSlips = ${JSON.stringify(sortedSlips.map(s => ({ id: String(s.id || s.slipId), uploaded_at: s.uploaded_at, email: s.email })))};
 
@@ -1263,7 +1266,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                   '✕ Decline' +
                 '</button>' +
               '</form>' +
-              '<form method="post" action="/admin/slip/delete" onsubmit="return confirm(\'Permanently delete this slip record?\')">' +
+              '<form method="post" action="/admin/slip/delete" onsubmit="return confirmDeleteSlip()">' +
                 '<input type="hidden" name="slipId" value="' + parsedId + '" />' +
                 '<button type="submit" class="glisse-btn-secondary px-2.5 py-2 rounded-xl text-xs font-bold text-zinc-400 hover:text-red-400" title="Delete Slip">' +
                   '🗑️' +
@@ -1274,7 +1277,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
               '<span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 inline-flex items-center gap-1">' +
                 '✓ 30-Day VIP Active' +
               '</span>' +
-              '<form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirm(\'Permanently delete this slip record?\')">' +
+              '<form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirmDeleteSlip()">' +
                 '<input type="hidden" name="slipId" value="' + parsedId + '" />' +
                 '<button type="submit" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-400 hover:text-red-400 inline-flex items-center gap-1" title="Delete Slip">' +
                   '<span>🗑️</span> Delete' +
@@ -1285,7 +1288,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
               '<span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-950/80 text-red-300 border border-red-700/60 inline-flex items-center gap-1">' +
                 '✕ Declined' +
               '</span>' +
-              '<form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirm(\'Permanently delete this slip record?\')">' +
+              '<form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirmDeleteSlip()">' +
                 '<input type="hidden" name="slipId" value="' + parsedId + '" />' +
                 '<button type="submit" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-400 hover:text-red-400 inline-flex items-center gap-1" title="Delete Slip">' +
                   '<span>🗑️</span> Delete' +
