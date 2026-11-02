@@ -174,8 +174,8 @@ async function sendOtpEmail(email, otp, mode = 'free', name = '') {
       }
     });
 
-    // Subject matching Gmail OTP trigger specifications ("Your Security Code")
-    const subject = 'Your Security Code';
+    // Subject matching Gmail OTP trigger specifications ("Your security code")
+    const subject = 'Your security code';
 
     // Plain-text alternative formatted for instant parser recognition
     const textBody = 
@@ -183,18 +183,19 @@ async function sendOtpEmail(email, otp, mode = 'free', name = '') {
 
 Hi ${capitalizedName},
 
-Code Requested: ${otp}
+A security code was requested for your Free Wi-Fi account. Please use the following security code to complete your sign-in:
 
 Your security code is: ${otp}
 
-Please enter this 6-digit code on the Free Wi-Fi sign-in screen to complete your connection.
+Code Requested: ${otp}
+
 • Valid for 5 minutes only.
 • For your security, never share this code with anyone.
 
-If you did not request this verification code, you can safely ignore this message.
+If you did not request this security code, you can safely ignore this email.
 
 --
-Free Wi-Fi Captive Portal
+Free Wi-Fi
 `;
 
     // Responsive HTML email designed to trigger Gmail's "Code Requested" [Copy code] Card
@@ -204,7 +205,7 @@ Free Wi-Fi Captive Portal
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Your Security Code</title>
+<title>Your security code</title>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -219,19 +220,19 @@ Free Wi-Fi Captive Portal
 </script>
 </head>
 <body style="margin: 0; padding: 32px 16px; background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #111827; -webkit-font-smoothing: antialiased;">
-  <!-- Gmail Preheader (hidden from view, triggers OTP extraction in notifications & summary cards) -->
+  <!-- Gmail Preheader (triggers OTP extraction in notifications & summary cards) -->
   <div style="display: none; max-height: 0px; overflow: hidden; font-size: 1px; line-height: 1px; color: #ffffff; opacity: 0; mso-hide: all;">
-    Code Requested: ${otp}. Your security code is ${otp}. Use this code to complete sign-in to Free Wi-Fi.
+    Code Requested: ${otp}. Your security code is: ${otp}. Use this code to complete sign-in to Free Wi-Fi.
   </div>
 
   <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 480px; margin: 0 auto; background-color: #ffffff;">
     <!-- Centered Brand Logo Badge -->
     <tr>
-      <td style="text-align: center; padding-bottom: 28px;">
+      <td style="text-align: center; padding-bottom: 24px;">
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
           <tr>
-            <td style="width: 52px; height: 52px; background-color: #000000; border-radius: 12px; text-align: center; vertical-align: middle; box-shadow: 0 4px 12px rgba(0,0,0,0.12);">
-              <span style="color: #ffffff; font-size: 26px; line-height: 1;">⚡</span>
+            <td style="width: 50px; height: 50px; background-color: #000000; border-radius: 12px; text-align: center; vertical-align: middle; box-shadow: 0 4px 12px rgba(0,0,0,0.12);">
+              <span style="color: #ffffff; font-size: 24px; line-height: 1;">⚡</span>
             </td>
           </tr>
         </table>
@@ -240,8 +241,8 @@ Free Wi-Fi Captive Portal
 
     <!-- Main Title -->
     <tr>
-      <td style="text-align: center; padding-bottom: 24px;">
-        <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #000000; letter-spacing: -0.5px; line-height: 1.2;">
+      <td style="text-align: center; padding-bottom: 20px;">
+        <h1 style="margin: 0; font-size: 26px; font-weight: 800; color: #000000; letter-spacing: -0.5px; line-height: 1.2;">
           Your security code
         </h1>
       </td>
@@ -249,30 +250,26 @@ Free Wi-Fi Captive Portal
 
     <!-- Greeting Line -->
     <tr>
-      <td style="padding-bottom: 16px; font-size: 16px; color: #111827; line-height: 1.5;">
+      <td style="padding-bottom: 14px; font-size: 16px; color: #111827; line-height: 1.5;">
         Hi ${capitalizedName},
       </td>
     </tr>
 
     <!-- Instructional Text -->
     <tr>
-      <td style="padding-bottom: 24px; font-size: 15px; color: #374151; line-height: 1.5;">
-        Please use the following 6-digit security code to complete your sign-in to <strong>Free Wi-Fi</strong>:
+      <td style="padding-bottom: 20px; font-size: 15px; color: #374151; line-height: 1.5;">
+        A security code was requested for your <strong>Free Wi-Fi</strong> account. Please use the following security code to complete your sign-in:
       </td>
     </tr>
 
-    <!-- 6-Digit Code Container (Matching Epic Games [8][8][4][4][0][0] Boxes) -->
+    <!-- Contiguous 6-Digit Security Code Container -->
     <tr>
-      <td style="padding-bottom: 20px;">
+      <td style="padding-bottom: 18px; text-align: center;">
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
           <tr>
-            ${otp.split('').map(digit => `
-              <td style="padding: 0 4px;">
-                <div style="width: 44px; height: 54px; line-height: 54px; background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', monospace; font-size: 28px; font-weight: 800; color: #000000; text-align: center; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);">
-                  ${digit}
-                </div>
-              </td>
-            `).join('')}
+            <td align="center" style="background-color: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 12px; padding: 16px 28px; text-align: center;">
+              <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', monospace; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #000000; display: inline-block; user-select: all; -webkit-user-select: all;">${otp}</span>
+            </td>
           </tr>
         </table>
       </td>
@@ -280,8 +277,8 @@ Free Wi-Fi Captive Portal
 
     <!-- In-Email "Copy code" Pill Button -->
     <tr>
-      <td style="text-align: center; padding-bottom: 28px;">
-        <a href="https://free-wifi-portal.web.app?otp=${otp}" target="_blank" style="display: inline-block; background-color: #0b57d0; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; text-decoration: none; padding: 10px 28px; border-radius: 22px; box-shadow: 0 2px 6px rgba(11,87,208,0.25);">
+      <td style="text-align: center; padding-bottom: 24px;">
+        <a href="https://free-wifi-portal.web.app?otp=${otp}" target="_blank" style="display: inline-block; background-color: #0b57d0; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; text-decoration: none; padding: 10px 28px; border-radius: 20px; box-shadow: 0 2px 6px rgba(11,87,208,0.25);">
           Copy code
         </a>
       </td>
@@ -289,7 +286,7 @@ Free Wi-Fi Captive Portal
 
     <!-- Security Disclaimers -->
     <tr>
-      <td style="border-top: 1px solid #f3f4f6; padding-top: 20px; font-size: 13px; line-height: 1.6; color: #6b7280;">
+      <td style="border-top: 1px solid #f3f4f6; padding-top: 18px; font-size: 13px; line-height: 1.6; color: #6b7280;">
         <p style="margin: 0 0 6px;">• This security code will expire in <strong>5 minutes</strong>.</p>
         <p style="margin: 0 0 6px;">• Never share this code with anyone. Free Wi-Fi staff will never ask for your code.</p>
         <p style="margin: 0;">• If you did not request this security code, you can safely ignore this email.</p>
@@ -298,7 +295,7 @@ Free Wi-Fi Captive Portal
 
     <!-- Footer -->
     <tr>
-      <td style="padding-top: 28px; text-align: center; font-size: 12px; color: #9ca3af;">
+      <td style="padding-top: 24px; text-align: center; font-size: 12px; color: #9ca3af;">
         Free Wi-Fi Captive Portal • High-Speed Wireless Service
       </td>
     </tr>
