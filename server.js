@@ -1676,9 +1676,10 @@ setInterval(syncFirestoreActiveAccounts, 3000);
   publishGatewayInfo();
   setInterval(publishGatewayInfo, 60000);
 
+  const currentSettings = await db.getAllSettings();
   console.log(`\n  =============================================================`);
   console.log(`    Free Wi-Fi Gateway Server (Dual-Port Architecture)        `);
-  console.log(`    Admin Server (3000): http://localhost:${ADMIN_PORT} (PIN: 1234)`);
+  console.log(`    Admin Server (3000): http://localhost:${ADMIN_PORT} (PIN: ${currentSettings.adminPin || '1234'})`);
   console.log(`    User Portal  (3001): http://localhost:${USER_PORT}/portal`);
   console.log(`    Database:            SQLite (wifi.db) + Firestore          `);
   console.log(`    Admin Portal:        English (ENG Only)                 `);
