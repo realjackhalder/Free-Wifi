@@ -98,6 +98,18 @@ function renderAdminLogin(error = null) {
 }
 
 function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = false, firebaseConfig = {}, msg = null, err = null, activeTab = 'accounts' }) {
+  // Sort slips chronologically so Slip #001 is the first slip uploaded
+  const sortedSlips = [...slips].sort((a, b) => {
+    const tA = a.uploaded_at ? new Date(a.uploaded_at).getTime() : (a.createdAt || 0);
+    const tB = b.uploaded_at ? new Date(b.uploaded_at).getTime() : (b.createdAt || 0);
+    return tA - tB;
+  });
+
+  const getSlipNum = (slipId) => {
+    const idx = sortedSlips.findIndex(s => String(s.id || s.slipId) === String(slipId));
+    return idx !== -1 ? String(idx + 1).padStart(3, '0') : '001';
+  };
+
   const totalUsers = accounts.length;
   const now = Date.now();
   let activeUsers = 0;
@@ -486,8 +498,9 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                       const daysLeft = a.expiresAt && !isExpired ? Math.ceil((a.expiresAt - now) / 86400000) : 0;
                       const expStr = a.expiresAt ? new Date(a.expiresAt).toLocaleDateString('en-GB') : '-';
                       const initial = (a.name ? a.name.charAt(0) : (a.email ? a.email.charAt(0) : 'G')).toUpperCase();
-                      const relatedSlip = slips.find(s => s.email && s.email.toLowerCase() === (a.email || '').toLowerCase() && s.status === 'pending');
+                      const relatedSlip = sortedSlips.find(s => s.email && s.email.toLowerCase() === (a.email || '').toLowerCase() && (s.status || 'pending').toLowerCase() === 'pending');
                       const isPendingSlip = a.plan === 'pending-vip' || !!relatedSlip;
+                      const relSlipNum = relatedSlip ? getSlipNum(relatedSlip.id) : '001';
                       const planType = isPendingSlip ? 'pending' : (a.plan === 'vip-30d' ? 'vip' : 'trial');
 
                       return `
@@ -534,7 +547,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                           ${
                             relatedSlip
                               ? `
-                              <button onclick="openLightbox('${relatedSlip.cloud_url || relatedSlip.cloudUrl || (relatedSlip.filename ? '/uploads/' + relatedSlip.filename : '/my-qr')}', 'Slip #${relatedSlip.id} - ${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold text-amber-300" title="Inspect slip photo">🔍 Slip</button>
+                              <button type="button" onclick="openLightbox('${relatedSlip.cloud_url || relatedSlip.cloudUrl || (relatedSlip.filename ? '/uploads/' + relatedSlip.filename : (relatedSlip.imageBase64 || '/my-qr'))}', 'Slip #${relSlipNum} • ${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold text-amber-300" title="Inspect slip photo">🔍 Slip</button>
                               <form method="post" action="/admin/slip/approve" class="inline">
                                 <input type="hidden" name="slipId" value="${relatedSlip.id}" />
                                 <button type="submit" class="glisse-btn-success px-2 py-1 rounded-lg text-[11px] font-bold" title="Approve 30-Day VIP">✓ Approve</button>
@@ -592,13 +605,13 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
       <!-- Slips Symmetrical Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="slips-grid">
         ${
-          slips.length === 0
+          sortedSlips.length === 0
             ? '<div class="col-span-full glisse-card py-16 text-center text-zinc-500">No payment slips uploaded yet.</div>'
-            : slips.map((s, idx) => {
+            : sortedSlips.map((s, idx) => {
                 const slipNum = String(idx + 1).padStart(3, '0');
-                const imgUrl = s.cloudUrl || (s.filename ? `/uploads/${s.filename}` : '/my-qr');
-                const dateStr = new Date(s.uploaded_at).toLocaleString('en-GB');
-                const isPending = s.status === 'pending';
+                const imgUrl = s.cloudUrl || s.cloud_url || (s.filename ? `/uploads/${s.filename}` : (s.imageBase64 || '/my-qr'));
+                const dateStr = s.uploaded_at ? new Date(s.uploaded_at).toLocaleString('en-GB') : (s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : '-');
+                const isPending = (s.status || 'pending').toLowerCase() === 'pending';
                 const isApproved = s.status === 'approved' || s.status === 'verified';
 
                 return `
@@ -1126,6 +1139,14 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
       document.getElementById('grant-modal').classList.add('hidden');
     }
 
+    window.allSlips = ${JSON.stringify(sortedSlips.map(s => ({ id: String(s.id || s.slipId), uploaded_at: s.uploaded_at, email: s.email })))};
+
+    function getSlipNum(sId) {
+      if (!window.allSlips || !Array.isArray(window.allSlips)) return '001';
+      const idx = window.allSlips.findIndex(s => String(s.id) === String(sId));
+      return idx !== -1 ? String(idx + 1).padStart(3, '0') : '001';
+    }
+
     // Lightbox Modal
     let lightboxZoom = 1;
     function openLightbox(url, title) {
@@ -1133,8 +1154,16 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
       document.getElementById('lightbox-img').src = url;
       const titleEl = document.getElementById('lightbox-title');
       if (titleEl) {
-        titleEl.innerText = title || 'Payment Slip';
-        titleEl.title = title || 'Payment Slip';
+        let cleanTitle = title || 'Payment Slip';
+        if (cleanTitle.includes('slip_')) {
+          const match = cleanTitle.match(/slip_\d+/);
+          if (match) {
+            cleanTitle = cleanTitle.replace(match[0], getSlipNum(match[0]));
+          }
+        }
+        cleanTitle = cleanTitle.replace(/#+/g, '#');
+        titleEl.innerText = cleanTitle;
+        titleEl.title = cleanTitle;
       }
       document.getElementById('lightbox-download').href = url;
       document.getElementById('lightbox-modal').classList.remove('hidden');

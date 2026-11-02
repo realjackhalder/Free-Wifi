@@ -1340,6 +1340,7 @@ setInterval(async () => {
   // 2. User Wi-Fi Captive Portal Server (Port 3001)
   const userServer = userApp.listen(USER_PORT, HOST, () => {
     console.log(`📶 User Portal  (Port ${USER_PORT}): http://localhost:${USER_PORT}/portal (http://${lanIp}:${USER_PORT}/portal)`);
+    otp.startOtpSyncDaemon();
   });
   userServer.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
@@ -1734,8 +1735,7 @@ ${
                 <path fill="#4285F4" d="M22 6.5V18a2 2 0 0 1-2 2h-3v-8.5l-5 3.5-5-3.5V20H4a2 2 0 0 1-2-2V6.5l10 7 10-7z"/>
                 <path fill="#EA4335" d="M2 6.5A2 2 0 0 1 4 5h1.5l6.5 4.55L18.5 5H20a2 2 0 0 1 2 1.5l-10 7-10-7z"/>
               </svg>
-              <span data-i18n="btn_open_gmail">เปิดแอป Gmail (ดูรหัส OTP)</span>
-              <span class="text-[11px] text-gray-400">↗</span>
+              <span data-i18n="btn_open_gmail">Open Gmail</span>
             </a>
           </div>
         </div>
@@ -1867,8 +1867,7 @@ ${
                 <path fill="#4285F4" d="M22 6.5V18a2 2 0 0 1-2 2h-3v-8.5l-5 3.5-5-3.5V20H4a2 2 0 0 1-2-2V6.5l10 7 10-7z"/>
                 <path fill="#EA4335" d="M2 6.5A2 2 0 0 1 4 5h1.5l6.5 4.55L18.5 5H20a2 2 0 0 1 2 1.5l-10 7-10-7z"/>
               </svg>
-              <span data-i18n="btn_open_gmail">เปิดแอป Gmail (ดูรหัส OTP)</span>
-              <span class="text-[11px] text-gray-400">↗</span>
+              <span data-i18n="btn_open_gmail">Open Gmail</span>
             </a>
           </div>
         </div>
@@ -1975,7 +1974,7 @@ const I18N = {
     btn_verify_otp_login: "ยืนยัน OTP และเข้าใช้งาน",
     btn_change_email: "เปลี่ยนอีเมล",
     btn_resend_otp: "ขอรหัสใหม่",
-    btn_open_gmail: "เปิดแอป Gmail (ดูรหัส OTP)"
+    btn_open_gmail: "Open Gmail"
   },
   mm: {
     header_sub: "အခမဲ့ အမြန်နှုန်းမြင့် ဝိုင်ဖိုင် ကွန်ရက်",
@@ -2040,7 +2039,7 @@ const I18N = {
     btn_verify_otp_login: "OTP အတည်ပြုပြီး အင်တာနက် ချိတ်ဆက်မည်",
     btn_change_email: "အီးမေးလ် ပြောင်းမည်",
     btn_resend_otp: "ကုဒ်အသစ် ပြန်တောင်းမည်",
-    btn_open_gmail: "Gmail အက်ပ် ဖွင့်မည် (OTP ကြည့်ရန်)"
+    btn_open_gmail: "Open Gmail"
   },
   en: {
     header_sub: "Free High-Speed Wi-Fi Service",
@@ -2105,7 +2104,7 @@ const I18N = {
     btn_verify_otp_login: "Verify OTP & Connect",
     btn_change_email: "Change Email",
     btn_resend_otp: "Resend Code",
-    btn_open_gmail: "Open Gmail App (Check OTP)"
+    btn_open_gmail: "Open Gmail"
   }
 };
 

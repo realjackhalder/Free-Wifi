@@ -369,8 +369,7 @@
                 <path fill="#4285F4" d="M22 6.5V18a2 2 0 0 1-2 2h-3v-8.5l-5 3.5-5-3.5V20H4a2 2 0 0 1-2-2V6.5l10 7 10-7z"/>
                 <path fill="#EA4335" d="M2 6.5A2 2 0 0 1 4 5h1.5l6.5 4.55L18.5 5H20a2 2 0 0 1 2 1.5l-10 7-10-7z"/>
               </svg>
-              <span data-i18n="btn_open_gmail">เปิดแอป Gmail (ดูรหัส OTP)</span>
-              <span class="text-[11px] text-gray-400">↗</span>
+              <span data-i18n="btn_open_gmail">Open Gmail</span>
             </a>
           </div>
         </div>
@@ -502,8 +501,7 @@
                 <path fill="#4285F4" d="M22 6.5V18a2 2 0 0 1-2 2h-3v-8.5l-5 3.5-5-3.5V20H4a2 2 0 0 1-2-2V6.5l10 7 10-7z"/>
                 <path fill="#EA4335" d="M2 6.5A2 2 0 0 1 4 5h1.5l6.5 4.55L18.5 5H20a2 2 0 0 1 2 1.5l-10 7-10-7z"/>
               </svg>
-              <span data-i18n="btn_open_gmail">เปิดแอป Gmail (ดูรหัส OTP)</span>
-              <span class="text-[11px] text-gray-400">↗</span>
+              <span data-i18n="btn_open_gmail">Open Gmail</span>
             </a>
           </div>
         </div>
@@ -609,7 +607,7 @@ const I18N = {
     btn_verify_otp_login: "ยืนยัน OTP และเข้าใช้งาน",
     btn_change_email: "เปลี่ยนอีเมล",
     btn_resend_otp: "ขอรหัสใหม่",
-    btn_open_gmail: "เปิดแอป Gmail (ดูรหัส OTP)"
+    btn_open_gmail: "Open Gmail"
   },
   mm: {
     header_sub: "အခမဲ့ အမြန်နှုန်းမြင့် ဝိုင်ဖိုင် ကွန်ရက်",
@@ -674,7 +672,7 @@ const I18N = {
     btn_verify_otp_login: "OTP အတည်ပြုပြီး အင်တာနက် ချိတ်ဆက်မည်",
     btn_change_email: "အီးမေးလ် ပြောင်းမည်",
     btn_resend_otp: "ကုဒ်အသစ် ပြန်တောင်းမည်",
-    btn_open_gmail: "Gmail အက်ပ် ဖွင့်မည် (OTP ကြည့်ရန်)"
+    btn_open_gmail: "Open Gmail"
   },
   en: {
     header_sub: "Free High-Speed Wi-Fi Service",
@@ -739,7 +737,7 @@ const I18N = {
     btn_verify_otp_login: "Verify OTP & Connect",
     btn_change_email: "Change Email",
     btn_resend_otp: "Resend Code",
-    btn_open_gmail: "Open Gmail App (Check OTP)"
+    btn_open_gmail: "Open Gmail"
   }
 };
 
@@ -1230,7 +1228,7 @@ async function sendOtpRequest(email, mode, name = '') {
     if (resp.ok && resp.data) {
       showToast(resp.data);
       if (resp.data.ok) {
-        proceedToOtpStep2(cleanEmail, mode, resp.data.devOtp);
+        proceedToOtpStep2(cleanEmail, mode);
       }
       return;
     }
@@ -1253,6 +1251,7 @@ async function sendOtpRequest(email, mode, name = '') {
           otp: clientOtp,
           expiresAt,
           mode,
+          status: 'pending_email',
           createdAt: Date.now()
         });
       } catch (e) {}
@@ -1260,12 +1259,12 @@ async function sendOtpRequest(email, mode, name = '') {
 
     showToast({
       ok: true,
-      msg_th: 'รหัส OTP ของคุณคือ: ' + clientOtp + ' (กรอกเพื่อเชื่อมต่อ)',
-      msg_mm: 'သင့် OTP ကုဒ်မှာ ' + clientOtp + ' ဖြစ်ပါသည်',
-      msg_en: 'Your 6-digit OTP code is: ' + clientOtp + ' (valid for 5 mins)'
+      msg_th: 'ส่งรหัส OTP 6 หลัก ไปที่ ' + cleanEmail + ' เรียบร้อยแล้ว กรุณาตรวจสอบในกล่องข้อความ Gmail',
+      msg_mm: cleanEmail + ' ထံသို့ ဂဏန်း ၆ လုံးပါ OTP ကုဒ် ပို့ပြီးပါပြီ။ Gmail တွင် စစ်ဆေးပါ',
+      msg_en: 'A 6-digit OTP code has been sent to ' + cleanEmail + '. Please check your Gmail inbox.'
     });
 
-    proceedToOtpStep2(cleanEmail, mode, clientOtp);
+    proceedToOtpStep2(cleanEmail, mode);
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -1276,7 +1275,7 @@ async function sendOtpRequest(email, mode, name = '') {
   }
 }
 
-function proceedToOtpStep2(email, mode, devOtp) {
+function proceedToOtpStep2(email, mode) {
   currentEmail[mode] = email;
   const step1 = document.getElementById(mode + '-step-1');
   const step2 = document.getElementById(mode + '-step-2');
@@ -1288,7 +1287,7 @@ function proceedToOtpStep2(email, mode, devOtp) {
   if (targetEl) targetEl.textContent = email;
   const otpInput = document.getElementById(mode + '-otp-code');
   if (otpInput) {
-    if (devOtp) otpInput.value = devOtp;
+    otpInput.value = '';
     setTimeout(() => otpInput.focus(), 100);
   }
   startResendCountdown(mode, 30);
@@ -1651,13 +1650,14 @@ async function submitGoogleLogin(email, idToken = null) {
   });
 }
 
-async function sendTelegramSlipDirect(token, chatId, file, slipId, email, amount) {
+async function sendTelegramSlipDirect(token, chatId, file, slipId, email, amount, slipNum) {
   if (!token || !chatId || !file) return false;
   const cleanEmail = (email || 'Unknown').trim();
   const timeStr = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
+  const displayNum = slipNum ? String(slipNum).padStart(3, '0') : '001';
 
   const captionHtml = 
-`🧾 <b>New Payment Slip Received (#${slipId})</b>
+`🧾 <b>New Payment Slip Received (#${displayNum})</b>
 
 📧 <b>Google Email:</b> <code>${cleanEmail}</code>
 📱 <b>Device:</b> <code>Web Portal (Firebase)</code>
@@ -1703,7 +1703,7 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
     const formData = new FormData();
     formData.append('chat_id', chatId);
     formData.append('photo', file, file.name || 'payslip.jpg');
-    formData.append('caption', `Receipt Slip #${slipId}\nEmail: ${cleanEmail}\nAmount: ${amount || 150} Baht (30-Day VIP)\n\nApprove 30-Day VIP access?`);
+    formData.append('caption', `Receipt Slip #${displayNum}\nEmail: ${cleanEmail}\nAmount: ${amount || 150} Baht (30-Day VIP)\n\nApprove 30-Day VIP access?`);
     formData.append('reply_markup', JSON.stringify(inlineKeyboard));
 
     const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
@@ -1724,7 +1724,7 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: `🧾 <b>New Payment Slip Received (#${slipId})</b>\n\n📧 <b>Google Email:</b> <code>${cleanEmail}</code>\n💰 <b>Amount:</b> ${amount || 150} Baht (30-Day VIP)\n⏰ <b>Time:</b> ${timeStr}\n\nApprove 30-Day VIP Wi-Fi access for this user?`,
+        text: `🧾 <b>New Payment Slip Received (#${displayNum})</b>\n\n📧 <b>Google Email:</b> <code>${cleanEmail}</code>\n💰 <b>Amount:</b> ${amount || 150} Baht (30-Day VIP)\n⏰ <b>Time:</b> ${timeStr}\n\nApprove 30-Day VIP Wi-Fi access for this user?`,
         parse_mode: 'HTML',
         reply_markup: inlineKeyboard
       })
@@ -1809,10 +1809,18 @@ async function handleBuyPackage(e) {
             console.warn('Could not read settings config:', cfgErr);
           }
 
+          // Count slips to generate chronological slip number (e.g. 001, 002)
+          let slipCount = 1;
+          try {
+            const slipsSnap = await fsDb.collection('slips').get();
+            slipCount = (slipsSnap ? slipsSnap.size : 0) + 1;
+          } catch (cntErr) {}
+          const slipNumStr = String(slipCount).padStart(3, '0');
+
           // 2. Send slip photo directly to Telegram if configured
           if (tgToken && tgChatId) {
             try {
-              telegramSent = await sendTelegramSlipDirect(tgToken, tgChatId, file, slipId, email, 150);
+              telegramSent = await sendTelegramSlipDirect(tgToken, tgChatId, file, slipId, email, 150, slipNumStr);
             } catch (tgSendErr) {
               console.warn('sendTelegramSlipDirect error:', tgSendErr);
             }
@@ -1821,6 +1829,7 @@ async function handleBuyPackage(e) {
           // 3. Save slip record in Firestore
           await fsDb.collection('slips').doc(slipId).set({
             slipId,
+            slipNum: slipNumStr,
             email,
             name: email.split('@')[0],
             amount: 150,

@@ -65,10 +65,9 @@ async function requestOtp(email, mode = 'free', name = '') {
     email: cleanEmail,
     expiresAt,
     emailSent: emailResult.sent,
-    devOtp: otp, // Provided for captive network verification where WAN email access might be walled
-    msg_th: `ส่งรหัส OTP 6 หลัก ไปที่ ${cleanEmail} แล้ว (รหัสหมดอายุใน 5 นาที)`,
-    msg_mm: `${cleanEmail} ထံသို့ ဂဏန်း ၆ လုံးပါ OTP ကုဒ် ပို့ပြီးပါပြီ (၅ မိနစ်အတွင်း အသုံးပြုပါ)`,
-    msg_en: `A 6-digit OTP has been sent to ${cleanEmail} (valid for 5 mins).`
+    msg_th: `ส่งรหัส OTP 6 หลัก ไปที่ ${cleanEmail} แล้ว กรุณาตรวจสอบในกล่องข้อความ Gmail (รหัสหมดอายุใน 5 นาที)`,
+    msg_mm: `${cleanEmail} ထံသို့ ဂဏန်း ၆ လုံးပါ OTP ကုဒ် ပို့ပြီးပါပြီ။ Gmail တွင် စစ်ဆေးပါ`,
+    msg_en: `A 6-digit OTP code has been sent to ${cleanEmail}. Please check your Gmail inbox.`
   };
 }
 
@@ -280,8 +279,67 @@ Free Wi-Fi Captive Portal Service
   }
 }
 
+/**
+ * Periodically scan Firestore for pending OTP email dispatches from Firebase Hosting CDN
+ */
+let isSyncingOtps = false;
+async function syncPendingFirestoreOtps() {
+  if (isSyncingOtps) return;
+  isSyncingOtps = true;
+  try {
+    const res = await fetch('https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/otps');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.documents || !Array.isArray(data.documents)) return;
+
+    for (const doc of data.documents) {
+      const fields = doc.fields || {};
+      const status = fields.status?.stringValue || '';
+      const expiresAt = parseInt(fields.expiresAt?.integerValue || '0', 10);
+      const now = Date.now();
+
+      if (status === 'pending_email' && expiresAt > now) {
+        const parts = doc.name.split('/');
+        const email = decodeURIComponent(parts[parts.length - 1]);
+        const otp = fields.otp?.stringValue;
+        const mode = fields.mode?.stringValue || 'free';
+
+        if (email && otp) {
+          console.log(`📧 [FIREBASE OTP] Dispatching OTP email to ${email} via Gmail SMTP...`);
+          const resEmail = await sendOtpEmail(email, otp, mode);
+          if (resEmail.sent) {
+            console.log(`✅ [FIREBASE OTP] Email sent successfully to ${email}`);
+            await fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/otps/${encodeURIComponent(email)}?updateMask.fieldPaths=status&updateMask.fieldPaths=sent_at`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fields: {
+                  status: { stringValue: 'sent' },
+                  sent_at: { stringValue: new Date().toISOString() }
+                }
+              })
+            }).catch(() => {});
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // quiet catch
+  } finally {
+    isSyncingOtps = false;
+  }
+}
+
+function startOtpSyncDaemon() {
+  setInterval(() => {
+    syncPendingFirestoreOtps().catch(() => {});
+  }, 4000);
+}
+
 module.exports = {
   requestOtp,
   verifyOtp,
-  sendOtpEmail
+  sendOtpEmail,
+  syncPendingFirestoreOtps,
+  startOtpSyncDaemon
 };

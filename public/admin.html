@@ -1074,6 +1074,17 @@
       }
     }
 
+    function getSlipNum(slipId) {
+      if (!currentSlips || !currentSlips.length) return '001';
+      const sorted = [...currentSlips].sort((a, b) => {
+        const tA = a.uploaded_at ? new Date(a.uploaded_at).getTime() : (a.createdAt || 0);
+        const tB = b.uploaded_at ? new Date(b.uploaded_at).getTime() : (b.createdAt || 0);
+        return tA - tB;
+      });
+      const idx = sorted.findIndex(s => String(s.id || s.slipId) === String(slipId));
+      return idx !== -1 ? String(idx + 1).padStart(3, '0') : '001';
+    }
+
     // Render Accounts Table
     function renderAccountsTable(accounts) {
       const tbody = document.getElementById('accounts-tbody');
@@ -1090,10 +1101,13 @@
         const expStr = exp ? new Date(exp).toLocaleDateString('en-GB') : '-';
         const initial = (a.name ? a.name.charAt(0) : (a.email ? a.email.charAt(0) : 'G')).toUpperCase();
         const isVip = a.plan === 'vip-30d' || a.package_type === 'vip_30d';
-        const planType = isVip ? 'vip' : 'trial';
+        const relatedSlip = currentSlips.find(s => s.email && s.email.toLowerCase() === (a.email || '').toLowerCase() && (s.status || 'pending').toLowerCase() === 'pending');
+        const isPendingSlip = a.plan === 'pending-vip' || !!relatedSlip;
+        const relSlipNum = relatedSlip ? getSlipNum(relatedSlip.id || relatedSlip.slipId) : '001';
+        const planType = isPendingSlip ? 'pending' : (isVip ? 'vip' : 'trial');
 
         return `
-        <tr class="account-row hover:bg-white/[0.03] transition" data-email="${(a.email||'').toLowerCase()}" data-name="${(a.name||'').toLowerCase()}" data-ip="${a.activeIp || a.ip || ''}" data-plan="${planType}" data-blocked="${a.blocked ? '1' : '0'}">
+        <tr class="account-row hover:bg-white/[0.03] transition ${isPendingSlip ? 'bg-amber-950/20' : ''}" data-email="${(a.email||'').toLowerCase()}" data-name="${(a.name||'').toLowerCase()}" data-ip="${a.activeIp || a.ip || ''}" data-plan="${planType}" data-blocked="${a.blocked ? '1' : '0'}">
           <td class="py-3 px-4">
             <div class="flex items-center space-x-3">
               <div class="w-8 h-8 rounded-2xl bg-white/[0.08] border border-white/15 flex items-center justify-center font-bold text-xs text-white">
@@ -1106,29 +1120,48 @@
             </div>
           </td>
           <td class="py-3 px-3">
-            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isVip ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">
-              ${isVip ? '★ 30-Day VIP' : '1-Hour Free'}
-            </span>
+            ${
+              isPendingSlip
+                ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60 animate-pulse">⏳ Pending Slip</span>`
+                : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isVip ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">
+                    ${isVip ? '★ 30-Day VIP' : '1-Hour Free'}
+                  </span>`
+            }
           </td>
           <td class="py-3 px-3 font-mono text-zinc-200">
             ${(a.activeIp || a.ip) ? `<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${a.activeIp || a.ip}</span>` : '<span class="text-zinc-500">Offline</span>'}
           </td>
           <td class="py-3 px-3 font-mono text-zinc-400">${a.activeMac || a.mac || '-'}</td>
           <td class="py-3 px-3">
-            ${isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${daysLeft}d left</span> <span class="text-[10px] text-zinc-500">(${expStr})</span>`}
+            ${
+              isPendingSlip
+                ? '<span class="text-amber-400 font-bold">Awaiting Verification</span>'
+                : (isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${daysLeft}d left</span> <span class="text-[10px] text-zinc-500">(${expStr})</span>`)
+            }
           </td>
           <td class="py-3 px-3">
-            ${a.blocked ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-950/40 text-red-300 border border-red-800/60">Blocked</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60">Active</span>'}
+            ${
+              isPendingSlip
+                ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60">Pending</span>'
+                : (a.blocked ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-950/40 text-red-300 border border-red-800/60">Blocked</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60">Active</span>')
+            }
           </td>
           <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
-            <button onclick="extendAccount('${a.email}')" class="glisse-btn-success px-2 py-1 rounded-lg text-[11px] font-bold" title="Extend 30 Days VIP">+30d VIP</button>
-            <button onclick="resetTrial('${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold" title="Reset 1-Hour Free Trial">Reset Free</button>
+            ${
+              relatedSlip
+                ? `
+                <button type="button" onclick="openLightbox('${relatedSlip.cloudUrl || relatedSlip.file_url || (relatedSlip.filename ? '/uploads/' + relatedSlip.filename : (relatedSlip.imageBase64 || '/my-qr'))}', 'Slip #${relSlipNum} • ${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold text-amber-300" title="Inspect slip photo">🔍 Slip</button>
+                <button type="button" onclick="approveSlip('${relatedSlip.id || relatedSlip.slipId}', '${a.email}', '${relSlipNum}')" class="glisse-btn-success px-2 py-1 rounded-lg text-[11px] font-bold" title="Approve 30-Day VIP">✓ Approve</button>`
+                : `
+                <button type="button" onclick="extendAccount('${a.email}')" class="glisse-btn-success px-2 py-1 rounded-lg text-[11px] font-bold" title="Extend 30 Days VIP">+30d VIP</button>`
+            }
+            <button type="button" onclick="resetTrial('${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold" title="Reset 1-Hour Free Trial">Reset Free</button>
             ${(a.activeIp || a.ip) ? `
-            <button onclick="kickIp('${a.activeIp || a.ip}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold" title="Kick Device from Wi-Fi">Kick IP</button>` : ''}
-            <button onclick="toggleBlockAccount('${a.email}')" class="${a.blocked ? 'glisse-btn-secondary' : 'glisse-btn-danger'} px-2 py-1 rounded-lg text-[11px] font-bold">
+            <button type="button" onclick="kickIp('${a.activeIp || a.ip}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold" title="Kick Device from Wi-Fi">Kick IP</button>` : ''}
+            <button type="button" onclick="toggleBlockAccount('${a.email}')" class="${a.blocked ? 'glisse-btn-secondary' : 'glisse-btn-danger'} px-2 py-1 rounded-lg text-[11px] font-bold">
               ${a.blocked ? 'Unblock' : 'Block'}
             </button>
-            <button onclick="deleteAccount('${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] text-red-400 hover:text-red-300 font-bold" title="Delete account">✕</button>
+            <button type="button" onclick="deleteAccount('${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] text-red-400 hover:text-red-300 font-bold" title="Delete account">✕</button>
           </td>
         </tr>`;
       }).join('');
@@ -1255,8 +1288,16 @@
       document.getElementById('lightbox-img').src = url;
       const titleEl = document.getElementById('lightbox-title');
       if (titleEl) {
-        titleEl.innerText = title || 'Payment Slip';
-        titleEl.title = title || 'Payment Slip';
+        let cleanTitle = title || 'Payment Slip';
+        if (cleanTitle.includes('slip_')) {
+          const match = cleanTitle.match(/slip_\d+/);
+          if (match && typeof getSlipNum === 'function') {
+            cleanTitle = cleanTitle.replace(match[0], getSlipNum(match[0]));
+          }
+        }
+        cleanTitle = cleanTitle.replace(/#+/g, '#');
+        titleEl.innerText = cleanTitle;
+        titleEl.title = cleanTitle;
       }
       document.getElementById('lightbox-download').href = url;
       document.getElementById('lightbox-modal').classList.remove('hidden');
@@ -1525,7 +1566,7 @@
 
     // Slip Actions (Dual Mode: Local Gateway + Cloud Firestore)
     async function approveSlip(slipId, email, slipNum) {
-      const displayLabel = slipNum ? `Slip #${slipNum}` : `Slip #${slipId}`;
+      const displayLabel = 'Slip #' + (slipNum || getSlipNum(slipId));
       const cleanEmail = String(email || (currentSlips.find(s => String(s.id) === String(slipId))?.email) || '').trim().toLowerCase();
 
       if (!confirm(`Approve ${displayLabel} and grant 30-Day VIP access${cleanEmail ? ' to ' + cleanEmail : ''}?`)) return;
@@ -1594,7 +1635,7 @@
     }
 
     async function declineSlip(slipId, slipNum) {
-      const displayLabel = slipNum ? `Slip #${slipNum}` : `Slip #${slipId}`;
+      const displayLabel = 'Slip #' + (slipNum || getSlipNum(slipId));
       if (!confirm(`Decline ${displayLabel}?`)) return;
       let handled = false;
 
@@ -1630,7 +1671,7 @@
     }
 
     async function deleteSlip(slipId, slipNum) {
-      const displayLabel = slipNum ? `Slip #${slipNum}` : `Slip #${slipId}`;
+      const displayLabel = 'Slip #' + (slipNum || getSlipNum(slipId));
       if (!confirm(`Permanently delete ${displayLabel} record?`)) return;
       let handled = false;
 

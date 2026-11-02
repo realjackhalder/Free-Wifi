@@ -64,9 +64,10 @@ async function sendSlipNotification({ slipId, email, ip, mac, amount, slipFilePa
 
   const cleanEmail = (email || 'Unknown').trim();
   const timeStr = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
+  const displayNum = String(slipId).replace(/^slip_/, '').length > 6 ? '001' : String(slipId).padStart(3, '0');
 
   const captionHtml = 
-`🧾 <b>New Payment Slip Received (#${slipId})</b>
+`🧾 <b>New Payment Slip Received (#${displayNum})</b>
 
 📧 <b>Google Email:</b> <code>${escapeHtml(cleanEmail)}</code>
 📱 <b>Device IP:</b> <code>${escapeHtml(ip || 'Unknown')}</code>
@@ -77,7 +78,7 @@ async function sendSlipNotification({ slipId, email, ip, mac, amount, slipFilePa
 Approve 30-Day VIP Wi-Fi access for this user?`;
 
   const captionPlain = 
-`🧾 New Payment Slip Received (#${slipId})
+`🧾 New Payment Slip Received (#${displayNum})
 
 📧 Email: ${cleanEmail}
 📱 Device IP: ${ip || 'Unknown'}
@@ -517,12 +518,13 @@ async function editMessage(token, chatId, messageId, caption) {
 /**
  * Send a Firestore-originated slip notification to Telegram
  */
-async function sendFirestoreSlipNotification(token, chatId, slipId, email, amount, imageBase64) {
+async function sendFirestoreSlipNotification(token, chatId, slipId, email, amount, imageBase64, slipNum) {
   const cleanEmail = (email || 'Unknown').trim();
   const timeStr = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
+  const displayNum = slipNum ? String(slipNum).padStart(3, '0') : '001';
 
   const captionHtml = 
-`🧾 <b>New Payment Slip Received (#${slipId})</b>
+`🧾 <b>New Payment Slip Received (#${displayNum})</b>
 
 📧 <b>Google Email:</b> <code>${escapeHtml(cleanEmail)}</code>
 📱 <b>Device:</b> <code>Web Portal (Firebase)</code>
@@ -597,27 +599,37 @@ async function checkFirestorePendingSlips(token, chatId) {
     const data = await res.json();
     if (!data.documents || !Array.isArray(data.documents)) return;
 
-    for (const doc of data.documents) {
+    // Sort documents chronologically so slip number counts upwards from 001
+    const sortedDocs = [...data.documents].sort((a, b) => {
+      const tA = a.fields?.uploaded_at?.stringValue ? new Date(a.fields.uploaded_at.stringValue).getTime() : parseInt(a.fields?.createdAt?.integerValue || '0', 10);
+      const tB = b.fields?.uploaded_at?.stringValue ? new Date(b.fields.uploaded_at.stringValue).getTime() : parseInt(b.fields?.createdAt?.integerValue || '0', 10);
+      return tA - tB;
+    });
+
+    for (let i = 0; i < sortedDocs.length; i++) {
+      const doc = sortedDocs[i];
       const fields = doc.fields || {};
       const status = (fields.status?.stringValue || 'pending').toLowerCase();
       const tgNotified = fields.telegram_notified?.booleanValue;
       if (status === 'pending' && !tgNotified) {
         const parts = doc.name.split('/');
         const slipId = parts[parts.length - 1];
+        const slipNum = fields.slipNum?.stringValue || String(i + 1).padStart(3, '0');
         const email = fields.email?.stringValue || fields.name?.stringValue || 'Unknown';
         const amount = fields.amount?.integerValue || fields.amount?.stringValue || '150';
         const imageBase64 = fields.imageBase64?.stringValue;
 
-        console.log(`📡 [TELEGRAM] Found unnotified pending Firestore slip #${slipId}. Sending to Telegram...`);
-        const sent = await sendFirestoreSlipNotification(token, chatId, slipId, email, amount, imageBase64);
+        console.log(`📡 [TELEGRAM] Found unnotified pending Firestore Slip #${slipNum} (${slipId}). Sending to Telegram...`);
+        const sent = await sendFirestoreSlipNotification(token, chatId, slipId, email, amount, imageBase64, slipNum);
 
         if (sent) {
-          await fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/slips/${encodeURIComponent(slipId)}?updateMask.fieldPaths=telegram_notified`, {
+          await fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/slips/${encodeURIComponent(slipId)}?updateMask.fieldPaths=telegram_notified&updateMask.fieldPaths=slipNum`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               fields: {
-                telegram_notified: { booleanValue: true }
+                telegram_notified: { booleanValue: true },
+                slipNum: { stringValue: slipNum }
               }
             })
           }).catch(() => {});
