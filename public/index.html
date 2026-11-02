@@ -1651,6 +1651,92 @@ async function submitGoogleLogin(email, idToken = null) {
   });
 }
 
+async function sendTelegramSlipDirect(token, chatId, file, slipId, email, amount) {
+  if (!token || !chatId || !file) return false;
+  const cleanEmail = (email || 'Unknown').trim();
+  const timeStr = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
+
+  const captionHtml = 
+`🧾 <b>New Payment Slip Received (#${slipId})</b>
+
+📧 <b>Google Email:</b> <code>${cleanEmail}</code>
+📱 <b>Device:</b> <code>Web Portal (Firebase)</code>
+💰 <b>Amount:</b> <b>${amount || 150} Baht</b> (30-Day VIP)
+⏰ <b>Upload Time:</b> ${timeStr}
+
+Approve 30-Day VIP Wi-Fi access for this user?`;
+
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [
+        { text: '✅ Approve', callback_data: `approve:${slipId}` },
+        { text: '❌ Decline', callback_data: `decline:${slipId}` }
+      ]
+    ]
+  };
+
+  // Attempt 1: sendPhoto with formatted caption
+  try {
+    const formData = new FormData();
+    formData.append('chat_id', chatId);
+    formData.append('photo', file, file.name || 'payslip.jpg');
+    formData.append('caption', captionHtml);
+    formData.append('parse_mode', 'HTML');
+    formData.append('reply_markup', JSON.stringify(inlineKeyboard));
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (data.ok) {
+      console.log('✅ [TELEGRAM] Slip photo sent directly to Telegram');
+      return true;
+    }
+    console.warn('[TELEGRAM] sendPhoto HTML caption failed:', data.description);
+  } catch (err1) {
+    console.warn('[TELEGRAM] sendPhoto attempt 1 error:', err1);
+  }
+
+  // Attempt 2: sendPhoto with plain caption
+  try {
+    const formData = new FormData();
+    formData.append('chat_id', chatId);
+    formData.append('photo', file, file.name || 'payslip.jpg');
+    formData.append('caption', `Receipt Slip #${slipId}\nEmail: ${cleanEmail}\nAmount: ${amount || 150} Baht (30-Day VIP)\n\nApprove 30-Day VIP access?`);
+    formData.append('reply_markup', JSON.stringify(inlineKeyboard));
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (data.ok) return true;
+    console.warn('[TELEGRAM] sendPhoto plain failed:', data.description);
+  } catch (err2) {
+    console.warn('[TELEGRAM] sendPhoto attempt 2 error:', err2);
+  }
+
+  // Attempt 3: sendMessage fallback
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: `🧾 <b>New Payment Slip Received (#${slipId})</b>\n\n📧 <b>Google Email:</b> <code>${cleanEmail}</code>\n💰 <b>Amount:</b> ${amount || 150} Baht (30-Day VIP)\n⏰ <b>Time:</b> ${timeStr}\n\nApprove 30-Day VIP Wi-Fi access for this user?`,
+        parse_mode: 'HTML',
+        reply_markup: inlineKeyboard
+      })
+    });
+    const data = await res.json();
+    return !!data.ok;
+  } catch (err3) {
+    console.warn('[TELEGRAM] sendMessage fallback error:', err3);
+    return false;
+  }
+}
+
 async function handleBuyPackage(e) {
   e.preventDefault();
   const email = document.getElementById('vip-email').value.trim();
@@ -1704,17 +1790,63 @@ async function handleBuyPackage(e) {
         const slipId = 'slip_' + Date.now();
         const now = Date.now();
 
+        let telegramSent = false;
+
         if (window.firebase && firebase.firestore) {
-          await firebase.firestore().collection('slips').doc(slipId).set({
+          const fsDb = firebase.firestore();
+
+          // 1. Fetch Telegram bot configuration from Firestore
+          let tgToken = '';
+          let tgChatId = '';
+          try {
+            const cfgDoc = await fsDb.collection('settings').doc('config').get();
+            if (cfgDoc && cfgDoc.exists) {
+              const cfg = cfgDoc.data();
+              tgToken = (cfg.telegramBotToken || '').trim();
+              tgChatId = (cfg.telegramChatId || '').trim();
+            }
+          } catch (cfgErr) {
+            console.warn('Could not read settings config:', cfgErr);
+          }
+
+          // 2. Send slip photo directly to Telegram if configured
+          if (tgToken && tgChatId) {
+            try {
+              telegramSent = await sendTelegramSlipDirect(tgToken, tgChatId, file, slipId, email, 150);
+            } catch (tgSendErr) {
+              console.warn('sendTelegramSlipDirect error:', tgSendErr);
+            }
+          }
+
+          // 3. Save slip record in Firestore
+          await fsDb.collection('slips').doc(slipId).set({
             slipId,
             email,
             name: email.split('@')[0],
             amount: 150,
             status: 'pending',
             createdAt: now,
+            uploaded_at: new Date(now).toISOString(),
             imageBase64: (base64Data && base64Data.length < 800000) ? base64Data : null,
-            source: 'web_portal'
+            source: 'web_portal',
+            telegram_notified: telegramSent
           });
+
+          // 4. Also register account as pending if not existing
+          try {
+            const userRef = fsDb.collection('accounts').doc(email);
+            const userDoc = await userRef.get().catch(() => null);
+            if (!userDoc || !userDoc.exists) {
+              await userRef.set({
+                email,
+                name: email.split('@')[0],
+                plan: 'pending-vip',
+                status: 'pending',
+                createdAt: now,
+                updated_at: new Date(now).toISOString()
+              }, { merge: true });
+            }
+          } catch (accErr) {}
         }
 
         showApprovalWaitingModal(slipId, email);
