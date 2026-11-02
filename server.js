@@ -466,7 +466,7 @@ userApp.post('/api/free-trial', async (req, res) => {
 });
 
 // --- POST /api/buy-package (30-Day VIP Wi-Fi with Google Account) ---
-userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
+const handleBuyPackagePost = async (req, res) => {
   try {
     let { email, name, idToken } = req.body;
     if (idToken) {
@@ -512,8 +512,13 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
     const settings = await db.getAllSettings();
     const existing = await db.getAccount(cleanEmail);
 
-    // Save uploaded file to uploads directory (preserve original extension)
-    const slipExt = path.extname(req.file.originalname) || '';
+    // Save uploaded file to uploads directory (ensure standard image extension)
+    let slipExt = (path.extname(req.file.originalname || '') || '').toLowerCase();
+    if (!['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(slipExt)) {
+      if (req.file.mimetype === 'image/png') slipExt = '.png';
+      else if (req.file.mimetype === 'image/webp') slipExt = '.webp';
+      else slipExt = '.jpg';
+    }
     const slipName = `slip_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}_${now}${slipExt}`;
     const slipDest = path.join(UPLOAD_DIR, slipName);
     fs.renameSync(req.file.path, slipDest);
@@ -548,16 +553,36 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
       });
       const slipId = recordResult?.lastID;
 
-      // 2. Send slip photo/document with Device IP, Email, and [Approve]/[Decline] buttons to Telegram
-      telegram.sendSlipNotification({
-        slipId,
+      // 1b. Save user in accounts table so email is immediately visible in Admin dashboard
+      const pendingAccount = {
         email: cleanEmail,
-        ip,
-        mac,
-        amount: settings.monthlyPrice || 150,
-        slipFilePath: slipDest,
-        qrPayload
-      }).catch(err => console.error('[TELEGRAM send error]', err));
+        name: name || existing?.name || cleanEmail.split('@')[0],
+        plan: existing?.plan === 'vip-30d' ? 'vip-30d' : 'pending-vip',
+        createdAt: existing?.createdAt || now,
+        expiresAt: existing?.expiresAt || 0,
+        lastTrialAt: existing?.lastTrialAt || null,
+        activeIp: ip,
+        activeMac: mac || null,
+        blocked: false
+      };
+      await db.saveAccount(pendingAccount);
+      await db.logIpAction({ email: cleanEmail, ip, mac, action: 'upload_slip_pending' });
+
+      // 2. Send slip photo/document with Device IP, Email, and [Approve]/[Decline] buttons to Telegram
+      try {
+        const tgRes = await telegram.sendSlipNotification({
+          slipId,
+          email: cleanEmail,
+          ip,
+          mac,
+          amount: settings.monthlyPrice || 150,
+          slipFilePath: slipDest,
+          qrPayload
+        });
+        console.log(`🤖 [TELEGRAM] Notification result for Slip #${slipId}:`, tgRes);
+      } catch (tgErr) {
+        console.error('[TELEGRAM send error]', tgErr);
+      }
 
       return res.json({
         ok: true,
@@ -614,10 +639,13 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
       msg_en: 'Error uploading file. Please try again.'
     });
   }
-});
+};
+
+userApp.post('/api/buy-package', upload.single('slip'), handleBuyPackagePost);
+adminApp.post('/api/buy-package', upload.single('slip'), handleBuyPackagePost);
 
 // --- GET /api/slip-status (Polling for Telegram slip approval) ---
-userApp.get('/api/slip-status', async (req, res) => {
+const handleSlipStatusGet = async (req, res) => {
   const slipId = parseInt(req.query.slipId, 10);
   if (!slipId) return res.json({ ok: false, error: 'Missing slipId' });
   const slip = await db.getSlipById(slipId);
@@ -633,7 +661,10 @@ userApp.get('/api/slip-status', async (req, res) => {
     email: slip.email,
     ip: slip.ip_address
   });
-});
+};
+
+userApp.get('/api/slip-status', handleSlipStatusGet);
+adminApp.get('/api/slip-status', handleSlipStatusGet);
 
 // --- POST /api/login (Google Account Member Login / Device Switching) ---
 userApp.post('/api/login', async (req, res) => {
@@ -873,12 +904,33 @@ adminApp.get('/admin', async (req, res) => {
 
   const accounts = await db.getAllAccounts();
   const slips = await db.getAllSlips();
+
+  // Ensure any email that submitted a slip is guaranteed to appear in accounts list
+  const knownEmails = new Set(accounts.map(a => (a.email || '').toLowerCase()));
+  for (const s of slips) {
+    if (s.email && !knownEmails.has(s.email.toLowerCase())) {
+      knownEmails.add(s.email.toLowerCase());
+      accounts.unshift({
+        email: s.email.toLowerCase(),
+        name: s.email.split('@')[0],
+        plan: s.status === 'approved' ? 'vip-30d' : 'pending-vip',
+        createdAt: s.uploaded_at || Date.now(),
+        expiresAt: s.status === 'approved' ? (s.uploaded_at || Date.now()) + (30 * 86400000) : 0,
+        lastTrialAt: null,
+        activeIp: s.ip_address,
+        activeMac: s.mac_address || null,
+        blocked: false
+      });
+    }
+  }
+
   const ipLogs = await db.getRecentIpLogs(30);
   const isFirebaseActive = db.isFirebaseActive();
   const firebaseConfig = fb.getClientConfig();
   const msg = req.query.msg || null;
   const err = req.query.err || null;
-  const activeTab = req.query.tab || 'accounts';
+  const pendingCount = slips.filter(s => s.status === 'pending').length;
+  const activeTab = req.query.tab || (pendingCount > 0 ? 'slips' : 'accounts');
 
   return res.send(renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive, firebaseConfig, msg, err, activeTab }));
 });

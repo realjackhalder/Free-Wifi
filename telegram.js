@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const Jimp = require('jimp');
 const db = require('./database');
 const { allowIp } = require('./firewall');
 
@@ -29,6 +30,15 @@ async function getConfig() {
   }
 }
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /**
  * Send a payment slip to Telegram with Device IP, Email, and [Approve] / [Decline] buttons
  */
@@ -41,104 +51,176 @@ async function sendSlipNotification({ slipId, email, ip, mac, amount, slipFilePa
 
   const cleanEmail = (email || 'Unknown').trim();
   const timeStr = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
-  const qrNote = qrPayload
-    ? `စစ်ဆေးပြီး (${qrPayload.substring(0, 24)}...)`
-    : 'လက်စွဲစစ်ဆေးရန် (Manual Check)';
+  const rawQr = qrPayload ? qrPayload.substring(0, 40) : '';
+  const qrNote = rawQr
+    ? `Verified (${escapeHtml(rawQr)}...)`
+    : 'File Attached / Manual Check';
 
-  const caption = 
-`🧾 <b>ငွေလွှဲပြေစာ အသစ် ရောက်ရှိပါသည် (New Payment Slip)</b>
+  const captionHtml = 
+`🧾 <b>New Payment Slip Received (#${slipId})</b>
 ──────────────────────────────
-📧 <b>Google Email:</b> <code>${cleanEmail}</code>
-📱 <b>စက် IP လိပ်စာ (Device IP):</b> <code>${ip || 'Unknown'}</code>
-🏷️ <b>MAC Address:</b> <code>${mac || 'မသိရှိပါ'}</code>
-💰 <b>ပမာဏ (Amount):</b> <b>${amount || 150} Baht</b> (30-Day VIP)
-⏰ <b>တင်ခဲ့သည့် အချိန်:</b> ${timeStr}
-🔍 <b>ဘဏ် QR အချက်အလက်:</b> ${qrNote}
+📧 <b>Google Email:</b> <code>${escapeHtml(cleanEmail)}</code>
+📱 <b>Device IP:</b> <code>${escapeHtml(ip || 'Unknown')}</code>
+🏷️ <b>MAC Address:</b> <code>${escapeHtml(mac || 'Unknown')}</code>
+💰 <b>Amount:</b> <b>${escapeHtml(amount || 150)} Baht</b> (30-Day VIP)
+⏰ <b>Upload Time:</b> ${escapeHtml(timeStr)}
+🔍 <b>QR / File Info:</b> ${qrNote}
 ──────────────────────────────
-ဤအသုံးပြုသူအား ရက် ၃၀ VIP အင်တာနက် ဖွင့်ပေးရန် ခွင့်ပြုမလား?`;
+Approve 30-Day VIP Wi-Fi access for this user?`;
+
+  const captionPlain = 
+`🧾 New Payment Slip Received (#${slipId})
+──────────────────────────────
+📧 Email: ${cleanEmail}
+📱 Device IP: ${ip || 'Unknown'}
+🏷️ MAC: ${mac || '-'}
+💰 Amount: ${amount || 150} Baht (30-Day VIP)
+⏰ Upload Time: ${timeStr}
+──────────────────────────────
+Approve 30-Day VIP Wi-Fi access for this user?`;
 
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        { text: '✅ Approve (အတည်ပြုမည်)', callback_data: `approve:${slipId}` },
-        { text: '❌ Decline (ပယ်ဖျက်မည်)', callback_data: `decline:${slipId}` }
+        { text: '✅ Approve', callback_data: `approve:${slipId}` },
+        { text: '❌ Decline', callback_data: `decline:${slipId}` }
       ]
     ]
   };
 
   try {
-    // 1. Send file as Photo if image, or as Document if other file format
+    // 1. Send payslip as Photo (sendPhoto) — NEVER as a document/file
     if (slipFilePath && fs.existsSync(slipFilePath)) {
       const fileBuffer = fs.readFileSync(slipFilePath);
-      const ext = path.extname(slipFilePath).toLowerCase();
-      const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
+      let photoBuffer = fileBuffer;
+      let photoMime = 'image/jpeg';
+      let photoFileName = 'payslip.jpg';
 
-      if (isImage) {
-        try {
-          const mime = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : (ext === '.gif' ? 'image/gif' : 'image/jpeg'));
-          const blob = new Blob([fileBuffer], { type: mime });
-          const formData = new FormData();
-          formData.append('chat_id', chatId);
-          formData.append('photo', blob, path.basename(slipFilePath));
-          formData.append('caption', caption);
-          formData.append('parse_mode', 'HTML');
-          formData.append('reply_markup', JSON.stringify(inlineKeyboard));
-
-          const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-            method: 'POST',
-            body: formData
-          });
-          const data = await res.json();
-          if (data.ok) {
-            console.log(`✅ [TELEGRAM] Slip #${slipId} photo sent to Telegram chat ${chatId}`);
-            return { success: true, messageId: data.result.message_id };
-          } else {
-            console.warn(`[TELEGRAM sendPhoto failed]`, data.description);
-          }
-        } catch (imgErr) {
-          console.warn('[TELEGRAM sendPhoto error]', imgErr.message);
+      try {
+        const img = await Jimp.read(fileBuffer);
+        // If image is very large (> 2048px), downscale to fit within 2048px for fast Telegram transfer
+        if (img.bitmap.width > 2048 || img.bitmap.height > 2048) {
+          img.scaleToFit(2048, 2048);
         }
+        photoBuffer = await img.quality(90).getBufferAsync(Jimp.MIME_JPEG);
+        photoMime = 'image/jpeg';
+        photoFileName = 'payslip.jpg';
+      } catch (imgErr) {
+        console.warn('[TELEGRAM] Jimp normalization skipped:', imgErr.message);
+        const ext = path.extname(slipFilePath).toLowerCase();
+        photoMime = ext === '.png' ? 'image/png' : 'image/jpeg';
+        photoFileName = ext === '.png' ? 'payslip.png' : 'payslip.jpg';
       }
 
-      // If not an image or sendPhoto failed, send as Document (supports any file type)
+      // Attempt 1: sendPhoto with formatted HTML caption
       try {
-        const docBlob = new Blob([fileBuffer]);
-        const docFormData = new FormData();
-        docFormData.append('chat_id', chatId);
-        docFormData.append('document', docBlob, path.basename(slipFilePath));
-        docFormData.append('caption', caption);
-        docFormData.append('parse_mode', 'HTML');
-        docFormData.append('reply_markup', JSON.stringify(inlineKeyboard));
+        const blob = new Blob([photoBuffer], { type: photoMime });
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('photo', blob, photoFileName);
+        formData.append('caption', captionHtml);
+        formData.append('parse_mode', 'HTML');
+        formData.append('reply_markup', JSON.stringify(inlineKeyboard));
 
-        const docRes = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
           method: 'POST',
-          body: docFormData
+          body: formData
         });
-        const docData = await docRes.json();
-        if (docData.ok) {
-          console.log(`✅ [TELEGRAM] Slip #${slipId} document sent to Telegram chat ${chatId}`);
-          return { success: true, messageId: docData.result.message_id };
+        const data = await res.json();
+        if (data.ok) {
+          console.log(`✅ [TELEGRAM] Slip #${slipId} photo sent successfully to Telegram chat ${chatId}`);
+          return { success: true, messageId: data.result.message_id };
         } else {
-          console.warn(`[TELEGRAM sendDocument failed]`, docData.description);
+          console.warn(`[TELEGRAM sendPhoto HTML caption failed: ${data.description}]. Retrying with plain caption...`);
         }
-      } catch (docErr) {
-        console.warn('[TELEGRAM sendDocument error]', docErr.message);
+      } catch (e1) {
+        console.warn('[TELEGRAM sendPhoto attempt 1 error]:', e1.message);
+      }
+
+      // Attempt 2: sendPhoto with plain text caption (bypasses any HTML parsing errors)
+      try {
+        const blob = new Blob([photoBuffer], { type: photoMime });
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('photo', blob, photoFileName);
+        formData.append('caption', captionPlain);
+        formData.append('reply_markup', JSON.stringify(inlineKeyboard));
+
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.ok) {
+          console.log(`✅ [TELEGRAM] Slip #${slipId} photo sent with plain caption to Telegram`);
+          return { success: true, messageId: data.result.message_id };
+        } else {
+          console.warn(`[TELEGRAM sendPhoto attempt 2 failed: ${data.description}]. Retrying with minimal caption...`);
+        }
+      } catch (e2) {
+        console.warn('[TELEGRAM sendPhoto attempt 2 error]:', e2.message);
+      }
+
+      // Attempt 3: sendPhoto with short caption
+      try {
+        const blob = new Blob([photoBuffer], { type: photoMime });
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('photo', blob, photoFileName);
+        formData.append('caption', `🧾 New Payment Slip #${slipId}\nEmail: ${cleanEmail}\nDevice IP: ${ip || 'Unknown'}\nAmount: 150 Baht (30-Day VIP)`);
+        formData.append('reply_markup', JSON.stringify(inlineKeyboard));
+
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.ok) {
+          console.log(`✅ [TELEGRAM] Slip #${slipId} photo sent with minimal caption`);
+          return { success: true, messageId: data.result.message_id };
+        }
+      } catch (e3) {
+        console.warn('[TELEGRAM sendPhoto attempt 3 error]:', e3.message);
       }
     }
 
-    // 2. Fallback to text message if photo and document fail
-    const textRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    // 2. Fallback to HTML text message
+    try {
+      const textRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: captionHtml,
+          parse_mode: 'HTML',
+          reply_markup: inlineKeyboard
+        })
+      });
+      const textData = await textRes.json();
+      if (textData.ok) {
+        console.log(`✅ [TELEGRAM] Slip #${slipId} text message sent to chat ${chatId}`);
+        return { success: true, messageId: textData.result?.message_id };
+      }
+    } catch (e) {}
+
+    // 3. Ultra-failsafe: Plain text message without any formatting
+    const plainRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: caption,
-        parse_mode: 'HTML',
+        text: captionPlain,
         reply_markup: inlineKeyboard
       })
     });
-    const textData = await textRes.json();
-    return { success: textData.ok, messageId: textData.result?.message_id };
+    const plainData = await plainRes.json();
+    if (plainData.ok) {
+      console.log(`✅ [TELEGRAM] Slip #${slipId} plain text fallback delivered to chat ${chatId}`);
+      return { success: true, messageId: plainData.result?.message_id };
+    } else {
+      console.error(`❌ [TELEGRAM ERROR] All send attempts failed:`, plainData.description);
+      return { success: false, error: plainData.description };
+    }
   } catch (err) {
     console.error('[TELEGRAM sendSlipNotification error]:', err.message);
     return { success: false, error: err.message };
@@ -154,15 +236,15 @@ async function sendTestMessage(customToken = null, customChatId = null) {
   const chatId = customChatId || config.chatId;
 
   if (!token || !chatId) {
-    return { success: false, error: 'Telegram Bot Token သို့မဟုတ် Chat ID ထည့်သွင်းထားခြင်း မရှိပါ' };
+    return { success: false, error: 'Telegram Bot Token or Chat ID is not configured' };
   }
 
   const text =
-`🤖 <b>Free Wi-Fi Telegram Bot စမ်းသပ်မှု အောင်မြင်ပါသည်!</b>
+`🤖 <b>Free Wi-Fi Telegram Bot Test Notification</b>
 ──────────────────────────────
-📡 စနစ်: Free Wi-Fi Captive Portal & Gateway
-⏰ အချိန်: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' })}
-✅ အသုံးပြုသူများ ငွေလွှဲပြေစာ တင်သည့်အခါ ဤနေရာသို့ ချက်ချင်း ပေးပို့မည်ဖြစ်ပြီး <b>[Approve]</b> ခလုတ် နှိပ်ရုံဖြင့် အင်တာနက် ဖွင့်ပေးနိုင်ပါပြီ။`;
+📡 System: Free Wi-Fi Captive Portal & Gateway
+⏰ Time: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' })}
+✅ Connected successfully! When users upload payment slips, notifications will arrive here with [Approve] and [Decline] buttons.`;
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -199,13 +281,13 @@ async function handleCallbackQuery(query, token) {
   const slipId = parseInt(idStr, 10);
 
   if (!slipId) {
-    await answerCallback(token, queryId, '⚠️ မမှန်ကန်သော ပြေစာနံပါတ်');
+    await answerCallback(token, queryId, '⚠️ Invalid slip ID');
     return;
   }
 
   const slip = await db.getSlipById(slipId);
   if (!slip) {
-    await answerCallback(token, queryId, '⚠️ ပြေစာကို ဒေတာဘေ့စ်တွင် မတွေ့ရှိပါ');
+    await answerCallback(token, queryId, '⚠️ Slip record not found in database');
     return;
   }
 
@@ -242,19 +324,19 @@ async function handleCallbackQuery(query, token) {
     console.log(`🎉 [TELEGRAM APPROVE] Slip #${slipId} approved for ${cleanEmail} (IP: ${targetIp}). 30-Day VIP granted!`);
 
     // 4. Answer callback with popup alert
-    await answerCallback(token, queryId, `✅ အတည်ပြုပြီးပါပြီ!\n\nအီးမေးလ်: ${cleanEmail}\nIP: ${targetIp}\nရက် ၃၀ VIP အင်တာနက် ဖွင့်ပေးလိုက်ပါပြီ!`, true);
+    await answerCallback(token, queryId, `✅ Payment Approved!\n\nEmail: ${cleanEmail}\nIP: ${targetIp}\n30-Day VIP Wi-Fi has been activated!`, true);
 
     // 5. Update message caption & remove buttons
     const updatedCaption =
-`✅ <b>[အတည်ပြုပြီး / APPROVED]</b>
+`✅ <b>[PAYMENT APPROVED]</b>
 ──────────────────────────────
 📧 <b>Email:</b> <code>${cleanEmail}</code>
-📱 <b>Device IP:</b> <code>${targetIp}</code> (အင်တာနက် ဖွင့်ပေးပြီး)
-🏷️ <b>MAC:</b> <code>${slip.mac_address || 'မသိရှိပါ'}</code>
-💰 <b>ပက်ကေ့ဂျ်:</b> <b>★ VIP 30-Day (Unlimited)</b>
-⏰ <b>အတည်ပြုချိန်:</b> ${timeStr}
+📱 <b>Device IP:</b> <code>${targetIp}</code> (Internet Unlocked)
+🏷️ <b>MAC:</b> <code>${slip.mac_address || 'Unknown'}</code>
+💰 <b>Package:</b> <b>★ VIP 30-Day (Unlimited)</b>
+⏰ <b>Approved Time:</b> ${timeStr}
 ──────────────────────────────
-✓ စီမံခန့်ခွဲသူမှ Telegram မှတစ်ဆင့် အောင်မြင်စွာ ခွင့်ပြုပေးခဲ့သည်`;
+✓ Approved by Admin via Telegram`;
 
     await editMessage(token, chatId, messageId, updatedCaption);
 
@@ -263,17 +345,17 @@ async function handleCallbackQuery(query, token) {
     await db.updateSlipStatus(slipId, 'declined');
     console.log(`❌ [TELEGRAM DECLINE] Slip #${slipId} declined for ${cleanEmail}`);
 
-    await answerCallback(token, queryId, `❌ ပြေစာအား ငြင်းပယ်လိုက်ပါသည် (${cleanEmail})`, false);
+    await answerCallback(token, queryId, `❌ Payment slip declined (${cleanEmail})`, false);
 
     const declinedCaption =
-`❌ <b>[ငြင်းပယ်ပြီး / DECLINED]</b>
+`❌ <b>[PAYMENT DECLINED]</b>
 ──────────────────────────────
 📧 <b>Email:</b> <code>${cleanEmail}</code>
 📱 <b>Device IP:</b> <code>${targetIp}</code>
-💰 <b>အခြေအနေ:</b> ငွေလွှဲပြေစာအား ပယ်ဖျက်ထားပါသည်
-⏰ <b>ပယ်ဖျက်ချိန်:</b> ${timeStr}
+💰 <b>Status:</b> Payment slip was declined
+⏰ <b>Declined Time:</b> ${timeStr}
 ──────────────────────────────
-✕ စီမံခန့်ခွဲသူမှ အတည်မပြုဘဲ ပယ်ဖျက်ခဲ့ပါသည်`;
+✕ Declined by Admin via Telegram`;
 
     await editMessage(token, chatId, messageId, declinedCaption);
   }
@@ -338,6 +420,11 @@ async function startPolling() {
 
   console.log('🤖 [TELEGRAM] Telegram Bot polling daemon started.');
 
+  const initialCfg = await getConfig();
+  if (initialCfg.token) {
+    await fetch(`https://api.telegram.org/bot${initialCfg.token}/deleteWebhook`).catch(() => {});
+  }
+
   while (isPolling) {
     const { token, chatId } = await getConfig();
     if (!token) {
@@ -380,7 +467,7 @@ async function startPolling() {
                 body: JSON.stringify({
                   chat_id: fromId,
                   parse_mode: 'HTML',
-                  text: `📡 <b>Free Wi-Fi Captive Portal Bot</b>\n\nသင့် Chat ID မှာ: <code>${fromId}</code> ဖြစ်ပါသည်\n\nဤ Chat ID အား Web Admin (<code>/admin</code>) ဆက်တင်ထဲတွင် ထည့်သွင်းပါက ငွေလွှဲပြေစာများနှင့် [Approve] / [Decline] ခလုတ်များ ဤနေရာသို့ ရောက်ရှိလာပါမည်။`
+                  text: `📡 <b>Free Wi-Fi Captive Portal Bot</b>\n\nYour Chat ID is: <code>${fromId}</code>\n\nEnter this Chat ID in the Web Admin (<code>/admin</code>) settings to receive payment slip notifications and one-click [Approve] / [Decline] buttons here.`
                 })
               }).catch(() => {});
             }

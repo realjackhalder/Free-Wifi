@@ -360,6 +360,24 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         : ''
     }
 
+    <!-- Pending Payment Slips Alert Banner -->
+    ${
+      pendingCount > 0
+        ? `<div class="glisse-card p-4 border border-amber-500/50 bg-amber-950/40 text-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+            <div class="flex items-center space-x-3">
+              <span class="text-2xl animate-pulse">🧾</span>
+              <div>
+                <p class="text-xs font-bold text-white">Action Required: ${pendingCount} New Payment Slip(s) Awaiting Approval</p>
+                <p class="text-[11px] text-zinc-400">Users uploaded bank transfer slips waiting for 30-Day VIP Wi-Fi activation.</p>
+              </div>
+            </div>
+            <button onclick="switchTab('slips')" class="glisse-btn-primary px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap">
+              Review Slips Now (${pendingCount}) →
+            </button>
+          </div>`
+        : ''
+    }
+
     <!-- Symmetrical 4-Column Stat Cards -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="glisse-card p-5 relative overflow-hidden group">
@@ -389,7 +407,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         <p class="text-[11px] text-zinc-500 mt-1">30-Day VIP Subscriptions</p>
       </div>
 
-      <div class="glisse-card p-5 relative overflow-hidden group">
+      <div class="glisse-card p-5 relative overflow-hidden group cursor-pointer hover:border-amber-400/50" onclick="switchTab('slips')" title="Click to view Payment Slips">
         <div class="flex items-center justify-between">
           <p class="text-xs font-bold uppercase tracking-wider text-zinc-400">Payment Slips</p>
           <span class="text-lg">🧾</span>
@@ -398,7 +416,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
           <p class="text-3xl font-black text-amber-400">${slips.length}</p>
           ${pendingCount > 0 ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/60">${pendingCount} Pending</span>` : ''}
         </div>
-        <p class="text-[11px] text-zinc-500 mt-1">PromptPay slip uploads</p>
+        <p class="text-[11px] text-zinc-500 mt-1">PromptPay slip uploads (click to view)</p>
       </div>
     </div>
 
@@ -437,6 +455,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
           <input type="text" id="account-search" placeholder="Search email, name or IP..." onkeyup="filterAccounts()" class="glisse-input w-full md:w-72 text-xs" />
           <div class="hidden sm:flex items-center space-x-1">
             <button onclick="filterAccountPlan('all')" class="acc-filter-btn px-2.5 py-1 rounded-xl text-xs font-bold glisse-btn-secondary active-filter">All</button>
+            <button onclick="filterAccountPlan('pending')" class="acc-filter-btn px-2.5 py-1 rounded-xl text-xs font-bold glisse-btn-secondary ${pendingCount > 0 ? 'text-amber-300 font-bold border-amber-500/50' : ''}">Pending Slips (${pendingCount})</button>
             <button onclick="filterAccountPlan('vip')" class="acc-filter-btn px-2.5 py-1 rounded-xl text-xs font-bold glisse-btn-secondary">VIP</button>
             <button onclick="filterAccountPlan('trial')" class="acc-filter-btn px-2.5 py-1 rounded-xl text-xs font-bold glisse-btn-secondary">Trial</button>
             <button onclick="filterAccountPlan('blocked')" class="acc-filter-btn px-2.5 py-1 rounded-xl text-xs font-bold glisse-btn-secondary">Blocked</button>
@@ -474,10 +493,12 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                       const daysLeft = a.expiresAt && !isExpired ? Math.ceil((a.expiresAt - now) / 86400000) : 0;
                       const expStr = a.expiresAt ? new Date(a.expiresAt).toLocaleDateString('en-GB') : '-';
                       const initial = (a.name ? a.name.charAt(0) : (a.email ? a.email.charAt(0) : 'G')).toUpperCase();
-                      const planType = a.plan === 'vip-30d' ? 'vip' : 'trial';
+                      const relatedSlip = slips.find(s => s.email && s.email.toLowerCase() === (a.email || '').toLowerCase() && s.status === 'pending');
+                      const isPendingSlip = a.plan === 'pending-vip' || !!relatedSlip;
+                      const planType = isPendingSlip ? 'pending' : (a.plan === 'vip-30d' ? 'vip' : 'trial');
 
                       return `
-                      <tr class="account-row hover:bg-white/[0.03] transition" data-email="${a.email.toLowerCase()}" data-name="${(a.name||'').toLowerCase()}" data-ip="${a.activeIp || ''}" data-plan="${planType}" data-blocked="${a.blocked ? '1' : '0'}">
+                      <tr class="account-row hover:bg-white/[0.03] transition ${isPendingSlip ? 'bg-amber-950/20' : ''}" data-email="${(a.email||'').toLowerCase()}" data-name="${(a.name||'').toLowerCase()}" data-ip="${a.activeIp || ''}" data-plan="${planType}" data-blocked="${a.blocked ? '1' : '0'}">
                         <td class="py-3 px-4">
                           <div class="flex items-center space-x-3">
                             <div class="w-8 h-8 rounded-2xl bg-white/[0.08] border border-white/15 flex items-center justify-center font-bold text-xs text-white">
@@ -490,25 +511,47 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                           </div>
                         </td>
                         <td class="py-3 px-3">
-                          <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">
-                            ${a.plan === 'vip-30d' ? '★ 30-Day VIP' : '1-Hour Free'}
-                          </span>
+                          ${
+                            isPendingSlip
+                              ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60 animate-pulse">⏳ Pending Slip</span>`
+                              : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">
+                                  ${a.plan === 'vip-30d' ? '★ 30-Day VIP' : '1-Hour Free'}
+                                </span>`
+                          }
                         </td>
                         <td class="py-3 px-3 font-mono text-zinc-200">
                           ${a.activeIp ? `<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${a.activeIp}</span>` : '<span class="text-zinc-500">Offline</span>'}
                         </td>
                         <td class="py-3 px-3 font-mono text-zinc-400">${a.activeMac || '-'}</td>
                         <td class="py-3 px-3">
-                          ${isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${daysLeft}d left</span> <span class="text-[10px] text-zinc-500">(${expStr})</span>`}
+                          ${
+                            isPendingSlip
+                              ? '<span class="text-amber-400 font-bold">Awaiting Verification</span>'
+                              : (isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${daysLeft}d left</span> <span class="text-[10px] text-zinc-500">(${expStr})</span>`)
+                          }
                         </td>
                         <td class="py-3 px-3">
-                          ${a.blocked ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-950/40 text-red-300 border border-red-800/60">Blocked</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60">Active</span>'}
+                          ${
+                            isPendingSlip
+                              ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60">Pending</span>'
+                              : (a.blocked ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-950/40 text-red-300 border border-red-800/60">Blocked</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60">Active</span>')
+                          }
                         </td>
                         <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
-                          <form method="post" action="/admin/account/extend" class="inline">
-                            <input type="hidden" name="email" value="${a.email}" />
-                            <button type="submit" class="glisse-btn-success px-2 py-1 rounded-lg text-[11px] font-bold" title="Extend 30 Days VIP">+30d VIP</button>
-                          </form>
+                          ${
+                            relatedSlip
+                              ? `
+                              <button onclick="openLightbox('${relatedSlip.cloud_url || relatedSlip.cloudUrl || (relatedSlip.filename ? '/uploads/' + relatedSlip.filename : '/my-qr')}', 'Slip #${relatedSlip.id} - ${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold text-amber-300" title="Inspect slip photo">🔍 Slip</button>
+                              <form method="post" action="/admin/slip/approve" class="inline">
+                                <input type="hidden" name="slipId" value="${relatedSlip.id}" />
+                                <button type="submit" class="glisse-btn-success px-2 py-1 rounded-lg text-[11px] font-bold" title="Approve 30-Day VIP">✓ Approve</button>
+                              </form>`
+                              : `
+                              <form method="post" action="/admin/account/extend" class="inline">
+                                <input type="hidden" name="email" value="${a.email}" />
+                                <button type="submit" class="glisse-btn-success px-2 py-1 rounded-lg text-[11px] font-bold" title="Extend 30 Days VIP">+30d VIP</button>
+                              </form>`
+                          }
                           <form method="post" action="/admin/account/reset-trial" class="inline">
                             <input type="hidden" name="email" value="${a.email}" />
                             <button type="submit" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold" title="Reset 1-Hour Free Trial">Reset Free</button>
@@ -1149,6 +1192,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         const isBlocked = row.getAttribute('data-blocked') === '1';
 
         if (plan === 'all') row.style.display = '';
+        else if (plan === 'pending') row.style.display = rowPlan === 'pending' ? '' : 'none';
         else if (plan === 'vip') row.style.display = rowPlan === 'vip' ? '' : 'none';
         else if (plan === 'trial') row.style.display = rowPlan === 'trial' ? '' : 'none';
         else if (plan === 'blocked') row.style.display = isBlocked ? '' : 'none';
