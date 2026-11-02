@@ -2314,34 +2314,33 @@ async function doLogout(email) {
 }
 
 function openGmailApp(e) {
+  if (e && e.preventDefault) e.preventDefault();
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const inboxUrl = 'https://mail.google.com/mail/u/0/#inbox';
 
   if (isAndroid) {
-    if (e && e.preventDefault) e.preventDefault();
-    const intentUrl = 'intent://#Intent;package=com.google.android.gm;scheme=googlegmail;end;';
-    const fallbackUrl = 'https://mail.google.com/mail/u/0/#inbox';
-    const start = Date.now();
-    window.location.href = intentUrl;
+    // Open Gmail app directly to Inbox (NOT compose / create email)
+    const intentUrl = 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.APP_EMAIL;package=com.google.android.gm;end';
+    try {
+      window.location.href = intentUrl;
+    } catch (err) {}
     setTimeout(() => {
-      if (Date.now() - start < 1500) {
-        window.open(fallbackUrl, '_blank');
-      }
-    }, 800);
+      window.open(inboxUrl, '_blank');
+    }, 600);
     return false;
   } else if (isIOS) {
-    if (e && e.preventDefault) e.preventDefault();
-    const start = Date.now();
-    window.location.href = 'googlegmail:///co';
+    // Open Gmail app directly to Inbox (googlegmail:// without /co which was compose!)
+    try {
+      window.location.href = 'googlegmail://';
+    } catch (err) {}
     setTimeout(() => {
-      if (Date.now() - start < 1500) {
-        window.open('https://mail.google.com/mail/u/0/#inbox', '_blank');
-      }
-    }, 800);
+      window.open(inboxUrl, '_blank');
+    }, 600);
     return false;
   } else {
-    window.open('https://mail.google.com/mail/u/0/#inbox', '_blank');
-    if (e && e.preventDefault) e.preventDefault();
+    // Desktop / Laptop browser: directly open Gmail Inbox in new tab
+    window.open(inboxUrl, '_blank');
     return false;
   }
 }
