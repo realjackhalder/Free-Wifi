@@ -5,7 +5,42 @@
 
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+const net = require('net');
 const db = require('./database');
+
+// Resolve SMTP host using upstream public DNS to bypass local captive portal DNS interception
+async function resolveSmtpHost(hostname) {
+  if (!hostname) return '127.0.0.1';
+  if (net.isIP(hostname)) return hostname;
+
+  // Try standard DNS lookup first
+  try {
+    const lookup = await new Promise((resolve, reject) => {
+      dns.lookup(hostname, (err, address) => {
+        if (err) return reject(err);
+        resolve(address);
+      });
+    });
+    if (lookup && lookup !== '192.168.1.106' && lookup !== '127.0.0.1' && !lookup.startsWith('192.168.')) {
+      return lookup;
+    }
+  } catch (e) {}
+
+  // Fallback to upstream public DNS (8.8.8.8, 1.1.1.1)
+  try {
+    const resolver = new dns.promises.Resolver();
+    resolver.setServers(['8.8.8.8', '1.1.1.1']);
+    const ips = await resolver.resolve4(hostname);
+    if (ips && ips.length > 0) {
+      return ips[0];
+    }
+  } catch (e) {
+    console.warn(`[OTP DNS] Failed to resolve ${hostname} via upstream DNS:`, e.message);
+  }
+
+  return hostname;
+}
 
 // In-memory store: email -> { otp, expiresAt, mode, name, attempts, lastRequestedAt }
 const otpStore = new Map();
@@ -159,18 +194,21 @@ async function sendOtpEmail(email, otp, mode = 'free', name = '') {
 
     const smtpPort = parseInt(settings.smtpPort, 10) || 587;
     const isSecure = smtpPort === 465;
+    const rawSmtpHost = (settings.smtpHost || 'smtp.gmail.com').trim();
+    const resolvedHost = await resolveSmtpHost(rawSmtpHost);
 
     const transporter = nodemailer.createTransport({
-      host: settings.smtpHost,
+      host: resolvedHost,
       port: smtpPort,
       secure: isSecure,
       requireTLS: !isSecure,
+      tls: {
+        servername: rawSmtpHost,
+        rejectUnauthorized: false
+      },
       auth: {
         user: (settings.smtpUser || '').trim(),
         pass: (settings.smtpPass || '').replace(/\s+/g, '')
-      },
-      tls: {
-        rejectUnauthorized: false
       }
     });
 

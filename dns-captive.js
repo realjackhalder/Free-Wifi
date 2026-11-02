@@ -61,6 +61,7 @@ function isWalledGardenDomain(domain) {
     'firebaseapp.com',
     'googleapis.com',
     'google.com',
+    'gmail.com',
     'gstatic.com',
     'googleusercontent.com',
     'telegram.org',
@@ -117,7 +118,8 @@ function startCaptiveDns(portalIp, isAuthenticatedFn = null) {
         if (msg.length < 12) return;
         const clientIp = rinfo.address;
         const domain = extractDomainFromQuery(msg);
-        const isAuth = typeof isAuthenticatedFn === 'function' ? await isAuthenticatedFn(clientIp) : false;
+        const isGatewayHost = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === targetIp || clientIp.startsWith('127.');
+        const isAuth = isGatewayHost || (typeof isAuthenticatedFn === 'function' ? await isAuthenticatedFn(clientIp) : false);
         const isWalled = isWalledGardenDomain(domain);
 
         if (!isAuth && !isWalled) {
