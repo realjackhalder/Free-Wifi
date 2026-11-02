@@ -551,9 +551,9 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
         ok: true,
         pendingApproval: true,
         slipId,
-        msg_th: 'อัปโหลดเรียบร้อยแล้ว! ส่งให้แอดมินตรวจสอบทาง Telegram เรียบร้อยแล้ว (กำลังรอการอนุมัติ)',
-        msg_mm: 'ဖိုင်တင်ပြီးပါပြီ! Telegram မှတစ်ဆင့် စီမံခန့်ခွဲသူ စစ်ဆေးအတည်ပြုရန် စောင့်ဆိုင်းနေပါသည်...',
-        msg_en: 'Upload submitted! Waiting for Admin approval via Telegram...'
+        msg_th: 'ส่งสลิปโอนเงินเรียบร้อยแล้ว! กำลังตรวจสอบยอดเงิน กรุณารอสักครู่ (ระบบจะเชื่อมต่อให้อัตโนมัติ)',
+        msg_mm: 'ငွေလွှဲပြေစာ ပေးပို့ပြီးပါပြီ! စစ်ဆေးနေပါသည် (ခွင့်ပြုချက်ရပါက အလိုအလျောက် ပွင့်ပါမည်)...',
+        msg_en: 'Payment slip submitted! Verifying payment, Wi-Fi will connect automatically once approved.'
       });
     }
 
@@ -1496,14 +1496,14 @@ ${
       <div>
         <label class="block text-xs font-bold text-gray-600 uppercase mb-1" data-i18n="label_slip">แนบสลิปโอนเงิน</label>
         <div class="file-upload" id="dropzone" onclick="document.getElementById('slip-file').click()">
-          <input type="file" id="slip-file" class="hidden" onchange="onFileSelected(this)" required />
+          <input type="file" id="slip-file" accept="image/*" class="hidden" onchange="onFileSelected(this)" required />
           <img id="slip-preview" class="hidden max-h-36 mx-auto rounded-lg mb-2 shadow-sm object-contain" alt="Slip Preview" />
           <svg class="w-7 h-7 text-blue-500 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          <p id="file-label" class="text-xs text-gray-600 font-medium" data-i18n="dropzone_label">กดเพื่อเลือกไฟล์ (อัปโหลดได้ทุกไฟล์ ไม่จำกัดประเภท)</p>
+          <p id="file-label" class="text-xs text-gray-600 font-medium" data-i18n="dropzone_label">กดเพื่อเลือกรูปภาพสลิปธนาคาร</p>
         </div>
       </div>
       <button type="submit" id="btn-buy" class="btn-primary" data-i18n="btn_buy_vip">
-        ยืนยันและเปิดใช้งาน / Verify & Activate 30-Day VIP
+        ยืนยันสลิปและเปิดใช้งาน VIP 30 วัน
       </button>
     </form>
   </div>
@@ -1653,7 +1653,9 @@ const I18N = {
     vip_sub: "ผูกกับบัญชี Google เข้าใช้งานได้ตลอด 30 วัน",
     price_label: "ยอดชำระ:",
     price_amount: "${price} บาท",
-    label_slip: "แนบสลิปโอนเงิน / ไฟล์หลักฐาน",\n    dropzone_label: "กดเพื่อเลือกไฟล์ (อัปโหลดได้ทุกไฟล์ ไม่จำกัดประเภท)",\n    btn_buy_vip: "อัปโหลดไฟล์และเปิดใช้งาน VIP 30 วัน",
+    label_slip: "แนบสลิปโอนเงิน",
+    dropzone_label: "กดเพื่อเลือกรูปภาพสลิปธนาคาร",
+    btn_buy_vip: "ยืนยันสลิปและเปิดใช้งาน VIP 30 วัน",
     login_heading: "เข้าสู่ระบบด้วย Google",
     login_sub: "สำหรับสมาชิกที่มีแพ็กเกจ 30 วัน หรือเวลาฟรียังไม่หมด",
     btn_google_login: "เข้าสู่ระบบด้วย Google Account",
@@ -1716,7 +1718,9 @@ const I18N = {
     vip_sub: "Google အကောင့်နှင့် ချိတ်ဆက်ပြီး ၃၀ ရက် အကန့်အသတ်မဲ့ သုံးနိုင်သည်",
     price_label: "ပေးသွင်းရမည့်ငွေ:",
     price_amount: "${price} ဘတ်",
-    label_slip: "ငွေလွှဲပြေစာ / ဖိုင် တင်ပါ",\n    dropzone_label: "ဖိုင်ရွေးချယ်ရန် နှိပ်ပါ (မည်သည့်ဖိုင်မဆို တင်နိုင်ပါသည်)",\n    btn_buy_vip: "ဖိုင်တင်ပြီး ရက် ၃၀ VIP စတင်မည်",
+    label_slip: "ငွေလွှဲပြေစာ ဓာတ်ပုံ တင်ပါ",
+    dropzone_label: "ငွေလွှဲပြေစာ ဓာတ်ပုံ ရွေးချယ်ရန် နှိပ်ပါ",
+    btn_buy_vip: "ပြေစာစစ်ဆေးပြီး ရက် ၃၀ VIP စတင်မည်",
     login_heading: "Google ဖြင့် အကောင့်ဝင်ရန်",
     login_sub: "ရက် ၃၀ VIP အသင်းဝင်များနှင့် အခမဲ့အချိန် မကုန်သေးသူများအတွက်",
     btn_google_login: "Google Account ဖြင့် ဝင်ရောက်ပါ",
@@ -1779,7 +1783,9 @@ const I18N = {
     vip_sub: "Link with your Google account for 30 days unlimited access",
     price_label: "Amount Due:",
     price_amount: "${price} Baht",
-    label_slip: "Upload Transfer Slip / File",\n    dropzone_label: "Click to select file (Upload anything you want)",\n    btn_buy_vip: "Upload File & Activate 30-Day VIP",
+    label_slip: "Attach Payment Slip",
+    dropzone_label: "Tap to select bank payment receipt image",
+    btn_buy_vip: "Verify Slip & Activate 30-Day VIP",
     login_heading: "Sign in with Google",
     login_sub: "For existing 30-Day VIP members or active trial users",
     btn_google_login: "Sign in with Google Account",
@@ -2377,12 +2383,16 @@ function showApprovalWaitingModal(slipId) {
   }
 
   const lang = currentLang;
-  const title = lang === 'mm' ? 'ငွေလွှဲပြေစာ ပေးပို့ပြီးပါပြီ' : (lang === 'en' ? 'Slip Sent for Approval' : 'ส่งสลิปให้แอดมินแล้ว');
+  const title = lang === 'mm' ? 'ငွေလွှဲပြေစာအား စစ်ဆေးနေပါသည်' : (lang === 'en' ? 'Verifying Payment Slip' : 'กำลังตรวจสอบการชำระเงิน');
   const sub = lang === 'mm'
-    ? 'Telegram မှတစ်ဆင့် စီမံခန့်ခွဲသူထံ အကြောင်းကြားစာ ရောက်ရှိသွားပါပြီ။\\nခွင့်ပြုချက် ရရှိသည်နှင့် အင်တာနက် အလိုအလျောက် ပွင့်ပါမည်။'
+    ? 'စနစ်မှ ငွေလွှဲပြေစာအား စစ်ဆေးအတည်ပြုနေပါသည်\\nအတည်ပြုပြီးပါက ရက် ၃၀ VIP အင်တာနက် အလိုအလျောက် ပွင့်ပါမည်'
     : (lang === 'en'
-      ? 'Payment slip was sent to Admin via Telegram.\\nInternet will unlock automatically once approved.'
-      : 'ส่งสลิปให้แอดมินตรวจสอบทาง Telegram แล้ว ระบบจะเชื่อมต่อให้อัตโนมัติทันทีเมื่อได้รับอนุมัติ');
+      ? 'We are verifying your payment slip. Please wait a moment.\\nYour 30-Day VIP Wi-Fi will activate automatically once verified.'
+      : 'ระบบกำลังตรวจสอบยอดเงินโอนของคุณ กรุณารอสักครู่\\nแพ็กเกจ VIP 30 วัน จะเปิดใช้งานให้อัตโนมัติทันทีเมื่อตรวจสอบสำเร็จ');
+
+  const statusLabel = lang === 'mm' ? 'အခြေအနေ' : (lang === 'en' ? 'Status' : 'สถานะ');
+  const statusWaiting = lang === 'mm' ? 'စစ်ဆေးနေဆဲ...' : (lang === 'en' ? 'Verifying...' : 'กำลังตรวจสอบ...');
+  const autoCheckText = lang === 'mm' ? 'စနစ်မှ အလိုအလျောက် စစ်ဆေးနေပါသည်...' : (lang === 'en' ? 'Automatically checking verification status...' : 'ระบบกำลังตรวจสอบสถานะอัตโนมัติ...');
 
   modal.innerHTML = \`
     <div class="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full text-center space-y-4 shadow-2xl border border-blue-100">
@@ -2394,11 +2404,11 @@ function showApprovalWaitingModal(slipId) {
       
       <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3.5 text-xs font-mono space-y-1.5 text-left">
         <div class="flex justify-between items-center"><span class="text-gray-400">Slip ID:</span> <span class="font-bold text-gray-800">#\${slipId}</span></div>
-        <div class="flex justify-between items-center"><span class="text-gray-400">Telegram:</span> <span id="modal-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800 animate-pulse">Waiting for Approval...</span></div>
+        <div class="flex justify-between items-center"><span class="text-gray-400">\${statusLabel}:</span> <span id="modal-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800 animate-pulse">\${statusWaiting}</span></div>
       </div>
       
       <div id="modal-actions" class="pt-1">
-        <p class="text-[11px] text-gray-400">စနစ်မှ အလိုအလျောက် စစ်ဆေးနေပါသည်...</p>
+        <p class="text-[11px] text-gray-400">\${autoCheckText}</p>
       </div>
     </div>
   \`;
@@ -2436,11 +2446,11 @@ function showApprovalWaitingModal(slipId) {
             iconEl.className = 'w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-3xl mx-auto';
             iconEl.innerHTML = '❌';
           }
-          if (titleEl) titleEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာအား လက်မခံပါ' : (lang === 'en' ? 'Slip Declined' : 'สลิปไม่ผ่านการอนุมัติ');
-          if (descEl) descEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာအား စီမံခန့်ခွဲသူမှ ငြင်းပယ်ခဲ့ပါသည် (ငွေလွှဲမှု သေချာစစ်ဆေးပြီး ပြန်တင်ပေးပါ)' : (lang === 'en' ? 'Payment slip was declined by admin. Please check payment and upload again.' : 'สลิปถูกปฏิเสธโดยแอดมิน กรุณาตรวจสอบแล้วลองใหม่อีกครั้ง');
+          if (titleEl) titleEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာ မမှန်ကန်ပါ' : (lang === 'en' ? 'Payment Not Verified' : 'ไม่สามารถยืนยันสลิปได้');
+          if (descEl) descEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာအား စစ်ဆေး၍မရပါ (ငွေလွှဲမှု သေချာစစ်ဆေးပြီး ပြန်တင်ပေးပါ)' : (lang === 'en' ? 'Could not verify payment slip. Please check payment receipt and upload again.' : 'สลิปการโอนเงินไม่ถูกต้อง หรือไม่สามารถตรวจสอบได้ กรุณาตรวจสอบแล้วลองใหม่อีกครั้ง');
           if (badgeEl) {
             badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800';
-            badgeEl.innerText = '✕ DECLINED';
+            badgeEl.innerText = '✕ NOT VERIFIED';
           }
           if (actionsEl) {
             actionsEl.innerHTML = \`
@@ -2586,7 +2596,7 @@ function renderAdminLogin(error = null) {
     <form method="post" action="/admin/login" class="space-y-4">
       <div>
         <label class="block text-left text-xs font-bold text-gray-400 mb-1.5 uppercase">Enter Admin PIN</label>
-        <input type="password" name="pin" placeholder="Admin PIN (Default: 1234)" autofocus required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3.5 text-center text-lg font-mono focus:border-blue-500 outline-none text-white tracking-widest" />
+        <input type="password" name="pin" placeholder="Enter Admin PIN" autofocus required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3.5 text-center text-lg font-mono focus:border-blue-500 outline-none text-white tracking-widest" />
       </div>
       <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 font-bold rounded-xl py-3.5 text-sm transition shadow-md active:scale-95">
         Enter Dashboard
@@ -2658,21 +2668,21 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
           ${a.blocked ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold">Blocked</span>' : '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">Active</span>'}
         </td>
         <td class="py-3 px-3 space-x-1 whitespace-nowrap">
-          <form method="post" action="/admin/account/extend?pin=${pin}" class="inline">
+          <form method="post" action="/admin/account/extend" class="inline">
             <input type="hidden" name="email" value="${a.email}" />
             <button class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded font-bold" title="Extend 30 Days VIP">+30 Days</button>
           </form>
-          <form method="post" action="/admin/account/reset-trial?pin=${pin}" class="inline">
+          <form method="post" action="/admin/account/reset-trial" class="inline">
             <input type="hidden" name="email" value="${a.email}" />
             <button class="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded font-bold" title="Reset Free Trial">Reset Free</button>
           </form>
-          <form method="post" action="/admin/account/block?pin=${pin}" class="inline">
+          <form method="post" action="/admin/account/block" class="inline">
             <input type="hidden" name="email" value="${a.email}" />
             <button class="px-2 py-1 ${a.blocked ? 'bg-gray-600 hover:bg-gray-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded font-bold">
               ${a.blocked ? 'Unblock' : 'Block'}
             </button>
           </form>
-          <form method="post" action="/admin/account/delete?pin=${pin}" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete this Google account?')">
+          <form method="post" action="/admin/account/delete" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete this Google account?')">
             <input type="hidden" name="email" value="${a.email}" />
             <button class="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-bold">Delete</button>
           </form>
@@ -2766,7 +2776,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
       </div>
     </div>
     <div class="flex items-center space-x-2 sm:space-x-3">
-      <a href="/admin" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold">Sign Out</a>
+      <a href="/admin/logout" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold">Sign Out</a>
     </div>
   </div>
 </header>
@@ -2817,7 +2827,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         <div class="w-24 h-24 bg-gray-100 rounded-xl border border-gray-200 p-1 flex items-center justify-center flex-shrink-0">
           <img src="/my-qr" alt="QR Preview" class="max-w-full max-h-full object-contain" />
         </div>
-        <form method="post" action="/admin/upload-qr?pin=${pin}" enctype="multipart/form-data" class="space-y-2 flex-1">
+        <form method="post" action="/admin/upload-qr" enctype="multipart/form-data" class="space-y-2 flex-1">
           <input type="file" name="qr" accept="image/*" required class="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
           <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">Upload / Replace QR Code</button>
         </form>
@@ -2830,7 +2840,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         <span class="text-xl">⚙️</span>
         <h2 class="font-black text-sm text-gray-800">System Settings</h2>
       </div>
-      <form method="post" action="/admin/settings?pin=${pin}" class="space-y-3">
+      <form method="post" action="/admin/settings" class="space-y-3">
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-bold text-gray-600 mb-1">30-Day VIP Package Price (THB)</label>
@@ -3018,7 +3028,7 @@ async function testTelegram() {
     return;
   }
   try {
-    const res = await fetch('/admin/telegram-test?pin=${pin}', {
+    const res = await fetch('/admin/telegram-test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ telegramBotToken: token, telegramChatId: chatId })
