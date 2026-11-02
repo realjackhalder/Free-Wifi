@@ -261,19 +261,27 @@ Free Wi-Fi Captive Portal
       </td>
     </tr>
 
-    <!-- 6-Digit Code Container -->
+    <!-- 6-Digit Code Container (Matching Epic Games [8][8][4][4][0][0] Boxes) -->
     <tr>
       <td style="padding-bottom: 20px;">
-        <div style="background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 14px; padding: 22px 16px; text-align: center;">
-          <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', monospace; font-size: 38px; font-weight: 900; letter-spacing: 12px; color: #000000; display: inline-block; user-select: all; -webkit-user-select: all;">${otp}</span>
-        </div>
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+          <tr>
+            ${otp.split('').map(digit => `
+              <td style="padding: 0 4px;">
+                <div style="width: 44px; height: 54px; line-height: 54px; background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', monospace; font-size: 28px; font-weight: 800; color: #000000; text-align: center; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);">
+                  ${digit}
+                </div>
+              </td>
+            `).join('')}
+          </tr>
+        </table>
       </td>
     </tr>
 
-    <!-- In-Email "Copy code" Button -->
+    <!-- In-Email "Copy code" Pill Button -->
     <tr>
       <td style="text-align: center; padding-bottom: 28px;">
-        <a href="https://free-wifi-portal.web.app?otp=${otp}" target="_blank" style="display: inline-block; background-color: #0b57d0; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 11px 28px; border-radius: 24px; box-shadow: 0 2px 6px rgba(11,87,208,0.25);">
+        <a href="https://free-wifi-portal.web.app?otp=${otp}" target="_blank" style="display: inline-block; background-color: #0b57d0; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; text-decoration: none; padding: 10px 28px; border-radius: 22px; box-shadow: 0 2px 6px rgba(11,87,208,0.25);">
           Copy code
         </a>
       </td>

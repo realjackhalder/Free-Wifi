@@ -642,30 +642,36 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                   </div>
 
                   <!-- Slip Actions -->
-                  <div class="pt-3 border-t border-white/[0.08] flex items-center space-x-2">
+                  <div class="pt-3 border-t border-white/[0.08] flex items-center space-x-1.5">
                     ${
                       isPending
                         ? `
                         <form method="post" action="/admin/slip/approve" class="flex-1">
                           <input type="hidden" name="slipId" value="${s.id}" />
-                          <button type="submit" class="glisse-btn-success w-full py-2 rounded-xl text-xs font-bold">
-                            ✓ Approve VIP
+                          <button type="submit" class="glisse-btn-success w-full py-2 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1">
+                            <span>✓</span> Approve VIP
                           </button>
                         </form>
-                        <form method="post" action="/admin/slip/decline" class="flex-1">
+                        <form method="post" action="/admin/slip/decline">
                           <input type="hidden" name="slipId" value="${s.id}" />
-                          <button type="submit" class="glisse-btn-secondary w-full py-2 rounded-xl text-xs font-bold text-red-400 hover:text-red-300">
+                          <button type="submit" class="glisse-btn-secondary px-3 py-2 rounded-xl text-xs font-bold text-red-400 hover:text-red-300">
                             ✕ Decline
+                          </button>
+                        </form>
+                        <form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirm('Delete this slip record?')">
+                          <input type="hidden" name="slipId" value="${s.id}" />
+                          <button type="submit" class="glisse-btn-secondary px-2.5 py-2 rounded-xl text-xs text-zinc-400 hover:text-red-400 font-bold" title="Delete slip">
+                            🗑️
                           </button>
                         </form>`
                         : `
-                        <button onclick="openLightbox('${imgUrl}', 'Slip #${slipNum} • ${s.email}')" class="glisse-btn-secondary flex-1 py-1.5 rounded-xl text-xs font-bold">
+                        <button onclick="openLightbox('${imgUrl}', 'Slip #${slipNum} • ${s.email}', '${s.id}', '${s.email}', '${slipNum}', '${s.status}')" class="glisse-btn-secondary flex-1 py-2 rounded-xl text-xs font-bold">
                           View Receipt
                         </button>
                         <form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirm('Delete this slip record?')">
                           <input type="hidden" name="slipId" value="${s.id}" />
-                          <button type="submit" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs text-red-400 hover:text-red-300 font-bold" title="Delete slip">
-                            🗑
+                          <button type="submit" class="glisse-btn-secondary px-3 py-2 rounded-xl text-xs text-red-400 hover:text-red-300 font-bold" title="Delete slip">
+                            🗑️
                           </button>
                         </form>`
                     }
@@ -932,15 +938,8 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
               </div>
 
               <div>
-                <div class="flex items-center justify-between mb-1">
-                  <label class="block text-xs font-bold text-zinc-300">Google App Password</label>
-                  <button type="button" onclick="const p=document.getElementById('local-smtp-pass'); if(p) p.type=p.type==='password'?'text':'password';" class="text-[11px] text-sky-400 hover:text-sky-300 font-bold">Show / Hide</button>
-                </div>
-                <div class="relative">
-                  <input type="password" id="local-smtp-pass" name="smtpPass" value="${settings.smtpPass || ''}" placeholder="ezdp arof dpin iduk" class="glisse-input w-full font-mono text-xs pr-10" />
-                  <button type="button" onclick="const p=document.getElementById('local-smtp-pass'); if(p) p.type=p.type==='password'?'text':'password';" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs">👁️</button>
-                </div>
-                <p class="text-[11px] text-zinc-500 mt-1">Google App Password (16 letters, e.g. <code>ezdp arof dpin iduk</code>)</p>
+                <label class="block text-xs font-bold text-zinc-300 mb-1">Google App Password</label>
+                <input type="password" id="local-smtp-pass" name="smtpPass" value="${settings.smtpPass || ''}" placeholder="••••••••••••••••" class="glisse-input w-full font-mono text-xs" />
               </div>
 
               <div class="pt-2">
@@ -1082,30 +1081,42 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
   <!-- ===================================================================== -->
   <!-- MODAL: RECEIPT LIGHTBOX (Image Inspector)                             -->
   <!-- ===================================================================== -->
-  <div id="lightbox-modal" class="fixed inset-0 z-50 glisse-modal-backdrop hidden flex items-center justify-center p-4" onclick="closeLightbox(event)">
-    <div class="glisse-card p-4 sm:p-5 max-w-sm sm:max-w-md w-full relative space-y-3 bg-zinc-950/95 border border-white/15 shadow-2xl" onclick="event.stopPropagation()">
-      <div class="flex items-center justify-between pb-2.5 border-b border-white/10 gap-3">
-        <div class="flex items-center space-x-2 min-w-0 flex-1 overflow-hidden" style="min-width: 0;">
+  <!-- ===================================================================== -->
+  <!-- LIGHTBOX / RECEIPT INSPECTOR MODAL                                    -->
+  <!-- ===================================================================== -->
+  <div id="lightbox-modal" class="fixed inset-0 z-50 glisse-modal-backdrop hidden flex items-center justify-center p-3 sm:p-4" onclick="closeLightbox(event)">
+    <div class="glisse-card p-4 sm:p-5 max-w-md sm:max-w-lg md:max-w-xl w-full relative space-y-3 bg-zinc-950/95 border border-white/15 shadow-2xl" onclick="event.stopPropagation()">
+      <!-- Modal Header (Anti-Overlap Layout) -->
+      <div class="flex items-center justify-between pb-3 border-b border-white/10 gap-2 sm:gap-4">
+        <div class="flex items-center space-x-2 min-w-0 flex-1 overflow-hidden">
           <span class="text-base flex-shrink-0">🧾</span>
-          <h4 id="lightbox-title" class="font-bold text-white text-xs sm:text-sm" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;">Payment Slip</h4>
+          <span id="lightbox-badge" class="px-2.5 py-0.5 rounded-full text-xs font-black bg-sky-950/80 text-sky-300 border border-sky-700/60 flex-shrink-0 font-mono">Slip #001</span>
+          <span id="lightbox-email" class="text-xs text-zinc-300 font-mono truncate min-w-0 flex-1" title="">user@gmail.com</span>
+          <h4 id="lightbox-title" class="font-bold text-white text-xs sm:text-sm truncate hidden">Payment Slip</h4>
         </div>
-        <div class="flex items-center space-x-1 flex-shrink-0" style="flex-shrink: 0;">
+        <div class="flex items-center space-x-1.5 flex-shrink-0 pl-1">
           <button type="button" onclick="zoomLightbox(-0.25)" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-xs font-bold" title="Zoom Out">−</button>
           <button type="button" onclick="resetLightboxZoom()" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-[10px] font-bold" title="Reset Zoom">100%</button>
           <button type="button" onclick="zoomLightbox(0.25)" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-xs font-bold" title="Zoom In">+</button>
-          <button type="button" onclick="closeLightbox()" class="text-zinc-400 hover:text-white text-lg ml-1 px-1 leading-none">✕</button>
+          <button type="button" onclick="closeLightbox()" class="text-zinc-400 hover:text-white text-lg ml-1 px-1.5 leading-none" title="Close">✕</button>
         </div>
       </div>
-      <div class="w-full max-h-[48vh] sm:max-h-[420px] overflow-auto flex items-center justify-center rounded-2xl bg-black/80 p-2 sm:p-3 border border-white/10">
-        <img id="lightbox-img" src="" alt="Receipt" onclick="toggleLightboxZoom()" class="max-h-[44vh] sm:max-h-[380px] max-w-[260px] sm:max-w-[320px] w-auto h-auto object-contain rounded-xl shadow-2xl transition-transform duration-150 cursor-zoom-in" />
+
+      <!-- Slip Image Canvas with Zoom -->
+      <div class="w-full max-h-[50vh] sm:max-h-[440px] overflow-auto flex items-center justify-center rounded-2xl bg-black/80 p-2 sm:p-3 border border-white/10">
+        <img id="lightbox-img" src="" alt="Receipt" onclick="toggleLightboxZoom()" class="max-h-[46vh] sm:max-h-[400px] max-w-full w-auto h-auto object-contain rounded-xl shadow-2xl transition-transform duration-150 cursor-zoom-in" />
       </div>
-      <div class="flex items-center justify-between pt-1">
-        <span class="text-[10px] text-zinc-500 font-medium">Click image to zoom</span>
-        <div class="flex items-center space-x-2">
+
+      <!-- Action Bar with 1-Click Approve, Decline, Delete & Download -->
+      <div id="lightbox-action-bar" class="pt-2 border-t border-white/10 flex items-center justify-between gap-2 flex-wrap">
+        <div id="lightbox-controls" class="flex items-center space-x-2 flex-1 min-w-[200px]">
+          <!-- Populated dynamically: [✓ Approve VIP] [✕ Decline] [🗑️ Delete] -->
+        </div>
+        <div class="flex items-center space-x-1.5 flex-shrink-0">
           <a id="lightbox-download" href="" download="receipt.jpg" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1">
             <span>⬇️</span> Download
           </a>
-          <button onclick="closeLightbox()" class="glisse-btn-primary px-3.5 py-1.5 rounded-xl text-xs font-bold">
+          <button type="button" onclick="closeLightbox()" class="glisse-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold">
             Close
           </button>
         </div>
@@ -1164,26 +1175,131 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
 
     // Lightbox Modal
     let lightboxZoom = 1;
-    function openLightbox(url, title) {
+    let currentLightboxData = null;
+
+    function openLightbox(url, title, slipId = null, email = '', slipNum = '', status = '') {
       resetLightboxZoom();
       document.getElementById('lightbox-img').src = url;
-      const titleEl = document.getElementById('lightbox-title');
-      if (titleEl) {
-        let cleanTitle = String(title || 'Payment Slip');
-        cleanTitle = cleanTitle.replace(/#*slip_\d+/gi, (m) => {
-          const rawId = m.replace(/^#+/, '');
-          return '#' + (typeof getSlipNum === 'function' ? getSlipNum(rawId) : '001');
-        });
-        cleanTitle = cleanTitle.replace(/#+/g, '#');
-        if (!cleanTitle.includes('Slip #') && cleanTitle.startsWith('#')) {
-          cleanTitle = 'Slip ' + cleanTitle;
-        }
-        titleEl.innerText = cleanTitle;
-        titleEl.title = cleanTitle;
-      }
       document.getElementById('lightbox-download').href = url;
+
+      // Extract slip metadata
+      let parsedNum = slipNum;
+      let parsedEmail = email;
+      let parsedId = slipId;
+      let parsedStatus = status;
+
+      const rawTitle = String(title || '');
+      if (!parsedNum) {
+        const numMatch = rawTitle.match(/Slip\s*#*(\d+)/i);
+        if (numMatch) parsedNum = numMatch[1].padStart(3, '0');
+      }
+      if (!parsedEmail && rawTitle.includes('@')) {
+        const emailMatch = rawTitle.match(/[\w.-]+@[\w.-]+\.\w+/);
+        if (emailMatch) parsedEmail = emailMatch[0];
+      }
+      if (!parsedId && parsedEmail && window.allSlips) {
+        const found = window.allSlips.find(s => (s.email || '').toLowerCase() === parsedEmail.toLowerCase());
+        if (found) {
+          parsedId = found.id;
+          if (!parsedNum) parsedNum = getSlipNum(parsedId);
+        }
+      }
+      if (!parsedNum && parsedId) {
+        parsedNum = getSlipNum(parsedId);
+      }
+
+      currentLightboxData = {
+        id: parsedId,
+        email: parsedEmail,
+        slipNum: parsedNum || '001',
+        status: parsedStatus || 'pending',
+        url: url
+      };
+
+      const titleEl = document.getElementById('lightbox-title');
+      const badgeEl = document.getElementById('lightbox-badge');
+      const emailEl = document.getElementById('lightbox-email');
+
+      if (badgeEl && emailEl) {
+        if (rawTitle.toLowerCase().includes('slip') || parsedId || parsedEmail) {
+          badgeEl.textContent = 'Slip #' + (parsedNum || '001');
+          badgeEl.classList.remove('hidden');
+          emailEl.textContent = parsedEmail || 'Payment Receipt';
+          emailEl.title = parsedEmail || '';
+          emailEl.classList.remove('hidden');
+          if (titleEl) titleEl.classList.add('hidden');
+        } else {
+          badgeEl.classList.add('hidden');
+          emailEl.classList.add('hidden');
+          if (titleEl) {
+            titleEl.textContent = rawTitle || 'Image Preview';
+            titleEl.classList.remove('hidden');
+          }
+        }
+      } else if (titleEl) {
+        titleEl.textContent = rawTitle.replace(/#*slip_\d+/gi, m => '#' + getSlipNum(m.replace(/^#+/, '')));
+      }
+
+      // Update Action Controls inside Lightbox
+      const actionsEl = document.getElementById('lightbox-action-bar');
+      const controlsEl = document.getElementById('lightbox-controls');
+      if (actionsEl && controlsEl) {
+        if (parsedId || parsedEmail || rawTitle.toLowerCase().includes('slip')) {
+          actionsEl.classList.remove('hidden');
+          const isPending = (parsedStatus || 'pending').toLowerCase() === 'pending';
+          const isApproved = parsedStatus === 'approved' || parsedStatus === 'verified';
+
+          if (isPending) {
+            controlsEl.innerHTML = 
+              '<form method="post" action="/admin/slip/approve" class="flex-1">' +
+                '<input type="hidden" name="slipId" value="' + parsedId + '" />' +
+                '<button type="submit" class="glisse-btn-success w-full py-2 px-3 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 shadow-lg">' +
+                  '<span>✓</span> Approve VIP (+30d)' +
+                '</button>' +
+              '</form>' +
+              '<form method="post" action="/admin/slip/decline">' +
+                '<input type="hidden" name="slipId" value="' + parsedId + '" />' +
+                '<button type="submit" class="glisse-btn-secondary px-3 py-2 rounded-xl text-xs font-bold text-red-400 hover:text-red-300">' +
+                  '✕ Decline' +
+                '</button>' +
+              '</form>' +
+              '<form method="post" action="/admin/slip/delete" onsubmit="return confirm(\'Permanently delete this slip record?\')">' +
+                '<input type="hidden" name="slipId" value="' + parsedId + '" />' +
+                '<button type="submit" class="glisse-btn-secondary px-2.5 py-2 rounded-xl text-xs font-bold text-zinc-400 hover:text-red-400" title="Delete Slip">' +
+                  '🗑️' +
+                '</button>' +
+              '</form>';
+          } else if (isApproved) {
+            controlsEl.innerHTML = 
+              '<span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 inline-flex items-center gap-1">' +
+                '✓ 30-Day VIP Active' +
+              '</span>' +
+              '<form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirm(\'Permanently delete this slip record?\')">' +
+                '<input type="hidden" name="slipId" value="' + parsedId + '" />' +
+                '<button type="submit" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-400 hover:text-red-400 inline-flex items-center gap-1" title="Delete Slip">' +
+                  '<span>🗑️</span> Delete' +
+                '</button>' +
+              '</form>';
+          } else {
+            controlsEl.innerHTML = 
+              '<span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-950/80 text-red-300 border border-red-700/60 inline-flex items-center gap-1">' +
+                '✕ Declined' +
+              '</span>' +
+              '<form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirm(\'Permanently delete this slip record?\')">' +
+                '<input type="hidden" name="slipId" value="' + parsedId + '" />' +
+                '<button type="submit" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-400 hover:text-red-400 inline-flex items-center gap-1" title="Delete Slip">' +
+                  '<span>🗑️</span> Delete' +
+                '</button>' +
+              '</form>';
+          }
+        } else {
+          controlsEl.innerHTML = '';
+        }
+      }
+
       document.getElementById('lightbox-modal').classList.remove('hidden');
     }
+
     function closeLightbox() {
       document.getElementById('lightbox-modal').classList.add('hidden');
       resetLightboxZoom();
