@@ -389,8 +389,10 @@ async function startPolling() {
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
-        // Network or connection error: brief sleep to prevent rapid looping
+        console.warn('⚠️ [TELEGRAM POLLING ERROR]', err.message);
         await new Promise(r => setTimeout(r, 5000));
+      } else {
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
   }
