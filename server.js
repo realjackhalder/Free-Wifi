@@ -965,10 +965,32 @@ userApp.post('/api/logout', async (req, res) => {
 });
 
 // --- GET /api/session-status ---
+userApp.options('/api/session-status', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.status(204).end();
+});
+
 userApp.get('/api/session-status', async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
   const ip = getClientIp(req);
   const acc = await db.getAccountByIp(ip);
-  if (!acc) return res.json({ active: false });
+  if (!acc) {
+    const mac = await getMacForIp(ip);
+    const expiredAcc = await db.getExpiredAccount({ ip, mac });
+    if (expiredAcc) {
+      return res.json({
+        active: false,
+        expired: true,
+        email: expiredAcc.email,
+        name: expiredAcc.name,
+        plan: expiredAcc.plan,
+        msg: 'Your Wi-Fi access limit has expired. Please buy the 30-Day VIP pass.'
+      });
+    }
+    return res.json({ active: false });
+  }
   return res.json({
     active: true,
     email: acc.email,
@@ -1690,6 +1712,7 @@ function renderPortal(account, settings, expiredAccount = null, clientIp = '', c
   window.__CLIENT_IP__ = "${clientIp || ''}";
   window.__CLIENT_MAC__ = "${clientMac || ''}";
   window.__GATEWAY_IP__ = "${gatewayIp || ''}";
+  window.__EXPIRED_ACCOUNT__ = ${expiredAccount ? JSON.stringify(expiredAccount) : 'null'};
 </script>
 `;
   html = html.replace('<head>', '<head>' + injection);

@@ -55,23 +55,20 @@ function isWalledGardenDomain(domain) {
   if (!domain) return false;
   if (isCnaProbeDomain(domain)) return false;
   const d = domain.toLowerCase();
-  return (
-    d.endsWith('free-wifi-portal.web.app') ||
-    d.endsWith('.web.app') ||
-    d.endsWith('.firebaseapp.com') ||
-    d.endsWith('.googleapis.com') ||
-    d.endsWith('.google.com') ||
-    d.endsWith('.gstatic.com') ||
-    d.endsWith('.googleusercontent.com') ||
-    d.endsWith('telegram.org') ||
-    d.endsWith('.telegram.org') ||
-    d.endsWith('jsdelivr.net') ||
-    d.endsWith('.jsdelivr.net') ||
-    d.endsWith('cloudflare.com') ||
-    d.endsWith('.cloudflare.com') ||
-    d.endsWith('ipify.org') ||
-    d.endsWith('.ipify.org')
-  );
+  const allowedRoots = [
+    'free-wifi-portal.web.app',
+    'web.app',
+    'firebaseapp.com',
+    'googleapis.com',
+    'google.com',
+    'gstatic.com',
+    'googleusercontent.com',
+    'telegram.org',
+    'jsdelivr.net',
+    'cloudflare.com',
+    'ipify.org'
+  ];
+  return allowedRoots.some(root => d === root || d.endsWith('.' + root));
 }
 
 function buildDnsResponse(query, ip) {

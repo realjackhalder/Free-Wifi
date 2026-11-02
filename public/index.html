@@ -2391,13 +2391,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       showConnectedView(sessionAcc);
       return;
     }
+    if (resp.ok && resp.data && resp.data.expired) {
+      localStorage.setItem('wifi_expired_notice', 'true');
+      if (resp.data.email) saveDeviceAccount({ email: resp.data.email, name: resp.data.name });
+    }
   } catch (e) {}
+
+  if (window.__EXPIRED_ACCOUNT__) {
+    localStorage.setItem('wifi_expired_notice', 'true');
+    saveDeviceAccount(window.__EXPIRED_ACCOUNT__);
+  }
 
   const localSession = getActiveSession();
   if (localSession) {
     showConnectedView(localSession);
   } else {
     showLoginView();
+    checkExpiredSessionNotice();
   }
 });
 </script>
