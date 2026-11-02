@@ -32,12 +32,22 @@ try {
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'firebase-service-account.json');
 const CLIENT_CONFIG_PATH = path.join(__dirname, 'firebase-client.json');
 
+const CANDIDATE_KEY_PATHS = [
+  process.env.GOOGLE_APPLICATION_CREDENTIALS,
+  path.join(__dirname, 'free-wifi-portal-firebase-adminsdk.json'),
+  path.join(__dirname, 'serviceAccountKey.json'),
+  path.join(__dirname, 'firebase-service-account.json')
+].filter(Boolean);
+
 let isInitialized = false;
 let firestoreDb = null;
 let firebaseAuth = null;
 let firebaseStorage = null;
 let authErrorLogged = false;
+let quotaErrorLogged = false;
+let quotaPausedUntil = 0;
 
+const DEFAULT_DATABASE_URL = process.env.FIREBASE_DATABASE_URL || 'https://free-wifi-portal-default-rtdb.asia-southeast1.firebasedatabase.app';
 const DEFAULT_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'free-wifi-portal.firebasestorage.app';
 
 function markUnavailable(reason = '') {
@@ -50,6 +60,22 @@ function markUnavailable(reason = '') {
     console.warn(`⚠️ [FIREBASE] Authentication failed (${reason}). Disabling Cloud Firestore and using local SQLite (wifi.db).`);
     console.warn('👉 To re-enable Cloud Firestore: Generate a fresh private key in Firebase Console -> Project Settings -> Service Accounts -> "Generate new private key", and replace firebase-service-account.json');
   }
+}
+
+function markQuotaExhausted(reason = '') {
+  quotaPausedUntil = Date.now() + 10 * 60 * 1000;
+  if (!quotaErrorLogged) {
+    quotaErrorLogged = true;
+    console.warn(`⚠️ [FIREBASE] Firestore free daily quota exceeded (${reason}). Cloud sync paused; seamlessly serving from local SQLite (wifi.db).`);
+    console.warn('👉 Local captive portal & admin operations are unaffected. Cloud sync will automatically resume when quota resets.');
+  }
+}
+
+function getActiveServiceAccountPath() {
+  for (const p of CANDIDATE_KEY_PATHS) {
+    if (fs.existsSync(p)) return p;
+  }
+  return SERVICE_ACCOUNT_PATH;
 }
 
 function resolveCredential(serviceAccount) {
@@ -97,12 +123,14 @@ function initFirebase() {
   }
 
   try {
-    // 1. Check for local firebase-service-account.json
-    if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
-      const serviceAccount = JSON.parse(fs.readFileSync(SERVICE_ACCOUNT_PATH, 'utf-8'));
+    // 1. Check for local service account files (adminsdk / service-account)
+    const activeKeyPath = getActiveServiceAccountPath();
+    if (fs.existsSync(activeKeyPath)) {
+      const serviceAccount = JSON.parse(fs.readFileSync(activeKeyPath, 'utf-8'));
       const credential = resolveCredential(serviceAccount);
       admin.initializeApp({
         ...(credential ? { credential } : {}),
+        databaseURL: DEFAULT_DATABASE_URL,
         storageBucket: DEFAULT_STORAGE_BUCKET
       });
       isInitialized = true;
@@ -110,14 +138,15 @@ function initFirebase() {
       firebaseAuth = resolveAuth();
       firebaseStorage = resolveStorage();
 
+      const keyName = path.basename(activeKeyPath);
       if (credential && typeof credential.getAccessToken === 'function') {
         credential.getAccessToken().then(() => {
-          console.log('✅ [FIREBASE] Successfully authenticated with Cloud Firestore');
+          console.log(`✅ [FIREBASE] Successfully authenticated with Cloud Firestore via ${keyName}`);
         }).catch((err) => {
           markUnavailable(err.message || 'Invalid JWT Signature');
         });
       } else {
-        console.log('✅ [FIREBASE] Initialized with firebase-service-account.json');
+        console.log(`✅ [FIREBASE] Initialized with ${keyName}`);
       }
       return true;
     }
@@ -128,6 +157,7 @@ function initFirebase() {
       const credential = resolveCredential(serviceAccount);
       admin.initializeApp({
         ...(credential ? { credential } : {}),
+        databaseURL: DEFAULT_DATABASE_URL,
         storageBucket: DEFAULT_STORAGE_BUCKET
       });
       isInitialized = true;
@@ -137,7 +167,7 @@ function initFirebase() {
 
       if (credential && typeof credential.getAccessToken === 'function') {
         credential.getAccessToken().then(() => {
-          console.log('✅ [FIREBASE] Successfully authenticated with Cloud Firestore');
+          console.log('✅ [FIREBASE] Successfully authenticated with Cloud Firestore via FIREBASE_SERVICE_ACCOUNT env');
         }).catch((err) => {
           markUnavailable(err.message || 'Invalid JWT Signature');
         });
@@ -150,6 +180,7 @@ function initFirebase() {
     // 3. Application Default Credentials (e.g. Google Cloud / Cloud Functions)
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.FIREBASE_CONFIG) {
       admin.initializeApp({
+        databaseURL: DEFAULT_DATABASE_URL,
         storageBucket: DEFAULT_STORAGE_BUCKET
       });
       isInitialized = true;
@@ -262,7 +293,8 @@ module.exports = {
   admin,
   initFirebase,
   markUnavailable,
-  isReady: () => isInitialized && !!firestoreDb,
+  markQuotaExhausted,
+  isReady: () => isInitialized && !!firestoreDb && Date.now() > quotaPausedUntil,
   getDb: () => firestoreDb,
   getAuth: () => firebaseAuth,
   getStorage: () => firebaseStorage,
@@ -270,6 +302,7 @@ module.exports = {
   verifyIdToken,
   getClientConfig,
   saveClientConfig,
+  getActiveServiceAccountPath,
   SERVICE_ACCOUNT_PATH,
   CLIENT_CONFIG_PATH
 };

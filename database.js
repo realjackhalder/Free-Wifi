@@ -15,6 +15,10 @@ function handleFirestoreError(context, err) {
     if (typeof fb.markUnavailable === 'function') {
       fb.markUnavailable(msg);
     }
+  } else if (code === 8 || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Quota exceeded')) {
+    if (typeof fb.markQuotaExhausted === 'function') {
+      fb.markQuotaExhausted(msg);
+    }
   } else {
     console.warn(`[FIRESTORE ${context}]`, msg);
   }

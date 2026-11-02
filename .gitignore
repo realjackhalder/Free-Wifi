@@ -23,4 +23,11 @@ db.json
 .github/skills/
 skills-lock.json
 
+# Service Account Keys & Secrets (Must never be committed)
+*adminsdk*.json
+*serviceAccountKey*.json
+*firebase-adminsdk*.json
+firebase-service-account.json
+!firebase-service-account.example.json
+
 .insta/.agent-session-*.tmp

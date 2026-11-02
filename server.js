@@ -1566,10 +1566,16 @@ setInterval(async () => {
 let isSyncingActiveAccounts = false;
 async function syncFirestoreActiveAccounts() {
   if (isSyncingActiveAccounts) return;
+  if (!fb.isReady()) return;
   isSyncingActiveAccounts = true;
   try {
     const res = await fetch('https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/accounts');
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (res.status === 429 && typeof fb.markQuotaExhausted === 'function') {
+        fb.markQuotaExhausted('Quota exceeded (HTTP 429)');
+      }
+      return;
+    }
     const data = await res.json();
     if (!data.documents || !Array.isArray(data.documents)) return;
 
@@ -1630,7 +1636,8 @@ async function syncFirestoreActiveAccounts() {
     isSyncingActiveAccounts = false;
   }
 }
-setInterval(syncFirestoreActiveAccounts, 3000);
+// Sync active accounts from Cloud Firestore every 30 seconds (conserves Firestore 50k daily free tier quota)
+setInterval(syncFirestoreActiveAccounts, 30000);
 
 // ============================================================================
 // Start Servers (Admin on Port 3000, User Portal on Port 3001, Port 80 CNA & Port 53 DNS)
