@@ -51,32 +51,27 @@ async function sendSlipNotification({ slipId, email, ip, mac, amount, slipFilePa
 
   const cleanEmail = (email || 'Unknown').trim();
   const timeStr = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
-  const rawQr = qrPayload ? qrPayload.substring(0, 40) : '';
-  const qrNote = rawQr
-    ? `Verified (${escapeHtml(rawQr)}...)`
-    : 'File Attached / Manual Check';
 
   const captionHtml = 
 `🧾 <b>New Payment Slip Received (#${slipId})</b>
-──────────────────────────────
+
 📧 <b>Google Email:</b> <code>${escapeHtml(cleanEmail)}</code>
 📱 <b>Device IP:</b> <code>${escapeHtml(ip || 'Unknown')}</code>
 🏷️ <b>MAC Address:</b> <code>${escapeHtml(mac || 'Unknown')}</code>
 💰 <b>Amount:</b> <b>${escapeHtml(amount || 150)} Baht</b> (30-Day VIP)
 ⏰ <b>Upload Time:</b> ${escapeHtml(timeStr)}
-🔍 <b>QR / File Info:</b> ${qrNote}
-──────────────────────────────
+
 Approve 30-Day VIP Wi-Fi access for this user?`;
 
   const captionPlain = 
 `🧾 New Payment Slip Received (#${slipId})
-──────────────────────────────
+
 📧 Email: ${cleanEmail}
 📱 Device IP: ${ip || 'Unknown'}
 🏷️ MAC: ${mac || '-'}
 💰 Amount: ${amount || 150} Baht (30-Day VIP)
 ⏰ Upload Time: ${timeStr}
-──────────────────────────────
+
 Approve 30-Day VIP Wi-Fi access for this user?`;
 
   const inlineKeyboard = {
@@ -241,7 +236,7 @@ async function sendTestMessage(customToken = null, customChatId = null) {
 
   const text =
 `🤖 <b>Free Wi-Fi Telegram Bot Test Notification</b>
-──────────────────────────────
+
 📡 System: Free Wi-Fi Captive Portal & Gateway
 ⏰ Time: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' })}
 ✅ Connected successfully! When users upload payment slips, notifications will arrive here with [Approve] and [Decline] buttons.`;
@@ -329,13 +324,13 @@ async function handleCallbackQuery(query, token) {
     // 5. Update message caption & remove buttons
     const updatedCaption =
 `✅ <b>[PAYMENT APPROVED]</b>
-──────────────────────────────
+
 📧 <b>Email:</b> <code>${cleanEmail}</code>
 📱 <b>Device IP:</b> <code>${targetIp}</code> (Internet Unlocked)
 🏷️ <b>MAC:</b> <code>${slip.mac_address || 'Unknown'}</code>
 💰 <b>Package:</b> <b>★ VIP 30-Day (Unlimited)</b>
 ⏰ <b>Approved Time:</b> ${timeStr}
-──────────────────────────────
+
 ✓ Approved by Admin via Telegram`;
 
     await editMessage(token, chatId, messageId, updatedCaption);
@@ -349,12 +344,12 @@ async function handleCallbackQuery(query, token) {
 
     const declinedCaption =
 `❌ <b>[PAYMENT DECLINED]</b>
-──────────────────────────────
+
 📧 <b>Email:</b> <code>${cleanEmail}</code>
 📱 <b>Device IP:</b> <code>${targetIp}</code>
 💰 <b>Status:</b> Payment slip was declined
 ⏰ <b>Declined Time:</b> ${timeStr}
-──────────────────────────────
+
 ✕ Declined by Admin via Telegram`;
 
     await editMessage(token, chatId, messageId, declinedCaption);

@@ -320,13 +320,6 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         </div>
       </div>
 
-      <!-- Center: Status Pills -->
-      <div class="hidden md:flex items-center space-x-2 text-xs">
-        <span class="px-3 py-1 rounded-full bg-emerald-950/40 text-emerald-300 border border-emerald-800/60 font-semibold flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          Gateway Active
-        </span>
-      </div>
 
       <!-- Right: Action Pills -->
       <div class="flex items-center space-x-2.5">
@@ -601,7 +594,8 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         ${
           slips.length === 0
             ? '<div class="col-span-full glisse-card py-16 text-center text-zinc-500">No payment slips uploaded yet.</div>'
-            : slips.map(s => {
+            : slips.map((s, idx) => {
+                const slipNum = String(idx + 1).padStart(3, '0');
                 const imgUrl = s.cloudUrl || (s.filename ? `/uploads/${s.filename}` : '/my-qr');
                 const dateStr = new Date(s.uploaded_at).toLocaleString('en-GB');
                 const isPending = s.status === 'pending';
@@ -610,11 +604,8 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                 return `
                 <div class="glisse-card p-4 flex flex-col justify-between space-y-3 slip-card" data-status="${s.status}">
                   <div>
-                    <div class="relative w-full h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/10 group cursor-pointer" onclick="openLightbox('${imgUrl}', 'Slip #${s.id} - ${s.email}')">
-                      <img src="${imgUrl}" alt="Slip #${s.id}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='/my-qr'" />
-                      <div class="absolute inset-0 bg-black/40 flex items-end p-3">
-                        <span class="text-[11px] font-bold text-white bg-black/80 px-2.5 py-0.5 rounded-lg border border-white/10 backdrop-blur-md">🔍 Click to inspect</span>
-                      </div>
+                    <div class="relative w-full h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/10 group cursor-pointer" onclick="openLightbox('${imgUrl}', 'Slip #${slipNum} • ${s.email}')" title="Click to view slip">
+                      <img src="${imgUrl}" alt="Slip #${slipNum}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='/my-qr'" />
                       <div class="absolute top-2.5 right-2.5">
                         <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${
                           isApproved ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-700/60' : (isPending ? 'bg-amber-950/70 text-amber-300 border border-amber-700/60' : 'bg-red-950/70 text-red-300 border border-red-700/60')
@@ -626,7 +617,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
 
                     <div class="mt-3 space-y-1 text-xs">
                       <div class="flex items-center justify-between">
-                        <span class="font-bold text-white text-sm">Slip #${s.id}</span>
+                        <span class="font-bold text-white text-sm">Slip #${slipNum}</span>
                         <span class="font-mono font-bold text-sky-400">${s.amount || 150} THB</span>
                       </div>
                       <p class="font-mono text-zinc-300 break-all">${s.email}</p>
@@ -655,7 +646,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                           </button>
                         </form>`
                         : `
-                        <button onclick="openLightbox('${imgUrl}', 'Slip #${s.id} - ${s.email}')" class="glisse-btn-secondary flex-1 py-1.5 rounded-xl text-xs font-bold">
+                        <button onclick="openLightbox('${imgUrl}', 'Slip #${slipNum} • ${s.email}')" class="glisse-btn-secondary flex-1 py-1.5 rounded-xl text-xs font-bold">
                           View Receipt
                         </button>
                         <form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirm('Delete this slip record?')">
@@ -1069,16 +1060,16 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
   <!-- ===================================================================== -->
   <div id="lightbox-modal" class="fixed inset-0 z-50 glisse-modal-backdrop hidden flex items-center justify-center p-4" onclick="closeLightbox(event)">
     <div class="glisse-card p-4 sm:p-5 max-w-sm sm:max-w-md w-full relative space-y-3 bg-zinc-950/95 border border-white/15 shadow-2xl" onclick="event.stopPropagation()">
-      <div class="flex items-center justify-between pb-2 border-b border-white/10">
-        <div class="flex items-center space-x-2">
-          <span class="text-base">🧾</span>
-          <h4 id="lightbox-title" class="font-bold text-white text-xs sm:text-sm truncate max-w-[160px] sm:max-w-[200px]">Receipt Inspector</h4>
+      <div class="flex items-center justify-between pb-2.5 border-b border-white/10 gap-3">
+        <div class="flex items-center space-x-2 min-w-0 flex-1 overflow-hidden" style="min-width: 0;">
+          <span class="text-base flex-shrink-0">🧾</span>
+          <h4 id="lightbox-title" class="font-bold text-white text-xs sm:text-sm" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;">Receipt Inspector</h4>
         </div>
-        <div class="flex items-center space-x-1.5">
+        <div class="flex items-center space-x-1 flex-shrink-0" style="flex-shrink: 0;">
           <button type="button" onclick="zoomLightbox(-0.25)" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-xs font-bold" title="Zoom Out">−</button>
           <button type="button" onclick="resetLightboxZoom()" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-[10px] font-bold" title="Reset Zoom">100%</button>
           <button type="button" onclick="zoomLightbox(0.25)" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-xs font-bold" title="Zoom In">+</button>
-          <button onclick="closeLightbox()" class="text-zinc-400 hover:text-white text-lg ml-1 px-1.5">✕</button>
+          <button type="button" onclick="closeLightbox()" class="text-zinc-400 hover:text-white text-lg ml-1 px-1 leading-none">✕</button>
         </div>
       </div>
       <div class="w-full max-h-[48vh] sm:max-h-[420px] overflow-auto flex items-center justify-center rounded-2xl bg-black/80 p-2 sm:p-3 border border-white/10">
@@ -1140,7 +1131,11 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
     function openLightbox(url, title) {
       resetLightboxZoom();
       document.getElementById('lightbox-img').src = url;
-      document.getElementById('lightbox-title').innerText = title || 'Receipt Inspector';
+      const titleEl = document.getElementById('lightbox-title');
+      if (titleEl) {
+        titleEl.innerText = title || 'Receipt Inspector';
+        titleEl.title = title || 'Receipt Inspector';
+      }
       document.getElementById('lightbox-download').href = url;
       document.getElementById('lightbox-modal').classList.remove('hidden');
     }

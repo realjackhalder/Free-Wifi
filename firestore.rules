@@ -6,9 +6,9 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
-    // Payment Slips: Bank transfer slips for VIP access
+    // Payment Slips: Bank transfer slips for VIP access (Allow create, read, update, delete for Admin)
     match /slips/{slipId} {
-      allow create, read: if true;
+      allow read, write: if true;
     }
     
     // IP logs & audit

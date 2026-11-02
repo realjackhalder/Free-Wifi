@@ -134,7 +134,7 @@ async function cnaHandlerWindows(req, res) {
 
 // User App: Forward /admin browser navigation to Admin Server on port 3000 (skip API endpoints)
 userApp.all('/admin*', (req, res, next) => {
-  if (req.path.startsWith('/admin/telegram-test') || req.path.startsWith('/admin/settings') || req.path.startsWith('/admin/firebase-config')) {
+  if (req.path.startsWith('/admin/telegram-test') || req.path.startsWith('/admin/settings') || req.path.startsWith('/admin/firebase-config') || req.path.startsWith('/admin/slip/')) {
     return next();
   }
   const host = req.hostname || 'localhost';
@@ -1165,14 +1165,23 @@ adminApp.post('/admin/account/revoke-ip', async (req, res) => {
   return res.redirect(`/admin?tab=accounts&msg=${encodeURIComponent('Active network session revoked successfully')}`);
 });
 
-// --- POST /admin/slip/approve (Approve slip from web dashboard) ---
-adminApp.post('/admin/slip/approve', async (req, res) => {
-  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+// --- Slip Management Handlers (Available on both Admin & User apps) ---
+async function handleSlipApprove(req, res) {
+  if (!await isAuthorizedAdmin(req)) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) return res.status(403).json({ error: 'Unauthorized' });
+    return res.status(403).send('Unauthorized');
+  }
   const slipId = parseInt(req.body.slipId || req.query.slipId, 10);
-  if (!slipId) return res.redirect(`/admin?tab=slips&err=${encodeURIComponent('Missing slipId')}`);
+  if (!slipId) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) return res.status(400).json({ error: 'Missing slipId' });
+    return res.redirect(`/admin?tab=slips&err=${encodeURIComponent('Missing slipId')}`);
+  }
 
   const slip = await db.getSlipById(slipId);
-  if (!slip) return res.redirect(`/admin?tab=slips&err=${encodeURIComponent('Slip not found')}`);
+  if (!slip) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) return res.status(404).json({ error: 'Slip not found' });
+    return res.redirect(`/admin?tab=slips&err=${encodeURIComponent('Slip not found')}`);
+  }
 
   const cleanEmail = slip.email.toLowerCase();
   const targetIp = slip.ip_address;
@@ -1207,28 +1216,54 @@ adminApp.post('/admin/slip/approve', async (req, res) => {
   await db.updateSlipStatus(slipId, 'approved');
   await db.logIpAction({ email: cleanEmail, ip: targetIp, mac: slip.mac_address, action: 'buy_package' });
 
-  return res.redirect(`/admin?tab=slips&msg=${encodeURIComponent(`Approved Slip #${slipId} for ${cleanEmail}! 30-Day VIP granted.`)}`);
-});
+  const msg = `Approved Slip #${slipId} for ${cleanEmail}! 30-Day VIP granted.`;
+  if (req.xhr || req.headers.accept?.includes('application/json')) {
+    return res.json({ success: true, message: msg });
+  }
+  return res.redirect(`/admin?tab=slips&msg=${encodeURIComponent(msg)}`);
+}
 
-// --- POST /admin/slip/decline (Decline slip from web dashboard) ---
-adminApp.post('/admin/slip/decline', async (req, res) => {
-  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+async function handleSlipDecline(req, res) {
+  if (!await isAuthorizedAdmin(req)) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) return res.status(403).json({ error: 'Unauthorized' });
+    return res.status(403).send('Unauthorized');
+  }
   const slipId = parseInt(req.body.slipId || req.query.slipId, 10);
-  if (!slipId) return res.redirect(`/admin?tab=slips&err=${encodeURIComponent('Missing slipId')}`);
+  if (!slipId) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) return res.status(400).json({ error: 'Missing slipId' });
+    return res.redirect(`/admin?tab=slips&err=${encodeURIComponent('Missing slipId')}`);
+  }
 
   await db.updateSlipStatus(slipId, 'declined');
-  return res.redirect(`/admin?tab=slips&msg=${encodeURIComponent(`Slip #${slipId} marked as declined.`)}`);
-});
+  const msg = `Slip #${slipId} marked as declined.`;
+  if (req.xhr || req.headers.accept?.includes('application/json')) {
+    return res.json({ success: true, message: msg });
+  }
+  return res.redirect(`/admin?tab=slips&msg=${encodeURIComponent(msg)}`);
+}
 
-// --- POST /admin/slip/delete (Delete slip record) ---
-adminApp.post('/admin/slip/delete', async (req, res) => {
-  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+async function handleSlipDelete(req, res) {
+  if (!await isAuthorizedAdmin(req)) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) return res.status(403).json({ error: 'Unauthorized' });
+    return res.status(403).send('Unauthorized');
+  }
   const slipId = parseInt(req.body.slipId || req.query.slipId, 10);
   if (slipId) {
     await db.deleteSlip(slipId);
   }
-  return res.redirect(`/admin?tab=slips&msg=${encodeURIComponent('Slip record deleted successfully')}`);
-});
+  const msg = 'Slip record deleted successfully';
+  if (req.xhr || req.headers.accept?.includes('application/json')) {
+    return res.json({ success: true, message: msg });
+  }
+  return res.redirect(`/admin?tab=slips&msg=${encodeURIComponent(msg)}`);
+}
+
+adminApp.post('/admin/slip/approve', handleSlipApprove);
+userApp.post('/admin/slip/approve', handleSlipApprove);
+adminApp.post('/admin/slip/decline', handleSlipDecline);
+userApp.post('/admin/slip/decline', handleSlipDecline);
+adminApp.post('/admin/slip/delete', handleSlipDelete);
+userApp.post('/admin/slip/delete', handleSlipDelete);
 
 // --- POST /admin/logs/clear (Clear IP activity logs) ---
 adminApp.post('/admin/logs/clear', async (req, res) => {
