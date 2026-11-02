@@ -610,8 +610,11 @@
             <div>
               <div class="flex items-center space-x-2.5 mb-3">
                 <span class="text-2xl">📧</span>
-                <div>
-                  <h2 class="font-black text-sm text-white">Gmail SMTP (Email OTP Delivery)</h2>
+                <div class="flex-1">
+                  <div class="flex items-center justify-between">
+                    <h2 class="font-black text-sm text-white">Gmail SMTP (Email OTP Delivery)</h2>
+                    <span id="smtp-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/5 text-zinc-500 border border-white/10">Not Set</span>
+                  </div>
                   <p class="text-xs text-zinc-400">Deliver 6-digit verification codes to users</p>
                 </div>
               </div>
@@ -624,19 +627,25 @@
                   </div>
                   <div>
                     <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Port</label>
-                    <input type="text" id="setting-smtp-port" name="smtpPort" placeholder="587" class="glisse-input w-full font-mono text-xs" />
+                    <input type="text" id="setting-smtp-port" name="smtpPort" placeholder="465" class="glisse-input w-full font-mono text-xs" />
                   </div>
                 </div>
 
                 <div>
                   <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Username / Email</label>
-                  <input type="text" id="setting-smtp-user" name="smtpUser" placeholder="your-email@gmail.com" class="glisse-input w-full font-mono text-xs" />
+                  <input type="text" id="setting-smtp-user" name="smtpUser" placeholder="realjackhalder@gmail.com" class="glisse-input w-full font-mono text-xs" />
                 </div>
 
                 <div>
-                  <label class="block text-xs font-bold text-zinc-300 mb-1">Google App Password</label>
-                  <input type="password" id="setting-smtp-pass" name="smtpPass" placeholder="16-character app password" class="glisse-input w-full font-mono text-xs" />
-                  <p class="text-[11px] text-zinc-500 mt-1">Generate via Google Account > Security > 2-Step Verification > App passwords.</p>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="block text-xs font-bold text-zinc-300">Google App Password</label>
+                    <button type="button" onclick="toggleSmtpPassVisibility()" class="text-[11px] text-sky-400 hover:text-sky-300 font-bold">Show / Hide</button>
+                  </div>
+                  <div class="relative">
+                    <input type="password" id="setting-smtp-pass" name="smtpPass" placeholder="ezdp arof dpin iduk" class="glisse-input w-full font-mono text-xs pr-10" />
+                    <button type="button" onclick="toggleSmtpPassVisibility()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs">👁️</button>
+                  </div>
+                  <p class="text-[11px] text-zinc-500 mt-1">Google App Password (16 letters, e.g. <code>ezdp arof dpin iduk</code>)</p>
                 </div>
 
                 <div class="pt-2">
@@ -1061,8 +1070,20 @@
       if (settings.smtpHost) document.getElementById('setting-smtp-host').value = settings.smtpHost;
       if (settings.smtpPort) document.getElementById('setting-smtp-port').value = settings.smtpPort;
       if (settings.smtpUser) document.getElementById('setting-smtp-user').value = settings.smtpUser;
+      if (settings.smtpPass) document.getElementById('setting-smtp-pass').value = settings.smtpPass;
       if (settings.telegramBotToken) document.getElementById('tg-token').value = settings.telegramBotToken;
       if (settings.telegramChatId) document.getElementById('tg-chatid').value = settings.telegramChatId;
+
+      const smtpBadge = document.getElementById('smtp-status-badge');
+      if (smtpBadge) {
+        if (settings.smtpUser && settings.smtpPass) {
+          smtpBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60';
+          smtpBadge.textContent = 'Configured ✓';
+        } else {
+          smtpBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/5 text-zinc-500 border border-white/10';
+          smtpBadge.textContent = 'Not Set';
+        }
+      }
 
       const tgBadge = document.getElementById('tg-status-badge');
       if (settings.telegramBotToken && settings.telegramChatId) {
@@ -1071,6 +1092,13 @@
       } else {
         tgBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/5 text-zinc-500 border border-white/10';
         tgBadge.textContent = 'Not Set';
+      }
+    }
+
+    function toggleSmtpPassVisibility() {
+      const el = document.getElementById('setting-smtp-pass');
+      if (el) {
+        el.type = el.type === 'password' ? 'text' : 'password';
       }
     }
 

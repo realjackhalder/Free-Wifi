@@ -161,8 +161,8 @@ async function sendOtpEmail(email, otp, mode) {
       secure: isSecure,
       requireTLS: !isSecure,
       auth: {
-        user: settings.smtpUser,
-        pass: settings.smtpPass
+        user: (settings.smtpUser || '').trim(),
+        pass: (settings.smtpPass || '').replace(/\s+/g, '')
       },
       tls: {
         rejectUnauthorized: false

@@ -902,8 +902,13 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
           <div>
             <div class="flex items-center space-x-2.5 mb-3">
               <span class="text-2xl">📧</span>
-              <div>
-                <h2 class="font-black text-sm text-white">Gmail SMTP (Email OTP Delivery)</h2>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <h2 class="font-black text-sm text-white">Gmail SMTP (Email OTP Delivery)</h2>
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${settings.smtpUser && settings.smtpPass ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/60' : 'bg-white/5 text-zinc-500 border border-white/10'}">
+                    ${settings.smtpUser && settings.smtpPass ? 'Configured ✓' : 'Not Set'}
+                  </span>
+                </div>
                 <p class="text-xs text-zinc-400">Deliver 6-digit verification codes to users</p>
               </div>
             </div>
@@ -913,23 +918,29 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Host</label>
-                  <input type="text" name="smtpHost" value="${settings.smtpHost || ''}" placeholder="smtp.gmail.com" class="glisse-input w-full font-mono text-xs" />
+                  <input type="text" name="smtpHost" value="${settings.smtpHost || 'smtp.gmail.com'}" placeholder="smtp.gmail.com" class="glisse-input w-full font-mono text-xs" />
                 </div>
                 <div>
                   <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Port</label>
-                  <input type="text" name="smtpPort" value="${settings.smtpPort || '587'}" placeholder="587" class="glisse-input w-full font-mono text-xs" />
+                  <input type="text" name="smtpPort" value="${settings.smtpPort || '465'}" placeholder="465" class="glisse-input w-full font-mono text-xs" />
                 </div>
               </div>
 
               <div>
                 <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Username / Email</label>
-                <input type="text" name="smtpUser" value="${settings.smtpUser || ''}" placeholder="your-email@gmail.com" class="glisse-input w-full font-mono text-xs" />
+                <input type="text" name="smtpUser" value="${settings.smtpUser || ''}" placeholder="realjackhalder@gmail.com" class="glisse-input w-full font-mono text-xs" />
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-zinc-300 mb-1">Google App Password</label>
-                <input type="password" name="smtpPass" value="${settings.smtpPass ? '********' : ''}" placeholder="16-character app password" class="glisse-input w-full font-mono text-xs" />
-                <p class="text-[11px] text-zinc-500 mt-1">Generate via Google Account > Security > 2-Step Verification > App passwords.</p>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-bold text-zinc-300">Google App Password</label>
+                  <button type="button" onclick="const p=document.getElementById('local-smtp-pass'); if(p) p.type=p.type==='password'?'text':'password';" class="text-[11px] text-sky-400 hover:text-sky-300 font-bold">Show / Hide</button>
+                </div>
+                <div class="relative">
+                  <input type="password" id="local-smtp-pass" name="smtpPass" value="${settings.smtpPass || ''}" placeholder="ezdp arof dpin iduk" class="glisse-input w-full font-mono text-xs pr-10" />
+                  <button type="button" onclick="const p=document.getElementById('local-smtp-pass'); if(p) p.type=p.type==='password'?'text':'password';" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs">👁️</button>
+                </div>
+                <p class="text-[11px] text-zinc-500 mt-1">Google App Password (16 letters, e.g. <code>ezdp arof dpin iduk</code>)</p>
               </div>
 
               <div class="pt-2">
