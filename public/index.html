@@ -1657,8 +1657,9 @@ async function sendTelegramSlipDirect(token, chatId, file, slipId, email, amount
   const displayNum = slipNum ? String(slipNum).padStart(3, '0') : '001';
 
   const captionHtml = 
-`🧾 <b>New Payment Slip Received (#${displayNum})</b>
+`🧾 <b>Slip #${displayNum} • ${cleanEmail}</b>
 
+🧾 <b>Slip Number:</b> <code>Slip #${displayNum}</code>
 📧 <b>Google Email:</b> <code>${cleanEmail}</code>
 📱 <b>Device:</b> <code>Web Portal (Firebase)</code>
 💰 <b>Amount:</b> <b>${amount || 150} Baht</b> (30-Day VIP)
@@ -1669,8 +1670,8 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        { text: '✅ Approve', callback_data: `approve:${slipId}` },
-        { text: '❌ Decline', callback_data: `decline:${slipId}` }
+        { text: `✅ Approve Slip #${displayNum}`, callback_data: `approve:${slipId}` },
+        { text: `❌ Decline Slip #${displayNum}`, callback_data: `decline:${slipId}` }
       ]
     ]
   };
@@ -1703,7 +1704,7 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
     const formData = new FormData();
     formData.append('chat_id', chatId);
     formData.append('photo', file, file.name || 'payslip.jpg');
-    formData.append('caption', `Receipt Slip #${displayNum}\nEmail: ${cleanEmail}\nAmount: ${amount || 150} Baht (30-Day VIP)\n\nApprove 30-Day VIP access?`);
+    formData.append('caption', `Receipt Slip #${displayNum} • ${cleanEmail}\nSlip: Slip #${displayNum}\nEmail: ${cleanEmail}\nAmount: ${amount || 150} Baht (30-Day VIP)\n\nApprove 30-Day VIP access?`);
     formData.append('reply_markup', JSON.stringify(inlineKeyboard));
 
     const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
@@ -1724,7 +1725,7 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: `🧾 <b>New Payment Slip Received (#${displayNum})</b>\n\n📧 <b>Google Email:</b> <code>${cleanEmail}</code>\n💰 <b>Amount:</b> ${amount || 150} Baht (30-Day VIP)\n⏰ <b>Time:</b> ${timeStr}\n\nApprove 30-Day VIP Wi-Fi access for this user?`,
+        text: `🧾 <b>Slip #${displayNum} • ${cleanEmail}</b>\n\n🧾 <b>Slip Number:</b> <code>Slip #${displayNum}</code>\n📧 <b>Google Email:</b> <code>${cleanEmail}</code>\n💰 <b>Amount:</b> ${amount || 150} Baht (30-Day VIP)\n⏰ <b>Time:</b> ${timeStr}\n\nApprove 30-Day VIP Wi-Fi access for this user?`,
         parse_mode: 'HTML',
         reply_markup: inlineKeyboard
       })

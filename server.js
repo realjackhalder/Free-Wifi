@@ -568,10 +568,24 @@ const handleBuyPackagePost = async (req, res) => {
       await db.saveAccount(pendingAccount);
       await db.logIpAction({ email: cleanEmail, ip, mac, action: 'upload_slip_pending' });
 
+      // Compute chronological slip number (e.g. Slip #001) matching Admin Dashboard
+      let slipNum = '001';
+      try {
+        const allSlips = await db.getAllSlips();
+        const sortedSlips = [...allSlips].sort((a, b) => {
+          const tA = a.uploaded_at ? new Date(a.uploaded_at).getTime() : (a.createdAt || 0);
+          const tB = b.uploaded_at ? new Date(b.uploaded_at).getTime() : (b.createdAt || 0);
+          return tA - tB;
+        });
+        const slipIdx = sortedSlips.findIndex(s => String(s.id) === String(slipId));
+        slipNum = String(slipIdx !== -1 ? slipIdx + 1 : sortedSlips.length).padStart(3, '0');
+      } catch (e) {}
+
       // 2. Send slip photo/document with Device IP, Email, and [Approve]/[Decline] buttons to Telegram
       try {
         const tgRes = await telegram.sendSlipNotification({
           slipId,
+          slipNum,
           email: cleanEmail,
           ip,
           mac,
@@ -579,7 +593,7 @@ const handleBuyPackagePost = async (req, res) => {
           slipFilePath: slipDest,
           qrPayload
         });
-        console.log(`🤖 [TELEGRAM] Notification result for Slip #${slipId}:`, tgRes);
+        console.log(`🤖 [TELEGRAM] Notification result for Slip #${slipNum} (ID: ${slipId}):`, tgRes);
       } catch (tgErr) {
         console.error('[TELEGRAM send error]', tgErr);
       }
@@ -588,9 +602,10 @@ const handleBuyPackagePost = async (req, res) => {
         ok: true,
         pendingApproval: true,
         slipId,
-        msg_th: 'ส่งสลิปโอนเงินเรียบร้อยแล้ว! กำลังตรวจสอบยอดเงิน กรุณารอสักครู่ (ระบบจะเชื่อมต่อให้อัตโนมัติ)',
-        msg_mm: 'ငွေလွှဲပြေစာ ပေးပို့ပြီးပါပြီ! စစ်ဆေးနေပါသည် (ခွင့်ပြုချက်ရပါက အလိုအလျောက် ပွင့်ပါမည်)...',
-        msg_en: 'Payment slip submitted! Verifying payment, Wi-Fi will connect automatically once approved.'
+        slipNum,
+        msg_th: `ส่งสลิปโอนเงิน (Slip #${slipNum}) เรียบร้อยแล้ว! กำลังตรวจสอบยอดเงิน กรุณารอสักครู่ (ระบบจะเชื่อมต่อให้อัตโนมัติ)`,
+        msg_mm: `ငွေလွှဲပြေစာ (Slip #${slipNum}) ပေးပို့ပြီးပါပြီ! စစ်ဆေးနေပါသည် (ခွင့်ပြုချက်ရပါက အလိုအလျောက် ပွင့်ပါမည်)...`,
+        msg_en: `Payment Slip #${slipNum} submitted! Verifying payment, Wi-Fi will connect automatically once approved.`
       });
     }
 

@@ -55,7 +55,7 @@ function escapeHtml(str) {
 /**
  * Send a payment slip to Telegram with Device IP, Email, and [Approve] / [Decline] buttons
  */
-async function sendSlipNotification({ slipId, email, ip, mac, amount, slipFilePath, qrPayload }) {
+async function sendSlipNotification({ slipId, slipNum, email, ip, mac, amount, slipFilePath, qrPayload }) {
   const { token, chatId } = await getConfig();
   if (!token || !chatId) {
     console.warn('[TELEGRAM] Slip uploaded but Bot Token or Chat ID not configured. Configure in /admin.');
@@ -64,26 +64,28 @@ async function sendSlipNotification({ slipId, email, ip, mac, amount, slipFilePa
 
   const cleanEmail = (email || 'Unknown').trim();
   const timeStr = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
-  const displayNum = String(slipId).replace(/^slip_/, '').length > 6 ? '001' : String(slipId).padStart(3, '0');
+  const displayNum = slipNum ? String(slipNum).padStart(3, '0') : (String(slipId).replace(/^slip_/, '').length > 6 ? '001' : String(slipId).padStart(3, '0'));
 
   const captionHtml = 
-`🧾 <b>New Payment Slip Received (#${displayNum})</b>
+`🧾 <b>Slip #${displayNum} • ${escapeHtml(cleanEmail)}</b>
 
+🧾 <b>Slip:</b> <code>Slip #${displayNum}</code>
 📧 <b>Google Email:</b> <code>${escapeHtml(cleanEmail)}</code>
+💰 <b>Amount:</b> <b>${escapeHtml(amount || 150)} Baht</b> (30-Day VIP)
 📱 <b>Device IP:</b> <code>${escapeHtml(ip || 'Unknown')}</code>
 🏷️ <b>MAC Address:</b> <code>${escapeHtml(mac || 'Unknown')}</code>
-💰 <b>Amount:</b> <b>${escapeHtml(amount || 150)} Baht</b> (30-Day VIP)
 ⏰ <b>Upload Time:</b> ${escapeHtml(timeStr)}
 
 Approve 30-Day VIP Wi-Fi access for this user?`;
 
   const captionPlain = 
-`🧾 New Payment Slip Received (#${displayNum})
+`🧾 Slip #${displayNum} • ${cleanEmail}
 
+🧾 Slip: Slip #${displayNum}
 📧 Email: ${cleanEmail}
+💰 Amount: ${amount || 150} Baht (30-Day VIP)
 📱 Device IP: ${ip || 'Unknown'}
 🏷️ MAC: ${mac || '-'}
-💰 Amount: ${amount || 150} Baht (30-Day VIP)
 ⏰ Upload Time: ${timeStr}
 
 Approve 30-Day VIP Wi-Fi access for this user?`;
@@ -91,8 +93,8 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        { text: '✅ Approve', callback_data: `approve:${slipId}` },
-        { text: '❌ Decline', callback_data: `decline:${slipId}` }
+        { text: `✅ Approve Slip #${displayNum}`, callback_data: `approve:${slipId}` },
+        { text: `❌ Decline Slip #${displayNum}`, callback_data: `decline:${slipId}` }
       ]
     ]
   };
@@ -316,6 +318,7 @@ async function handleCallbackQuery(query, token) {
           isFirestoreSlip = true;
           slip = {
             id: slipIdStr,
+            slipNum: fsDoc.fields.slipNum?.stringValue || null,
             email: fsDoc.fields.email?.stringValue || fsDoc.fields.name?.stringValue || '',
             amount: parseInt(fsDoc.fields.amount?.integerValue || fsDoc.fields.amount?.stringValue || '150', 10),
             status: fsDoc.fields.status?.stringValue || 'pending',
@@ -340,6 +343,21 @@ async function handleCallbackQuery(query, token) {
   const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
   const newExp = now + thirtyDaysMs;
   const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok' });
+
+  // Calculate chronological slip number (e.g. 001, 002) matching Admin Dashboard
+  let displayNum = '001';
+  if (slip.slipNum) {
+    displayNum = String(slip.slipNum).padStart(3, '0');
+  } else if (!isNaN(numId)) {
+    try {
+      const allSlips = await db.getAllSlips();
+      const sorted = [...allSlips].sort((a, b) => (a.uploaded_at || 0) - (b.uploaded_at || 0));
+      const idx = sorted.findIndex(s => s.id === numId);
+      displayNum = String(idx !== -1 ? idx + 1 : numId).padStart(3, '0');
+    } catch (e) {
+      displayNum = String(numId).padStart(3, '0');
+    }
+  }
 
   if (action === 'approve') {
     // 1. Activate 30-Day VIP in Cloud Firestore (Account)
@@ -406,19 +424,20 @@ async function handleCallbackQuery(query, token) {
     }
     await db.logIpAction({ email: cleanEmail, ip: targetIp, mac: slip.mac_address, action: 'buy_package' });
 
-    console.log(`🎉 [TELEGRAM APPROVE] Slip #${slipIdStr} approved for ${cleanEmail} (IP: ${targetIp}). 30-Day VIP granted!`);
+    console.log(`🎉 [TELEGRAM APPROVE] Slip #${displayNum} (${slipIdStr}) approved for ${cleanEmail} (IP: ${targetIp}). 30-Day VIP granted!`);
 
     // 4. Answer callback with popup alert
-    await answerCallback(token, queryId, `✅ Payment Approved!\n\nEmail: ${cleanEmail}\nIP: ${targetIp}\n30-Day VIP Wi-Fi has been activated!`, true);
+    await answerCallback(token, queryId, `✅ Approved Slip #${displayNum} for ${cleanEmail}!\n30-Day VIP Wi-Fi has been activated.`, true);
 
     // 5. Update message caption & remove buttons
     const updatedCaption =
-`✅ <b>[PAYMENT APPROVED]</b>
+`✅ <b>[PAYMENT APPROVED] — Slip #${displayNum}</b>
 
-📧 <b>Email:</b> <code>${cleanEmail}</code>
+🧾 <b>Slip Number:</b> <code>Slip #${displayNum}</code>
+📧 <b>Google Email:</b> <code>${cleanEmail}</code>
+💰 <b>Package:</b> <b>★ 30-Day VIP (Unlimited)</b>
 📱 <b>Device IP:</b> <code>${targetIp}</code>
 🏷️ <b>MAC:</b> <code>${slip.mac_address || 'Unknown'}</code>
-💰 <b>Package:</b> <b>★ VIP 30-Day (Unlimited)</b>
 ⏰ <b>Approved Time:</b> ${timeStr}
 
 ✓ Approved by Admin via Telegram`;
@@ -447,16 +466,17 @@ async function handleCallbackQuery(query, token) {
     if (!isFirestoreSlip && !isNaN(numId)) {
       await db.updateSlipStatus(numId, 'declined');
     }
-    console.log(`❌ [TELEGRAM DECLINE] Slip #${slipIdStr} declined for ${cleanEmail}`);
+    console.log(`❌ [TELEGRAM DECLINE] Slip #${displayNum} (${slipIdStr}) declined for ${cleanEmail}`);
 
-    await answerCallback(token, queryId, `❌ Payment slip declined (${cleanEmail})`, false);
+    await answerCallback(token, queryId, `❌ Declined Slip #${displayNum} (${cleanEmail})`, false);
 
     const declinedCaption =
-`❌ <b>[PAYMENT DECLINED]</b>
+`❌ <b>[PAYMENT DECLINED] — Slip #${displayNum}</b>
 
-📧 <b>Email:</b> <code>${cleanEmail}</code>
-📱 <b>Device IP:</b> <code>${targetIp}</code>
+🧾 <b>Slip Number:</b> <code>Slip #${displayNum}</code>
+📧 <b>Google Email:</b> <code>${cleanEmail}</code>
 💰 <b>Status:</b> Payment slip was declined
+📱 <b>Device IP:</b> <code>${targetIp}</code>
 ⏰ <b>Declined Time:</b> ${timeStr}
 
 ✕ Declined by Admin via Telegram`;
@@ -524,11 +544,12 @@ async function sendFirestoreSlipNotification(token, chatId, slipId, email, amoun
   const displayNum = slipNum ? String(slipNum).padStart(3, '0') : '001';
 
   const captionHtml = 
-`🧾 <b>New Payment Slip Received (#${displayNum})</b>
+`🧾 <b>Slip #${displayNum} • ${escapeHtml(cleanEmail)}</b>
 
+🧾 <b>Slip Number:</b> <code>Slip #${displayNum}</code>
 📧 <b>Google Email:</b> <code>${escapeHtml(cleanEmail)}</code>
-📱 <b>Device:</b> <code>Web Portal (Firebase)</code>
 💰 <b>Amount:</b> <b>${escapeHtml(amount || 150)} Baht</b> (30-Day VIP)
+📱 <b>Device:</b> <code>Web Portal (Firebase)</code>
 ⏰ <b>Upload Time:</b> ${escapeHtml(timeStr)}
 
 Approve 30-Day VIP Wi-Fi access for this user?`;
@@ -536,8 +557,8 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        { text: '✅ Approve', callback_data: `approve:${slipId}` },
-        { text: '❌ Decline', callback_data: `decline:${slipId}` }
+        { text: `✅ Approve Slip #${displayNum}`, callback_data: `approve:${slipId}` },
+        { text: `❌ Decline Slip #${displayNum}`, callback_data: `decline:${slipId}` }
       ]
     ]
   };
