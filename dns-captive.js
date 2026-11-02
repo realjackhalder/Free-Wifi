@@ -123,19 +123,30 @@ function startCaptiveDns(portalIp, isAuthenticatedFn = null) {
         if (!isAuth && !isWalled) {
           // Unauthenticated & outside walled garden: Resolve to Portal IP to force captive login & block internet
           const response = buildDnsResponse(msg, targetIp);
-          server.send(response, rinfo.port, rinfo.address);
+          server.send(response, rinfo.port, rinfo.address, (err) => {
+            if (err) { /* ignore client disconnect/unreachable */ }
+          });
         } else {
           // Authenticated (after success from website) OR Walled Garden domain (portal, Firebase, Google auth, Telegram):
           // Forward to upstream DNS (8.8.8.8) to give access!
           const upstream = dgram.createSocket('udp4');
+          const timeoutId = setTimeout(() => {
+            try { upstream.close(); } catch (e) {}
+          }, 3500);
+
           upstream.send(msg, 53, '8.8.8.8', (err) => {
-            if (err) upstream.close();
+            if (err) {
+              clearTimeout(timeoutId);
+              try { upstream.close(); } catch (e) {}
+            }
           });
           upstream.on('message', (upstreamMsg) => {
-            server.send(upstreamMsg, rinfo.port, rinfo.address);
-            upstream.close();
+            clearTimeout(timeoutId);
+            server.send(upstreamMsg, rinfo.port, rinfo.address, () => {});
+            try { upstream.close(); } catch (e) {}
           });
           upstream.on('error', () => {
+            clearTimeout(timeoutId);
             try { upstream.close(); } catch (e) {}
           });
         }
