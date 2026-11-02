@@ -2,7 +2,7 @@
 const { execFile } = require('child_process');
 const net = require('net');
 
-const DRY_RUN = process.env.DRY_RUN !== 'false'; // default true for safe testing
+const DRY_RUN = process.env.DRY_RUN === 'true'; // default false (live enforcement; set DRY_RUN=true to emulate)
 
 function runCmd(cmd, args) {
   return new Promise((resolve) => {

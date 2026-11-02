@@ -1104,6 +1104,46 @@ function saveActiveSession(session) {
   try {
     localStorage.setItem('active_wifi_session', JSON.stringify(session));
   } catch (e) {}
+  notifyGatewaySessionActivated(session);
+}
+
+async function notifyGatewaySessionActivated(session) {
+  if (!session || !session.email) return;
+  const payload = {
+    email: session.email,
+    plan: session.plan || 'free-1h',
+    expiresAt: session.expiresAt || 0,
+    ip: currentClientIp || localStorage.getItem('client_device_ip') || '',
+    mac: currentClientMac || localStorage.getItem('client_device_mac') || ''
+  };
+
+  // 1. Direct gateway relative call
+  safeFetchJson('/api/activate-session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, 2000).catch(() => {});
+
+  // 2. Discover gateway LAN IP if on Firebase CDN
+  let gwIp = window.__GATEWAY_IP__;
+  if (!gwIp) {
+    try {
+      const gwRes = await fetch('https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/system/gateway', { signal: AbortSignal.timeout(1500) });
+      if (gwRes.ok) {
+        const gwDoc = await gwRes.json();
+        gwIp = gwDoc.fields?.lanIp?.stringValue;
+      }
+    } catch (e) {}
+  }
+  const candidateHosts = [gwIp, '192.168.1.106', '192.168.1.1', '192.168.8.1', '192.168.0.1'].filter(Boolean);
+  for (const host of candidateHosts) {
+    fetch(`http://${host}:3001/api/activate-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(1500)
+    }).catch(() => {});
+  }
 }
 
 function getActiveSession() {

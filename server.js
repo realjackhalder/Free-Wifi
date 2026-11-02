@@ -273,6 +273,55 @@ userApp.get('/', async (req, res) => {
 // 3. User Facing API Endpoints (Google Account & OTP Authentication)
 // ============================================================================
 
+// --- POST /api/activate-session (Immediate internet activation from web portal) ---
+userApp.options('/api/activate-session', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.status(204).end();
+});
+
+userApp.post('/api/activate-session', async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  try {
+    const { email, plan, expiresAt, ip: reportedIp, mac: reportedMac } = req.body || {};
+    const clientIp = getClientIp(req);
+    const targetIp = (clientIp && clientIp !== '127.0.0.1' && !clientIp.startsWith('127.')) ? clientIp : (reportedIp || clientIp);
+    const targetMac = (await getMacForIp(targetIp)) || reportedMac;
+    const now = Date.now();
+    const cleanEmail = (email || '').trim().toLowerCase();
+
+    if (!cleanEmail || !targetIp) {
+      return res.status(400).json({ ok: false, error: 'missing_params' });
+    }
+
+    const expTime = parseInt(expiresAt, 10) || (now + 3600000);
+    const existing = await db.getAccount(cleanEmail);
+
+    const accountData = {
+      email: cleanEmail,
+      name: existing?.name || cleanEmail.split('@')[0],
+      picture: existing?.picture || null,
+      plan: plan || existing?.plan || 'free-1h',
+      createdAt: existing?.createdAt || now,
+      expiresAt: expTime,
+      lastTrialAt: existing?.lastTrialAt || now,
+      activeIp: targetIp,
+      activeMac: targetMac || null,
+      blocked: false
+    };
+
+    await db.saveAccount(accountData);
+    await db.logIpAction({ email: cleanEmail, ip: targetIp, mac: targetMac, action: 'session_activated' });
+    await allowIp(targetIp);
+    console.log(`🚀 [INTERNET ACTIVATED] Full internet unlocked for ${cleanEmail} (IP: ${targetIp}, MAC: ${targetMac}, Plan: ${accountData.plan})`);
+
+    res.json({ ok: true, activeIp: targetIp, expiresAt: accountData.expiresAt });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // --- POST /api/otp/request (Step 1: Request 6-digit OTP code) ---
 userApp.post('/api/otp/request', async (req, res) => {
   try {
@@ -1459,12 +1508,98 @@ setInterval(async () => {
         acc.activeIp = null;
         acc.activeMac = null;
         await db.saveAccount(acc);
+
+        // Update Firestore account state so web portal recognizes expiration immediately
+        fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/accounts/${encodeURIComponent(acc.email)}?updateMask.fieldPaths=status&updateMask.fieldPaths=activeIp`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: {
+              status: { stringValue: 'expired' },
+              activeIp: { stringValue: '' }
+            }
+          })
+        }).catch(() => {});
       }
     }
   } catch (err) {
     console.error('[Auto-Revoke daemon error]', err.message);
   }
 }, 5000);
+
+// ============================================================================
+// Sync active website sessions from Cloud Firestore -> Local Gateway (Every 3 seconds)
+// Ensures users who authenticate via free-wifi-portal.web.app get internet immediately!
+// ============================================================================
+
+let isSyncingActiveAccounts = false;
+async function syncFirestoreActiveAccounts() {
+  if (isSyncingActiveAccounts) return;
+  isSyncingActiveAccounts = true;
+  try {
+    const res = await fetch('https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/accounts');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.documents || !Array.isArray(data.documents)) return;
+
+    const now = Date.now();
+    for (const doc of data.documents) {
+      const f = doc.fields || {};
+      const status = f.status?.stringValue || '';
+      const plan = f.plan?.stringValue || 'free-1h';
+      const expiresAt = parseInt(f.expiresAt?.integerValue || '0', 10);
+      let activeIp = f.activeIp?.stringValue || f.ip?.stringValue || '';
+      let activeMac = f.activeMac?.stringValue || f.mac?.stringValue || '';
+      const email = decodeURIComponent(doc.name.split('/').pop()).toLowerCase();
+
+      // If active session and not expired:
+      if ((status === 'active' || plan === 'vip-30d' || plan === 'free-1h') && expiresAt > now) {
+        // If IP is missing, resolve from ARP table on local gateway
+        if (!activeIp || activeIp === 'Unknown' || activeIp === 'Web Portal' || activeIp === '127.0.0.1') {
+          try {
+            const arpEntries = await firewall.getAllArpEntries();
+            const clientEntry = arpEntries.find(e => !e.ip.endsWith('.1') && !e.ip.endsWith('.254')) || arpEntries[0];
+            if (clientEntry) {
+              activeIp = clientEntry.ip;
+              activeMac = clientEntry.mac;
+            }
+          } catch (e) {}
+        }
+
+        if (activeIp && activeIp !== 'Unknown' && activeIp !== 'Web Portal' && activeIp !== '127.0.0.1') {
+          const localAcc = await db.getAccount(email);
+          if (!localAcc || localAcc.activeIp !== activeIp || localAcc.expiresAt !== expiresAt) {
+            const accountData = {
+              email,
+              name: f.name?.stringValue || email.split('@')[0],
+              picture: f.picture?.stringValue || null,
+              plan,
+              createdAt: parseInt(f.createdAt?.integerValue || String(now), 10),
+              expiresAt,
+              lastTrialAt: parseInt(f.lastTrialAt?.integerValue || String(now), 10),
+              activeIp,
+              activeMac: activeMac || null,
+              blocked: false
+            };
+            await db.saveAccount(accountData);
+            await allowIp(activeIp);
+            console.log(`🌐 [GATEWAY SYNC] Granted full internet access for ${email} from website (IP: ${activeIp}, Plan: ${plan})`);
+          }
+        }
+      } else if (expiresAt > 0 && now >= expiresAt) {
+        // Disconnect expired sessions from Firestore
+        if (activeIp && activeIp !== 'Unknown' && activeIp !== 'Web Portal') {
+          await revokeIp(activeIp);
+        }
+      }
+    }
+  } catch (err) {
+    // quiet catch
+  } finally {
+    isSyncingActiveAccounts = false;
+  }
+}
+setInterval(syncFirestoreActiveAccounts, 3000);
 
 // ============================================================================
 // Start Servers (Admin on Port 3000, User Portal on Port 3001, Port 80 CNA & Port 53 DNS)

@@ -20,6 +20,60 @@ function getLocalIp() {
   return '192.168.1.1';
 }
 
+function extractDomainFromQuery(query) {
+  try {
+    let offset = 12;
+    const parts = [];
+    while (offset < query.length) {
+      const len = query[offset++];
+      if (len === 0) break;
+      if (offset + len > query.length) break;
+      parts.push(query.toString('utf8', offset, offset + len));
+      offset += len;
+    }
+    return parts.join('.').toLowerCase();
+  } catch (e) {
+    return '';
+  }
+}
+
+function isCnaProbeDomain(domain) {
+  if (!domain) return false;
+  const d = domain.toLowerCase();
+  return (
+    d.includes('captive.apple.com') ||
+    d.includes('connectivitycheck') ||
+    d.includes('clients3.google.com') ||
+    d.includes('msftconnecttest') ||
+    d.includes('msftncsi') ||
+    d.includes('detectportal.firefox') ||
+    d.includes('networkcheck.kde')
+  );
+}
+
+function isWalledGardenDomain(domain) {
+  if (!domain) return false;
+  if (isCnaProbeDomain(domain)) return false;
+  const d = domain.toLowerCase();
+  return (
+    d.endsWith('free-wifi-portal.web.app') ||
+    d.endsWith('.web.app') ||
+    d.endsWith('.firebaseapp.com') ||
+    d.endsWith('.googleapis.com') ||
+    d.endsWith('.google.com') ||
+    d.endsWith('.gstatic.com') ||
+    d.endsWith('.googleusercontent.com') ||
+    d.endsWith('telegram.org') ||
+    d.endsWith('.telegram.org') ||
+    d.endsWith('jsdelivr.net') ||
+    d.endsWith('.jsdelivr.net') ||
+    d.endsWith('cloudflare.com') ||
+    d.endsWith('.cloudflare.com') ||
+    d.endsWith('ipify.org') ||
+    d.endsWith('.ipify.org')
+  );
+}
+
 function buildDnsResponse(query, ip) {
   const id = query.slice(0, 2);
   const header = Buffer.alloc(12);
@@ -65,14 +119,17 @@ function startCaptiveDns(portalIp, isAuthenticatedFn = null) {
       try {
         if (msg.length < 12) return;
         const clientIp = rinfo.address;
+        const domain = extractDomainFromQuery(msg);
         const isAuth = typeof isAuthenticatedFn === 'function' ? await isAuthenticatedFn(clientIp) : false;
+        const isWalled = isWalledGardenDomain(domain);
 
-        if (!isAuth) {
-          // Unauthenticated: Resolve to portalIp to force captive portal redirect
+        if (!isAuth && !isWalled) {
+          // Unauthenticated & outside walled garden: Resolve to Portal IP to force captive login & block internet
           const response = buildDnsResponse(msg, targetIp);
           server.send(response, rinfo.port, rinfo.address);
         } else {
-          // Authenticated: Forward to upstream Google DNS (8.8.8.8)
+          // Authenticated (after success from website) OR Walled Garden domain (portal, Firebase, Google auth, Telegram):
+          // Forward to upstream DNS (8.8.8.8) to give access!
           const upstream = dgram.createSocket('udp4');
           upstream.send(msg, 53, '8.8.8.8', (err) => {
             if (err) upstream.close();

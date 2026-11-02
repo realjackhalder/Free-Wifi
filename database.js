@@ -210,7 +210,7 @@ async function getAccountByIp(ip) {
     };
   }
 
-  // Firestore check if available
+  // Check Cloud Firestore for active session on this IP (Admin SDK or REST API fallback)
   if (fb.isReady()) {
     try {
       const snap = await fb.getDb().collection('accounts')
@@ -221,7 +221,7 @@ async function getAccountByIp(ip) {
         .get();
       if (!snap.empty) {
         const d = snap.docs[0].data();
-        return {
+        const account = {
           email: d.email,
           name: d.name,
           picture: d.picture || null,
@@ -234,8 +234,47 @@ async function getAccountByIp(ip) {
           activeMac: d.activeMac,
           blocked: !!d.blocked
         };
+        await saveAccount(account).catch(() => {});
+        return account;
       }
     } catch (e) {
+      /* ignore */
+    }
+  } else {
+    // Cloud Firestore REST API lookup
+    try {
+      const fsRes = await fetch('https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/accounts');
+      if (fsRes.ok) {
+        const fsData = await fsRes.json();
+        if (fsData.documents && Array.isArray(fsData.documents)) {
+          for (const doc of fsData.documents) {
+            const f = doc.fields || {};
+            const docIp = f.activeIp?.stringValue || f.ip?.stringValue;
+            const exp = parseInt(f.expiresAt?.integerValue || '0', 10);
+            const blocked = f.blocked?.booleanValue || false;
+            const status = f.status?.stringValue || '';
+            if (docIp === ip && exp > now && !blocked && (status === 'active' || f.plan?.stringValue === 'vip-30d' || f.plan?.stringValue === 'free-1h')) {
+              const email = decodeURIComponent(doc.name.split('/').pop()).toLowerCase();
+              const account = {
+                email,
+                name: f.name?.stringValue || email.split('@')[0],
+                picture: f.picture?.stringValue || null,
+                googleId: null,
+                plan: f.plan?.stringValue || 'free-1h',
+                createdAt: parseInt(f.createdAt?.integerValue || String(now), 10),
+                expiresAt: exp,
+                lastTrialAt: parseInt(f.lastTrialAt?.integerValue || String(now), 10),
+                activeIp: ip,
+                activeMac: f.activeMac?.stringValue || f.mac?.stringValue || null,
+                blocked: false
+              };
+              await saveAccount(account).catch(() => {});
+              return account;
+            }
+          }
+        }
+      }
+    } catch (restErr) {
       /* ignore */
     }
   }
