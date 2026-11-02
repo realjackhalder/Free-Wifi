@@ -233,13 +233,23 @@ userApp.get('/success.txt', (req, res) => {
 // 2. Telecom-Style Portal Route (GET /portal & GET / on Port 3001)
 // ============================================================================
 
+userApp.get('/api/device-info', async (req, res) => {
+  const ip = getClientIp(req);
+  const mac = await getMacForIp(ip);
+  res.json({
+    ok: true,
+    ip: ip || '127.0.0.1',
+    mac: mac && mac !== ip ? mac : 'Unknown'
+  });
+});
+
 userApp.get('/portal', async (req, res) => {
   const ip = getClientIp(req);
   const mac = await getMacForIp(ip);
   const account = await db.getAccountByIp(ip);
   const settings = await db.getAllSettings();
   const expiredAccount = !account ? await db.getExpiredAccount({ ip, mac }) : null;
-  res.status(200).send(renderPortal(account, settings, expiredAccount));
+  res.status(200).send(renderPortal(account, settings, expiredAccount, ip, mac));
 });
 
 userApp.get('/', async (req, res) => {
@@ -248,7 +258,7 @@ userApp.get('/', async (req, res) => {
   const account = await db.getAccountByIp(ip);
   const settings = await db.getAllSettings();
   const expiredAccount = !account ? await db.getExpiredAccount({ ip, mac }) : null;
-  res.status(200).send(renderPortal(account, settings, expiredAccount));
+  res.status(200).send(renderPortal(account, settings, expiredAccount, ip, mac));
 });
 
 // ============================================================================
@@ -660,6 +670,30 @@ const handleBuyPackagePost = async (req, res) => {
         const slipIdx = sortedSlips.findIndex(s => String(s.id) === String(slipId));
         slipNum = String(slipIdx !== -1 ? slipIdx + 1 : sortedSlips.length).padStart(3, '0');
       } catch (e) {}
+
+      // Sync slip to Cloud Firestore with client real IP and MAC
+      fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/slips/slip_${now}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            slipId: { stringValue: `slip_${now}` },
+            slipNum: { stringValue: slipNum },
+            email: { stringValue: cleanEmail },
+            name: { stringValue: name || cleanEmail.split('@')[0] },
+            amount: { integerValue: String(settings.monthlyPrice || 150) },
+            status: { stringValue: 'pending' },
+            createdAt: { integerValue: String(now) },
+            uploaded_at: { stringValue: new Date(now).toISOString() },
+            ip: { stringValue: ip || 'Unknown' },
+            ip_address: { stringValue: ip || 'Unknown' },
+            mac: { stringValue: mac || 'Unknown' },
+            mac_address: { stringValue: mac || 'Unknown' },
+            source: { stringValue: 'gateway_local' },
+            telegram_notified: { booleanValue: true }
+          }
+        })
+      }).catch(() => {});
 
       // 2. Send slip photo/document with Device IP, Email, and [Approve]/[Decline] buttons to Telegram
       try {
@@ -1479,7 +1513,7 @@ setInterval(async () => {
 // HTML Page Renderers (Google Account Mobile-First UI)
 // ============================================================================
 
-function renderPortal(account, settings, expiredAccount = null) {
+function renderPortal(account, settings, expiredAccount = null, clientIp = '', clientMac = '') {
   const connected = !!account;
   const isExpired = !connected && !!expiredAccount;
   const email = account ? account.email : (expiredAccount ? expiredAccount.email : '');
@@ -1496,6 +1530,10 @@ function renderPortal(account, settings, expiredAccount = null) {
 <html lang="th">
 <head>
 <meta charset="UTF-8">
+<script>
+  window.__CLIENT_IP__ = "${clientIp || ''}";
+  window.__CLIENT_MAC__ = "${clientMac || ''}";
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1e3a8a">
 <meta name="apple-mobile-web-app-capable" content="yes">

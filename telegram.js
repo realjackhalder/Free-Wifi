@@ -93,8 +93,8 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        { text: `✅ Approve Slip #${displayNum}`, callback_data: `approve:${slipId}` },
-        { text: `❌ Decline Slip #${displayNum}`, callback_data: `decline:${slipId}` }
+        { text: '✓ Approve', callback_data: `approve:${slipId}` },
+        { text: '✕ Decline', callback_data: `decline:${slipId}` }
       ]
     ]
   };
@@ -315,15 +315,40 @@ async function handleCallbackQuery(query, token) {
       if (fsRes.ok) {
         const fsDoc = await fsRes.json();
         if (fsDoc && fsDoc.fields) {
+          let ipAddr = fsDoc.fields.ip?.stringValue || fsDoc.fields.ip_address?.stringValue || '';
+          let macAddr = fsDoc.fields.mac?.stringValue || fsDoc.fields.mac_address?.stringValue || '';
+          const userEmail = (fsDoc.fields.email?.stringValue || fsDoc.fields.name?.stringValue || '').trim().toLowerCase();
+
+          // Lookup real device IP & MAC from user's account if not in slip document
+          if ((!ipAddr || ipAddr === 'Web Portal' || !macAddr) && userEmail) {
+            try {
+              const accDocRes = await fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/accounts/${encodeURIComponent(userEmail)}`);
+              if (accDocRes.ok) {
+                const accData = await accDocRes.json();
+                if (!ipAddr || ipAddr === 'Web Portal') ipAddr = accData.fields?.activeIp?.stringValue || accData.fields?.ip?.stringValue || '';
+                if (!macAddr) macAddr = accData.fields?.activeMac?.stringValue || accData.fields?.mac?.stringValue || '';
+              }
+            } catch (e) {}
+            if (!ipAddr || ipAddr === 'Web Portal' || !macAddr) {
+              try {
+                const localAcc = await db.getAccount(userEmail);
+                if (localAcc) {
+                  if (!ipAddr || ipAddr === 'Web Portal') ipAddr = localAcc.activeIp || localAcc.lastIp || '';
+                  if (!macAddr) macAddr = localAcc.activeMac || localAcc.lastMac || '';
+                }
+              } catch (e) {}
+            }
+          }
+
           isFirestoreSlip = true;
           slip = {
             id: slipIdStr,
             slipNum: fsDoc.fields.slipNum?.stringValue || null,
-            email: fsDoc.fields.email?.stringValue || fsDoc.fields.name?.stringValue || '',
+            email: userEmail,
             amount: parseInt(fsDoc.fields.amount?.integerValue || fsDoc.fields.amount?.stringValue || '150', 10),
             status: fsDoc.fields.status?.stringValue || 'pending',
-            ip_address: fsDoc.fields.ip?.stringValue || fsDoc.fields.ip_address?.stringValue || 'Web Portal',
-            mac_address: fsDoc.fields.mac?.stringValue || fsDoc.fields.mac_address?.stringValue || null
+            ip_address: ipAddr || 'Online Device',
+            mac_address: macAddr || 'Wi-Fi Client'
           };
         }
       }
@@ -538,7 +563,7 @@ async function editMessage(token, chatId, messageId, caption) {
 /**
  * Send a Firestore-originated slip notification to Telegram
  */
-async function sendFirestoreSlipNotification(token, chatId, slipId, email, amount, imageBase64, slipNum) {
+async function sendFirestoreSlipNotification(token, chatId, slipId, email, amount, imageBase64, slipNum, ip = '', mac = '') {
   const cleanEmail = (email || 'Unknown').trim();
   const timeStr = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
   const displayNum = slipNum ? String(slipNum).padStart(3, '0') : '001';
@@ -549,7 +574,8 @@ async function sendFirestoreSlipNotification(token, chatId, slipId, email, amoun
 🧾 <b>Slip Number:</b> <code>Slip #${displayNum}</code>
 📧 <b>Google Email:</b> <code>${escapeHtml(cleanEmail)}</code>
 💰 <b>Amount:</b> <b>${escapeHtml(amount || 150)} Baht</b> (30-Day VIP)
-📱 <b>Device:</b> <code>Web Portal (Firebase)</code>
+📱 <b>Device IP:</b> <code>${escapeHtml(ip || 'Online Device')}</code>
+🏷️ <b>MAC Address:</b> <code>${escapeHtml(mac || 'Wi-Fi Client')}</code>
 ⏰ <b>Upload Time:</b> ${escapeHtml(timeStr)}
 
 Approve 30-Day VIP Wi-Fi access for this user?`;
@@ -557,8 +583,8 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        { text: `✅ Approve Slip #${displayNum}`, callback_data: `approve:${slipId}` },
-        { text: `❌ Decline Slip #${displayNum}`, callback_data: `decline:${slipId}` }
+        { text: '✓ Approve', callback_data: `approve:${slipId}` },
+        { text: '✕ Decline', callback_data: `decline:${slipId}` }
       ]
     ]
   };
@@ -639,9 +665,32 @@ async function checkFirestorePendingSlips(token, chatId) {
         const email = fields.email?.stringValue || fields.name?.stringValue || 'Unknown';
         const amount = fields.amount?.integerValue || fields.amount?.stringValue || '150';
         const imageBase64 = fields.imageBase64?.stringValue;
+        let ip = fields.ip?.stringValue || fields.ip_address?.stringValue || '';
+        let mac = fields.mac?.stringValue || fields.mac_address?.stringValue || '';
 
-        console.log(`📡 [TELEGRAM] Found unnotified pending Firestore Slip #${slipNum} (${slipId}). Sending to Telegram...`);
-        const sent = await sendFirestoreSlipNotification(token, chatId, slipId, email, amount, imageBase64, slipNum);
+        // Resolve client IP and MAC from accounts collection if missing on slip
+        if ((!ip || !mac) && email && email !== 'Unknown') {
+          try {
+            const accRes = await fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/accounts/${encodeURIComponent(email)}`);
+            if (accRes.ok) {
+              const accDoc = await accRes.json();
+              if (!ip) ip = accDoc.fields?.activeIp?.stringValue || accDoc.fields?.ip?.stringValue || '';
+              if (!mac) mac = accDoc.fields?.activeMac?.stringValue || accDoc.fields?.mac?.stringValue || '';
+            }
+          } catch (e) {}
+          if (!ip || !mac) {
+            try {
+              const localAcc = await db.getAccount(email);
+              if (localAcc) {
+                if (!ip) ip = localAcc.activeIp || localAcc.lastIp || '';
+                if (!mac) mac = localAcc.activeMac || localAcc.lastMac || '';
+              }
+            } catch (e) {}
+          }
+        }
+
+        console.log(`📡 [TELEGRAM] Found unnotified pending Firestore Slip #${slipNum} (${slipId}) for ${email} (IP: ${ip || 'detecting'}, MAC: ${mac || 'detecting'}). Sending to Telegram...`);
+        const sent = await sendFirestoreSlipNotification(token, chatId, slipId, email, amount, imageBase64, slipNum, ip, mac);
 
         if (sent) {
           await fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/slips/${encodeURIComponent(slipId)}?updateMask.fieldPaths=telegram_notified&updateMask.fieldPaths=slipNum`, {

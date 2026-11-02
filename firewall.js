@@ -4,20 +4,31 @@ const net = require('net');
 
 const DRY_RUN = process.env.DRY_RUN !== 'false'; // default true for safe testing
 
-function run(args) {
-  return new Promise((resolve, reject) => {
+function runCmd(cmd, args) {
+  return new Promise((resolve) => {
     if (DRY_RUN) {
-      console.log(`[FIREWALL DRY_RUN] sudo ${args.join(' ')}`);
+      console.log(`[FIREWALL DRY_RUN] ${cmd} ${args.join(' ')}`);
       return resolve({ stdout: '', stderr: '' });
     }
-    execFile('sudo', args, (error, stdout, stderr) => {
+    execFile(cmd, args, (error, stdout, stderr) => {
       if (error) {
-        console.error(`[FIREWALL ERROR] ${args.join(' ')}: ${error.message}`);
+        console.error(`[FIREWALL ERROR] ${cmd} ${args.join(' ')}: ${error.message}`);
         return resolve({ stdout: '', stderr: error.message });
       }
       resolve({ stdout, stderr });
     });
   });
+}
+
+function runSudo(args) {
+  if (process.platform === 'win32') {
+    return runCmd(args[0], args.slice(1));
+  }
+  const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+  if (isRoot) {
+    return runCmd(args[0], args.slice(1));
+  }
+  return runCmd('sudo', args);
 }
 
 function validateIp(ip) {
@@ -47,14 +58,28 @@ function getMacForIp(ip) {
 
 async function allowIp(ip) {
   if (!validateIp(ip)) return;
-  console.log(`[FIREWALL] Allowing IP: ${ip}`);
-  await run(['pfctl', '-t', 'allowed_wifi', '-T', 'add', ip]);
+  console.log(`[FIREWALL] Allowing internet access for IP: ${ip}`);
+  if (process.platform === 'win32') {
+    await runSudo(['netsh', 'advfirewall', 'firewall', 'add', 'rule', `name=WIFI_ALLOWED_${ip}`, 'dir=in', 'action=allow', `remoteip=${ip}`]);
+  } else if (process.platform === 'darwin') {
+    await runSudo(['pfctl', '-t', 'allowed_wifi', '-T', 'add', ip]);
+  } else {
+    // Linux iptables
+    await runSudo(['iptables', '-I', 'WIFI_ALLOWED', '1', '-s', ip, '-j', 'ACCEPT']);
+  }
 }
 
 async function revokeIp(ip) {
   if (!validateIp(ip)) return;
-  console.log(`[FIREWALL] Revoking IP: ${ip}`);
-  await run(['pfctl', '-t', 'allowed_wifi', '-T', 'delete', ip]);
+  console.log(`[FIREWALL] Revoking internet access for IP: ${ip}`);
+  if (process.platform === 'win32') {
+    await runSudo(['netsh', 'advfirewall', 'firewall', 'delete', 'rule', `name=WIFI_ALLOWED_${ip}`]);
+  } else if (process.platform === 'darwin') {
+    await runSudo(['pfctl', '-t', 'allowed_wifi', '-T', 'delete', ip]);
+  } else {
+    // Linux iptables
+    await runSudo(['iptables', '-D', 'WIFI_ALLOWED', '-s', ip, '-j', 'ACCEPT']);
+  }
 }
 
 module.exports = { DRY_RUN, allowIp, revokeIp, getMacForIp, validateIp };
