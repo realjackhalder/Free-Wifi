@@ -5,17 +5,26 @@
 // Languages: Thai (ไทย) 🇹🇭 | Burmese (မြန်မာ) 🇲🇲 | English 🇬🇧
 // ============================================================================
 
-process.on('uncaughtException', (err) => {
-  console.error('[UNCAUGHT EXCEPTION]', err);
-});
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[UNHANDLED REJECTION]', reason);
-});
+const fs = require('fs');
+const path = require('path');
+
+function logCrash(type, data) {
+  const time = new Date().toISOString();
+  const text = (data && data.stack) ? data.stack : (typeof data === 'object' ? JSON.stringify(data) : String(data));
+  const entry = `[${time}] [${type}] ${text}\n`;
+  try {
+    fs.appendFileSync(path.join(__dirname, 'crash.log'), entry);
+  } catch (e) {}
+  console.error(entry);
+}
+
+process.on('uncaughtException', (err) => logCrash('UNCAUGHT_EXCEPTION', err));
+process.on('unhandledRejection', (reason) => logCrash('UNHANDLED_REJECTION', reason));
+process.on('beforeExit', (code) => logCrash('BEFORE_EXIT', `Event loop empty, exiting code: ${code}`));
+process.on('exit', (code) => logCrash('PROCESS_EXIT', `Process exiting with code: ${code}`));
 
 const express = require('express');
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
 const os = require('os');
 const multer = require('multer');
 const Jimp = require('jimp');
@@ -31,13 +40,6 @@ const dnsCaptive = require('./dns-captive');
 const crypto = require('crypto');
 const { renderAdminLogin, renderAdmin } = require('./admin-ui');
 
-// Global error handlers to keep background gateway resilient
-process.on('uncaughtException', (err) => {
-  console.error('⚠️ [UNCAUGHT EXCEPTION]', err);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('⚠️ [UNHANDLED REJECTION]', reason);
-});
 
 const adminApp = express();
 const userApp = express();
