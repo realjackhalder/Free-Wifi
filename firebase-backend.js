@@ -90,7 +90,7 @@ function initFirebase() {
 /**
  * Upload a payment slip to Firebase Cloud Storage and return public/signed URL
  */
-async function uploadSlipToStorage(localFilePath, destinationFileName, mimeType = 'image/jpeg') {
+async function uploadSlipToStorage(localFilePath, destinationFileName, mimeType = 'application/octet-stream') {
   if (!isInitialized || !admin || typeof admin.storage !== 'function') return null;
   try {
     const bucket = admin.storage().bucket();

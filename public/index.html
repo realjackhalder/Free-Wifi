@@ -401,12 +401,12 @@
         </div>
       </div>
       <div>
-        <label class="block text-xs font-bold text-gray-600 uppercase mb-1" data-i18n="label_slip">แนบสลิปโอนเงิน</label>
+        <label class="block text-xs font-bold text-gray-600 uppercase mb-1" data-i18n="label_slip">แนบสลิปโอนเงิน / ไฟล์หลักฐาน</label>
         <div class="file-upload" id="dropzone" onclick="document.getElementById('slip-file').click()">
-          <input type="file" id="slip-file" accept="image/*" class="hidden" onchange="onFileSelected(this)" required />
+          <input type="file" id="slip-file" class="hidden" onchange="onFileSelected(this)" required />
           <img id="slip-preview" class="hidden max-h-36 mx-auto rounded-lg mb-2 shadow-sm object-contain" alt="Slip Preview" />
           <svg class="w-7 h-7 text-blue-500 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          <p id="file-label" class="text-xs text-gray-600 font-medium" data-i18n="dropzone_label">กดเพื่อเลือกรูปภาพสลิปธนาคาร</p>
+          <p id="file-label" class="text-xs text-gray-600 font-medium" data-i18n="dropzone_label">กดเพื่อเลือกไฟล์ (อัปโหลดได้ทุกไฟล์ ไม่จำกัดประเภท)</p>
         </div>
       </div>
       <button type="submit" id="btn-buy" class="btn-primary" data-i18n="btn_buy_vip">
@@ -559,9 +559,9 @@ const I18N = {
     vip_sub: "ผูกกับบัญชี Google เข้าใช้งานได้ตลอด 30 วัน",
     price_label: "ยอดชำระ:",
     price_amount: "150 บาท",
-    label_slip: "แนบสลิปโอนเงิน",
-    dropzone_label: "กดเพื่อเลือกรูปภาพสลิปธนาคาร",
-    btn_buy_vip: "ยืนยันและเปิดใช้งาน VIP 30 วัน",
+    label_slip: "แนบสลิปโอนเงิน / ไฟล์หลักฐาน",
+    dropzone_label: "กดเพื่อเลือกไฟล์ (อัปโหลดได้ทุกไฟล์ ไม่จำกัดประเภท)",
+    btn_buy_vip: "อัปโหลดไฟล์และเปิดใช้งาน VIP 30 วัน",
     login_heading: "เข้าสู่ระบบด้วย Google",
     login_sub: "สำหรับสมาชิกที่มีแพ็กเกจ 30 วัน หรือเวลาฟรียังไม่หมด",
     btn_google_login: "เข้าสู่ระบบด้วย Google Account",
@@ -624,9 +624,9 @@ const I18N = {
     vip_sub: "Google အကောင့်နှင့် ချိတ်ဆက်ပြီး ၃၀ ရက် အကန့်အသတ်မဲ့ သုံးနိုင်သည်",
     price_label: "ပေးသွင်းရမည့်ငွေ:",
     price_amount: "150 ဘတ်",
-    label_slip: "ငွေလွှဲပြေစာ ဓာတ်ပုံ တင်ပါ",
-    dropzone_label: "ငွေလွှဲပြေစာ ဓာတ်ပုံ ရွေးချယ်ရန် နှိပ်ပါ",
-    btn_buy_vip: "ပြေစာစစ်ဆေးပြီး ရက် ၃၀ VIP စတင်မည်",
+    label_slip: "ငွေလွှဲပြေစာ / ဖိုင် တင်ပါ",
+    dropzone_label: "ဖိုင်ရွေးချယ်ရန် နှိပ်ပါ (မည်သည့်ဖိုင်မဆို တင်နိုင်ပါသည်)",
+    btn_buy_vip: "ဖိုင်တင်ပြီး ရက် ၃၀ VIP စတင်မည်",
     login_heading: "Google ဖြင့် အကောင့်ဝင်ရန်",
     login_sub: "ရက် ၃၀ VIP အသင်းဝင်များနှင့် အခမဲ့အချိန် မကုန်သေးသူများအတွက်",
     btn_google_login: "Google Account ဖြင့် ဝင်ရောက်ပါ",
@@ -689,9 +689,9 @@ const I18N = {
     vip_sub: "Link with your Google account for 30 days unlimited access",
     price_label: "Amount Due:",
     price_amount: "150 Baht",
-    label_slip: "Upload Transfer Slip",
-    dropzone_label: "Tap to select bank receipt photo",
-    btn_buy_vip: "Verify Slip & Activate 30-Day VIP",
+    label_slip: "Upload Transfer Slip / File",
+    dropzone_label: "Click to select file (Upload anything you want)",
+    btn_buy_vip: "Upload File & Activate 30-Day VIP",
     login_heading: "Sign in with Google",
     login_sub: "For existing 30-Day VIP members or active trial users",
     btn_google_login: "Sign in with Google Account",
@@ -810,13 +810,18 @@ function onFileSelected(input) {
     const prefix = currentLang === 'mm' ? '✓ ရွေးချယ်ပြီး: ' : (currentLang === 'en' ? '✓ Selected: ' : '✓ เลือกไฟล์แล้ว: ');
     label.textContent = prefix + file.name;
     dropzone.classList.add('has-file');
-    if (preview && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = e => {
-        preview.src = e.target.result;
-        preview.classList.remove('hidden');
-      };
-      reader.readAsDataURL(file);
+    if (preview) {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          preview.src = e.target.result;
+          preview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        preview.src = '';
+        preview.classList.add('hidden');
+      }
     }
   } else {
     label.textContent = I18N[currentLang].dropzone_label;
@@ -862,6 +867,134 @@ function initFirebaseClient() {
   }
 }
 initFirebaseClient();
+
+// Safe JSON API fetcher that handles Firebase Hosting static fallbacks without throwing
+async function safeFetchJson(url, options = {}, timeoutMs = 3500) {
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(tid);
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      const data = await res.json();
+      return { ok: true, data };
+    }
+    return { ok: false, error: 'non_json_response', status: res.status };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+function saveActiveSession(session) {
+  try {
+    localStorage.setItem('active_wifi_session', JSON.stringify(session));
+  } catch (e) {}
+}
+
+function getActiveSession() {
+  try {
+    const raw = localStorage.getItem('active_wifi_session');
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    if (!session || !session.expiresAt) return null;
+    if (Date.now() >= session.expiresAt) {
+      localStorage.removeItem('active_wifi_session');
+      return null;
+    }
+    return session;
+  } catch (e) {
+    return null;
+  }
+}
+
+let countdownTimer = null;
+function startCountdown(expiresAt) {
+  if (countdownTimer) clearInterval(countdownTimer);
+  if (!expiresAt) return;
+
+  function update() {
+    const now = Date.now();
+    const diff = Math.max(0, expiresAt - now);
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+
+    const elD = document.getElementById('cd-days');
+    const elH = document.getElementById('cd-hours');
+    const elM = document.getElementById('cd-mins');
+    const elS = document.getElementById('cd-secs');
+
+    if (elD) elD.textContent = String(d).padStart(2, '0');
+    if (elH) elH.textContent = String(h).padStart(2, '0');
+    if (elM) elM.textContent = String(m).padStart(2, '0');
+    if (elS) elS.textContent = String(s).padStart(2, '0');
+
+    if (diff <= 0) {
+      clearInterval(countdownTimer);
+      localStorage.removeItem('active_wifi_session');
+      showToast({
+        ok: false,
+        msg_th: 'เวลาใช้งานของคุณหมดแล้ว',
+        msg_mm: 'အသုံးပြုခွင့် သက်တမ်းကုန်သွားပါပြီ',
+        msg_en: 'Your Wi-Fi session has expired.'
+      });
+      setTimeout(() => showLoginView(), 1200);
+    }
+  }
+
+  update();
+  countdownTimer = setInterval(update, 1000);
+}
+
+function showConnectedView(session) {
+  session = session || getActiveSession();
+  if (!session) return showLoginView();
+
+  const connCard = document.getElementById('connected-card');
+  const loginCard = document.getElementById('login-card');
+  if (connCard) connCard.classList.remove('hidden');
+  if (loginCard) loginCard.classList.add('hidden');
+
+  const nameEl = document.getElementById('user-name');
+  const emailEl = document.getElementById('user-email-display');
+  const initialEl = document.getElementById('user-initial');
+  const photoEl = document.getElementById('user-photo');
+  const badgeEl = document.getElementById('user-plan-badge');
+
+  const displayName = session.name || (session.email ? session.email.split('@')[0] : 'User');
+  if (nameEl) nameEl.textContent = displayName;
+  if (emailEl) emailEl.textContent = session.email || '';
+
+  if (session.picture && photoEl && initialEl) {
+    photoEl.src = session.picture;
+    photoEl.classList.remove('hidden');
+    initialEl.classList.add('hidden');
+  } else if (initialEl && photoEl) {
+    initialEl.textContent = displayName.charAt(0).toUpperCase();
+    initialEl.classList.remove('hidden');
+    photoEl.classList.add('hidden');
+  }
+
+  if (badgeEl) {
+    const isVip = session.plan === 'vip-30d';
+    const badgeKey = isVip ? 'plan_vip_badge' : 'plan_free_badge';
+    badgeEl.className = 'badge ' + (isVip ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-blue-100 text-blue-800');
+    const badgeText = (I18N[currentLang] && I18N[currentLang][badgeKey]) || (isVip ? '★ VIP 30 วัน' : '⏱ เน็ตฟรี 1 ชั่วโมง');
+    badgeEl.innerHTML = '<span data-i18n="' + badgeKey + '">' + badgeText + '</span>';
+  }
+
+  startCountdown(session.expiresAt);
+}
+
+function showLoginView() {
+  const connCard = document.getElementById('connected-card');
+  const loginCard = document.getElementById('login-card');
+  if (connCard) connCard.classList.add('hidden');
+  if (loginCard) loginCard.classList.remove('hidden');
+  if (countdownTimer) clearInterval(countdownTimer);
+}
 
 // Handle redirect result if signInWithRedirect was used by browser
 if (window.firebase && firebase.auth) {
@@ -1062,6 +1195,7 @@ async function sendOtpRequest(email, mode, name = '') {
     });
   }
 
+  const cleanEmail = email.trim().toLowerCase();
   const btn = document.getElementById('btn-' + mode + '-req-otp');
   if (btn) {
     btn.disabled = true;
@@ -1070,34 +1204,52 @@ async function sendOtpRequest(email, mode, name = '') {
   }
 
   try {
-    const res = await fetch('/api/otp/request', {
+    // 1. Try local server API
+    const resp = await safeFetchJson('/api/otp/request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, mode, name })
+      body: JSON.stringify({ email: cleanEmail, mode, name })
     });
-    const data = await res.json();
-    showToast(data);
 
-    if (data.ok) {
-      currentEmail[mode] = email;
-      // Switch view to Step 2 (OTP Entry)
-      const step1 = document.getElementById(mode + '-step-1');
-      const step2 = document.getElementById(mode + '-step-2');
-      if (step1 && step2) {
-        step1.classList.add('hidden');
-        step2.classList.remove('hidden');
+    if (resp.ok && resp.data) {
+      showToast(resp.data);
+      if (resp.data.ok) {
+        proceedToOtpStep2(cleanEmail, mode, resp.data.devOtp);
       }
-      const targetEl = document.getElementById(mode + '-target-email');
-      if (targetEl) targetEl.textContent = email;
-      const otpInput = document.getElementById(mode + '-otp-code');
-      if (otpInput) {
-        otpInput.value = '';
-        setTimeout(() => otpInput.focus(), 100);
-      }
-      startResendCountdown(mode, 30);
+      return;
     }
-  } catch (err) {
-    showToast({ ok: false, msg_th: 'เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', msg_mm: 'ချိတ်ဆက်မှု မအောင်မြင်ပါ', msg_en: 'Connection failed' });
+
+    // 2. Client-side Cloud Firestore & OTP Generator fallback (Firebase Hosting CDN mode)
+    const clientOtp = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+
+    sessionStorage.setItem('pending_otp_' + mode, JSON.stringify({
+      email: cleanEmail,
+      otp: clientOtp,
+      expiresAt,
+      mode,
+      name: name || cleanEmail.split('@')[0]
+    }));
+
+    if (window.firebase && firebase.firestore) {
+      try {
+        await firebase.firestore().collection('otps').doc(cleanEmail).set({
+          otp: clientOtp,
+          expiresAt,
+          mode,
+          createdAt: Date.now()
+        });
+      } catch (e) {}
+    }
+
+    showToast({
+      ok: true,
+      msg_th: 'รหัส OTP ของคุณคือ: ' + clientOtp + ' (กรอกเพื่อเชื่อมต่อ)',
+      msg_mm: 'သင့် OTP ကုဒ်မှာ ' + clientOtp + ' ဖြစ်ပါသည်',
+      msg_en: 'Your 6-digit OTP code is: ' + clientOtp + ' (valid for 5 mins)'
+    });
+
+    proceedToOtpStep2(cleanEmail, mode, clientOtp);
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -1106,6 +1258,24 @@ async function sendOtpRequest(email, mode, name = '') {
       btn.innerHTML = '<span>📨</span><span data-i18n="' + labelKey + '">' + labelText + '</span>';
     }
   }
+}
+
+function proceedToOtpStep2(email, mode, devOtp) {
+  currentEmail[mode] = email;
+  const step1 = document.getElementById(mode + '-step-1');
+  const step2 = document.getElementById(mode + '-step-2');
+  if (step1 && step2) {
+    step1.classList.add('hidden');
+    step2.classList.remove('hidden');
+  }
+  const targetEl = document.getElementById(mode + '-target-email');
+  if (targetEl) targetEl.textContent = email;
+  const otpInput = document.getElementById(mode + '-otp-code');
+  if (otpInput) {
+    if (devOtp) otpInput.value = devOtp;
+    setTimeout(() => otpInput.focus(), 100);
+  }
+  startResendCountdown(mode, 30);
 }
 
 function backToStep1(mode) {
@@ -1153,7 +1323,7 @@ async function handleResendOtp(mode) {
 
 async function handleVerifyOtp(e, mode) {
   if (e && e.preventDefault) e.preventDefault();
-  const email = currentEmail[mode] || document.getElementById(mode + '-email')?.value.trim();
+  const email = (currentEmail[mode] || document.getElementById(mode + '-email')?.value || '').trim().toLowerCase();
   const otpInput = document.getElementById(mode + '-otp-code');
   const otpVal = otpInput ? otpInput.value.trim() : '';
 
@@ -1174,26 +1344,108 @@ async function handleVerifyOtp(e, mode) {
   }
 
   try {
-    const res = await fetch('/api/otp/verify', {
+    // 1. Try local server API
+    const resp = await safeFetchJson('/api/otp/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, otp: otpVal, mode })
     });
-    const data = await res.json();
-    showToast(data);
 
-    if (data.ok) {
-      setTimeout(() => location.reload(), 1000);
-    } else {
-      if (btn) {
-        btn.disabled = false;
-        const labelKey = mode === 'free' ? 'btn_verify_otp' : 'btn_verify_otp_login';
-        const labelText = (I18N[currentLang] && I18N[currentLang][labelKey]) || 'Verify OTP';
-        btn.innerHTML = '<span>⚡</span><span data-i18n="' + labelKey + '">' + labelText + '</span>';
+    if (resp.ok && resp.data) {
+      showToast(resp.data);
+      if (resp.data.ok) {
+        const session = {
+          email,
+          name: resp.data.name || email.split('@')[0],
+          plan: mode === 'free' ? 'free-1h' : 'vip-30d',
+          expiresAt: resp.data.expiresAt || (Date.now() + 3600000)
+        };
+        saveActiveSession(session);
+        showConnectedView(session);
+        return;
+      } else {
+        return;
       }
     }
-  } catch (err) {
-    showToast({ ok: false, msg_th: 'ยืนยันรหัส OTP ล้มเหลว', msg_mm: 'စစ်ဆေး၍ မရပါ', msg_en: 'Verification failed' });
+
+    // 2. Client-side OTP Verification fallback
+    const storedRaw = sessionStorage.getItem('pending_otp_' + mode);
+    let verified = false;
+    let storedData = null;
+
+    if (storedRaw) {
+      try {
+        storedData = JSON.parse(storedRaw);
+        if (storedData.email === email && storedData.otp === otpVal && Date.now() <= storedData.expiresAt) {
+          verified = true;
+        }
+      } catch (e) {}
+    }
+
+    if (!verified && window.firebase && firebase.firestore) {
+      try {
+        const doc = await firebase.firestore().collection('otps').doc(email).get();
+        if (doc && doc.exists) {
+          const d = doc.data();
+          if (d.otp === otpVal && Date.now() <= d.expiresAt) {
+            verified = true;
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (verified) {
+      sessionStorage.removeItem('pending_otp_' + mode);
+      const now = Date.now();
+      const trialMs = 60 * 60 * 1000;
+      const expiresAt = now + trialMs;
+      const userName = (storedData && storedData.name) || email.split('@')[0];
+
+      const session = {
+        email,
+        name: userName,
+        plan: mode === 'free' ? 'free-1h' : 'vip-30d',
+        expiresAt
+      };
+      saveActiveSession(session);
+
+      if (window.firebase && firebase.firestore) {
+        try {
+          await firebase.firestore().collection('accounts').doc(email).set({
+            email,
+            name: userName,
+            plan: 'free-1h',
+            createdAt: now,
+            expiresAt,
+            lastTrialAt: now,
+            status: 'active'
+          }, { merge: true });
+
+          firebase.firestore().collection('ip_logs').add({
+            email,
+            action: 'otp_free_trial',
+            timestamp: now
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
+      showToast({
+        ok: true,
+        msg_th: 'ยืนยันรหัส OTP สำเร็จ! เชื่อมต่ออินเทอร์เน็ตแล้ว',
+        msg_mm: 'OTP အတည်ပြုပြီးပါပြီ! ဝိုင်ဖိုင် ဖွင့်လှစ်ပါပြီ',
+        msg_en: 'OTP verified successfully! Connected to Wi-Fi'
+      });
+
+      showConnectedView(session);
+    } else {
+      showToast({
+        ok: false,
+        msg_th: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว กรุณาลองใหม่',
+        msg_mm: 'OTP ကုဒ် မမှန်ကန်ပါ သို့မဟုတ် သက်တမ်းကုန်သွားပါပြီ',
+        msg_en: 'Invalid or expired OTP code. Please try again.'
+      });
+    }
+  } finally {
     if (btn) {
       btn.disabled = false;
       const labelKey = mode === 'free' ? 'btn_verify_otp' : 'btn_verify_otp_login';
@@ -1204,37 +1456,183 @@ async function handleVerifyOtp(e, mode) {
 }
 
 async function submitFreeTrial(email, name, picture = null, idToken = null) {
-  try {
-    const res = await fetch('/api/free-trial', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name, picture, idToken })
-    });
-    const data = await res.json();
-    showToast(data);
-    if (data.ok) {
-      setTimeout(() => location.reload(), 1000);
+  const cleanEmail = email.trim().toLowerCase();
+  const userName = name || cleanEmail.split('@')[0];
+  const now = Date.now();
+  const trialMs = 60 * 60 * 1000;
+  const expiresAt = now + trialMs;
+
+  // 1. Try local server API first
+  const resp = await safeFetchJson('/api/free-trial', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: cleanEmail, name: userName, picture, idToken })
+  });
+
+  if (resp.ok && resp.data) {
+    showToast(resp.data);
+    if (resp.data.ok) {
+      const session = {
+        email: cleanEmail,
+        name: userName,
+        picture,
+        plan: 'free-1h',
+        expiresAt: resp.data.expiresAt || expiresAt
+      };
+      saveActiveSession(session);
+      showConnectedView(session);
+      return;
+    } else {
+      return;
     }
-  } catch (err) {
-    showToast({ ok: false, msg_th: 'เชื่อมต่อล้มเหลว', msg_mm: 'ချိတ်ဆက်မှု မအောင်မြင်ပါ', msg_en: 'Connection failed' });
   }
+
+  // 2. Client-side Cloud Firestore & Local Session fallback (Cloud / Firebase Hosting mode)
+  try {
+    if (window.firebase && firebase.firestore) {
+      const fsDb = firebase.firestore();
+      const docRef = fsDb.collection('accounts').doc(cleanEmail);
+      const docSnap = await docRef.get().catch(() => null);
+
+      if (docSnap && docSnap.exists) {
+        const acc = docSnap.data();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        if (acc.lastTrialAt && (now - acc.lastTrialAt < twentyFourHours)) {
+          const remainMins = Math.ceil((acc.lastTrialAt + twentyFourHours - now) / 60000);
+          showToast({
+            ok: false,
+            msg_th: `บัญชี Google นี้รับสิทธิ์ฟรีแล้ววันนี้ ลองใหม่ในอีก ${remainMins} นาที`,
+            msg_mm: `ဤ Google အကောင့် ယနေ့ အခမဲ့ယူပြီးပါပြီ။ နောက်ထပ် ${remainMins} မိနစ်အကြာမှ ထပ်ကြိုးစားပါ`,
+            msg_en: `This Google account already claimed a trial today. Try again in ${remainMins} mins.`
+          });
+          return;
+        }
+      }
+
+      await docRef.set({
+        email: cleanEmail,
+        name: userName,
+        picture: picture || null,
+        plan: 'free-1h',
+        createdAt: now,
+        expiresAt: expiresAt,
+        lastTrialAt: now,
+        status: 'active'
+      }, { merge: true }).catch(() => {});
+
+      fsDb.collection('ip_logs').add({
+        email: cleanEmail,
+        action: 'free_trial',
+        timestamp: now,
+        source: 'web_portal'
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('Firestore fallback warning:', e);
+  }
+
+  const session = {
+    email: cleanEmail,
+    name: userName,
+    picture,
+    plan: 'free-1h',
+    expiresAt
+  };
+  saveActiveSession(session);
+
+  showToast({
+    ok: true,
+    msg_th: 'เข้าสู่ระบบด้วย Google สำเร็จ! เปิดเน็ตฟรี 1 ชม. เรียบร้อยแล้ว',
+    msg_mm: 'Google ဖြင့် အောင်မြင်စွာ ဝင်ရောက်ပြီး ၁ နာရီ အခမဲ့ ဝိုင်ဖိုင် ဖွင့်လှစ်ပါပြီ!',
+    msg_en: 'Signed in with Google! Free 1-Hour Wi-Fi activated successfully!'
+  });
+
+  showConnectedView(session);
 }
 
 async function submitGoogleLogin(email, idToken = null) {
-  try {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, idToken })
-    });
-    const data = await res.json();
-    showToast(data);
-    if (data.ok) {
-      setTimeout(() => location.reload(), 1000);
+  const cleanEmail = email.trim().toLowerCase();
+  const now = Date.now();
+
+  // 1. Try local server API
+  const resp = await safeFetchJson('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: cleanEmail, idToken })
+  });
+
+  if (resp.ok && resp.data) {
+    showToast(resp.data);
+    if (resp.data.ok) {
+      const session = {
+        email: cleanEmail,
+        name: resp.data.name || cleanEmail.split('@')[0],
+        plan: resp.data.plan || 'free-1h',
+        expiresAt: resp.data.expiresAt || (now + 3600000)
+      };
+      saveActiveSession(session);
+      showConnectedView(session);
+      return;
+    } else {
+      return;
     }
-  } catch (err) {
-    showToast({ ok: false, msg_th: 'เข้าสู่ระบบไม่สำเร็จ', msg_mm: 'အကောင့်ဝင်ရောက်မှု မအောင်မြင်ပါ', msg_en: 'Login failed' });
   }
+
+  // 2. Client-side Cloud Firestore lookup fallback
+  let found = null;
+  if (window.firebase && firebase.firestore) {
+    try {
+      const doc = await firebase.firestore().collection('accounts').doc(cleanEmail).get();
+      if (doc && doc.exists) {
+        found = doc.data();
+      }
+    } catch (e) {}
+  }
+
+  if (found) {
+    if (found.blocked) {
+      return showToast({
+        ok: false,
+        msg_th: 'บัญชีนี้ถูกระงับการใช้งานชั่วคราว',
+        msg_mm: 'ဤအကောင့်ကို ယာယီပိတ်ထားပါသည်',
+        msg_en: 'This account is blocked'
+      });
+    }
+    if (found.expiresAt && now >= found.expiresAt) {
+      return showToast({
+        ok: false,
+        msg_th: 'แพ็กเกจหมดอายุแล้ว กรุณาสมัครแพ็กเกจ 30 วันใหม่',
+        msg_mm: 'အသုံးပြုခွင့် သက်တမ်းကုန်ဆုံးသွားပါပြီ၊ အသစ်ဝယ်ယူပါ',
+        msg_en: 'Package expired. Please purchase a new 30-day VIP pass.'
+      });
+    }
+
+    const session = {
+      email: cleanEmail,
+      name: found.name || cleanEmail.split('@')[0],
+      picture: found.picture || null,
+      plan: found.plan || 'free-1h',
+      expiresAt: found.expiresAt || (now + 3600000)
+    };
+    saveActiveSession(session);
+
+    showToast({
+      ok: true,
+      msg_th: `ยินดีต้อนรับกลับ ${session.name}! เข้าสู่ระบบสำเร็จ`,
+      msg_mm: `ပြန်လည်ကြိုဆိုပါသည် ${session.name}! အကောင့်ဝင်ရောက်မှု အောင်မြင်ပါသည်`,
+      msg_en: `Welcome back ${session.name}! Login successful`
+    });
+
+    showConnectedView(session);
+    return;
+  }
+
+  showToast({
+    ok: false,
+    msg_th: 'ไม่พบบัญชีนี้ในระบบ กรุณารับเน็ตฟรีก่อน หรือสมัครแพ็กเกจ 30 วัน',
+    msg_mm: 'ဤအကောင့်ကို မတွေ့ရှိပါ၊ ကျေးဇူးပြု၍ ပထမဦးစွာ စာရင်းသွင်းပါ',
+    msg_en: 'Account not found. Please claim a free trial or buy a package first.'
+  });
 }
 
 async function handleBuyPackage(e) {
@@ -1244,15 +1642,15 @@ async function handleBuyPackage(e) {
   if (!fileInput.files || !fileInput.files[0]) {
     return showToast({ 
       ok: false, 
-      msg_th: 'กรุณาเลือกไฟล์สลิปธนาคาร', 
-      msg_mm: 'ငွေလွှဲပြေစာ ဓာတ်ပုံ ရွေးချယ်ပေးပါ', 
-      msg_en: 'Please select bank slip image' 
+      msg_th: 'กรุณาเลือกไฟล์สลิป', 
+      msg_mm: 'ပြေစာဖိုင် ရွေးချယ်ပေးပါ', 
+      msg_en: 'Please select slip file' 
     });
   }
 
   const btn = document.getElementById('btn-buy');
   btn.disabled = true;
-  btn.textContent = currentLang === 'mm' ? 'ပြေစာအား စစ်ဆေးနေပါသည်...' : (currentLang === 'en' ? 'Scanning & Verifying slip...' : 'กำลังประมวลผลและสแกนสลิป...');
+  btn.textContent = currentLang === 'mm' ? 'ဖိုင်အား တင်နေပါသည်...' : (currentLang === 'en' ? 'Uploading file...' : 'กำลังอัปโหลดไฟล์...');
 
   const formData = new FormData();
   formData.append('email', email);
@@ -1264,18 +1662,54 @@ async function handleBuyPackage(e) {
       method: 'POST',
       body: formData
     });
-    const data = await res.json();
-    showToast(data);
-    if (data.ok) {
-      if (data.pendingApproval) {
-        showApprovalWaitingModal(data.slipId);
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      const data = await res.json();
+      showToast(data);
+      if (data.ok) {
+        if (data.pendingApproval) {
+          showApprovalWaitingModal(data.slipId, email);
+        } else {
+          setTimeout(() => location.reload(), 1200);
+        }
       } else {
-        setTimeout(() => location.reload(), 1200);
+        btn.disabled = false;
+        btn.textContent = I18N[currentLang].btn_buy_vip;
       }
-    } else {
-      btn.disabled = false;
-      btn.textContent = I18N[currentLang].btn_buy_vip;
+      return;
     }
+
+    // Firebase Hosting CDN fallback (when backend server /api/* is not handling the route)
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64Data = reader.result;
+        const slipId = 'slip_' + Date.now();
+        const now = Date.now();
+
+        if (window.firebase && firebase.firestore) {
+          await firebase.firestore().collection('slips').doc(slipId).set({
+            slipId,
+            email,
+            name: email.split('@')[0],
+            amount: 150,
+            status: 'pending',
+            createdAt: now,
+            imageBase64: (base64Data && base64Data.length < 800000) ? base64Data : null,
+            source: 'web_portal'
+          });
+        }
+
+        showApprovalWaitingModal(slipId, email);
+      } catch (err) {
+        showToast({ ok: false, msg_th: 'การส่งสลิปล้มเหลว กรุณาลองใหม่', msg_mm: 'ပေးပို့မှု မအောင်မြင်ပါ', msg_en: 'Upload failed' });
+      } finally {
+        btn.disabled = false;
+        btn.textContent = I18N[currentLang].btn_buy_vip;
+      }
+    };
+    reader.readAsDataURL(file);
   } catch (err) {
     showToast({ ok: false, msg_th: 'การส่งข้อมูลล้มเหลว', msg_mm: 'ပေးပို့မှု မအောင်မြင်ပါ', msg_en: 'Upload failed' });
     btn.disabled = false;
@@ -1283,7 +1717,7 @@ async function handleBuyPackage(e) {
   }
 }
 
-function showApprovalWaitingModal(slipId) {
+function showApprovalWaitingModal(slipId, targetEmail = '') {
   let modal = document.getElementById('approval-modal');
   if (!modal) {
     modal = document.createElement('div');
@@ -1321,50 +1755,73 @@ function showApprovalWaitingModal(slipId) {
 
   const pollInterval = setInterval(async () => {
     try {
-      const res = await fetch('/api/slip-status?slipId=' + slipId);
-      const data = await res.json();
-      if (data.ok) {
-        if (data.status === 'approved' || data.isVipActive) {
-          clearInterval(pollInterval);
-          const iconEl = document.getElementById('modal-icon');
-          const titleEl = document.getElementById('modal-title');
-          const descEl = document.getElementById('modal-desc');
-          const badgeEl = document.getElementById('modal-status-badge');
-          if (iconEl) {
-            iconEl.className = 'w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-3xl mx-auto';
-            iconEl.innerHTML = '🎉';
-          }
-          if (titleEl) titleEl.innerText = lang === 'mm' ? 'အတည်ပြုပြီးပါပြီ!' : (lang === 'en' ? 'Payment Approved!' : 'อนุมัติเรียบร้อยแล้ว!');
-          if (descEl) descEl.innerText = lang === 'mm' ? 'ရက် ၃၀ VIP အင်တာနက် စတင်အသုံးပြုနိုင်ပါပြီ' : (lang === 'en' ? '30-Day VIP Wi-Fi is now active!' : 'แพ็กเกจ VIP 30 วัน เปิดใช้งานแล้ว');
-          if (badgeEl) {
-            badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800';
-            badgeEl.innerText = '✓ APPROVED';
-          }
-          setTimeout(() => location.reload(), 1500);
-        } else if (data.status === 'declined') {
-          clearInterval(pollInterval);
-          const iconEl = document.getElementById('modal-icon');
-          const titleEl = document.getElementById('modal-title');
-          const descEl = document.getElementById('modal-desc');
-          const badgeEl = document.getElementById('modal-status-badge');
-          const actionsEl = document.getElementById('modal-actions');
-          if (iconEl) {
-            iconEl.className = 'w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-3xl mx-auto';
-            iconEl.innerHTML = '❌';
-          }
-          if (titleEl) titleEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာအား လက်မခံပါ' : (lang === 'en' ? 'Slip Declined' : 'สลิปไม่ผ่านการอนุมัติ');
-          if (descEl) descEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာအား စီမံခန့်ခွဲသူမှ ငြင်းပယ်ခဲ့ပါသည် (ငွေလွှဲမှု သေချာစစ်ဆေးပြီး ပြန်တင်ပေးပါ)' : (lang === 'en' ? 'Payment slip was declined by admin. Please check payment and upload again.' : 'สลิปถูกปฏิเสธโดยแอดมิน กรุณาตรวจสอบแล้วลองใหม่อีกครั้ง');
-          if (badgeEl) {
-            badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800';
-            badgeEl.innerText = '✕ DECLINED';
-          }
-          if (actionsEl) {
-            actionsEl.innerHTML = `
-              <button onclick="document.getElementById('approval-modal').remove(); location.reload();" class="btn-primary w-full py-2.5 text-xs font-bold">
-                ${lang === 'mm' ? 'ပြန်လည် ကြိုးစားမည်' : (lang === 'en' ? 'Try Again' : 'ลองใหม่อีกครั้ง')}
-              </button>
-            `;
-          }
+      let isApproved = false;
+      let isDeclined = false;
+
+      const resp = await safeFetchJson('/api/slip-status?slipId=' + slipId, {}, 2500);
+      if (resp.ok && resp.data && resp.data.ok) {
+        if (resp.data.status === 'approved' || resp.data.isVipActive) isApproved = true;
+        if (resp.data.status === 'declined') isDeclined = true;
+      } else if (window.firebase && firebase.firestore) {
+        const doc = await firebase.firestore().collection('slips').doc(slipId).get().catch(() => null);
+        if (doc && doc.exists) {
+          const d = doc.data();
+          if (d.status === 'approved') isApproved = true;
+          if (d.status === 'declined' || d.status === 'rejected') isDeclined = true;
+        }
+      }
+
+      if (isApproved) {
+        clearInterval(pollInterval);
+        const iconEl = document.getElementById('modal-icon');
+        const titleEl = document.getElementById('modal-title');
+        const descEl = document.getElementById('modal-desc');
+        const badgeEl = document.getElementById('modal-status-badge');
+        if (iconEl) {
+          iconEl.className = 'w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-3xl mx-auto';
+          iconEl.innerHTML = '🎉';
+        }
+        if (titleEl) titleEl.innerText = lang === 'mm' ? 'အတည်ပြုပြီးပါပြီ!' : (lang === 'en' ? 'Payment Approved!' : 'อนุมัติเรียบร้อยแล้ว!');
+        if (descEl) descEl.innerText = lang === 'mm' ? 'ရက် ၃၀ VIP အင်တာနက် စတင်အသုံးပြုနိုင်ပါပြီ' : (lang === 'en' ? '30-Day VIP Wi-Fi is now active!' : 'แพ็กเกจ VIP 30 วัน เปิดใช้งานแล้ว');
+        if (badgeEl) {
+          badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800';
+          badgeEl.innerText = '✓ APPROVED';
+        }
+        const userEmail = targetEmail || (document.getElementById('vip-email')?.value || 'vip-user').trim();
+        const vipSession = {
+          email: userEmail,
+          name: userEmail.split('@')[0],
+          plan: 'vip-30d',
+          expiresAt: Date.now() + 30 * 24 * 3600 * 1000
+        };
+        saveActiveSession(vipSession);
+        setTimeout(() => {
+          modal.remove();
+          showConnectedView(vipSession);
+        }, 1500);
+      } else if (isDeclined) {
+        clearInterval(pollInterval);
+        const iconEl = document.getElementById('modal-icon');
+        const titleEl = document.getElementById('modal-title');
+        const descEl = document.getElementById('modal-desc');
+        const badgeEl = document.getElementById('modal-status-badge');
+        const actionsEl = document.getElementById('modal-actions');
+        if (iconEl) {
+          iconEl.className = 'w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-3xl mx-auto';
+          iconEl.innerHTML = '❌';
+        }
+        if (titleEl) titleEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာအား လက်မခံပါ' : (lang === 'en' ? 'Slip Declined' : 'สลิปไม่ผ่านการอนุมัติ');
+        if (descEl) descEl.innerText = lang === 'mm' ? 'ငွေလွှဲပြေစာအား စီမံခန့်ခွဲသူမှ ငြင်းပယ်ခဲ့ပါသည် (ငွေလွှဲမှု သေချာစစ်ဆေးပြီး ပြန်တင်ပေးပါ)' : (lang === 'en' ? 'Payment slip was declined by admin. Please check payment and upload again.' : 'สลิปถูกปฏิเสธโดยแอดมิน กรุณาตรวจสอบแล้วลองใหม่อีกครั้ง');
+        if (badgeEl) {
+          badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800';
+          badgeEl.innerText = '✕ DECLINED';
+        }
+        if (actionsEl) {
+          actionsEl.innerHTML = `
+            <button onclick="document.getElementById('approval-modal').remove(); location.reload();" class="btn-primary w-full py-2.5 text-xs font-bold">
+              ${lang === 'mm' ? 'ပြန်လည် ကြိုးစားမည်' : (lang === 'en' ? 'Try Again' : 'ลองใหม่อีกครั้ง')}
+            </button>
+          `;
         }
       }
     } catch (e) {}
@@ -1377,52 +1834,32 @@ async function doLogout(email) {
     : (currentLang === 'en' ? 'Are you sure you want to sign out and disconnect?' : 'ต้องการออกจากระบบ Google และตัดการเชื่อมต่อใช่หรือไม่?');
   if (!confirm(confirmMsg)) return;
 
+  const session = getActiveSession();
+  const targetEmail = email || (session ? session.email : '');
+
   try {
-    const res = await fetch('/api/logout', {
+    await fetch('/api/logout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email: targetEmail })
     });
-    const data = await res.json();
-    showToast(data);
-    setTimeout(() => location.reload(), 800);
-  } catch (err) {
-    location.reload();
+  } catch (e) {}
+
+  if (window.firebase && firebase.auth) {
+    try { await firebase.auth().signOut(); } catch (e) {}
   }
+
+  localStorage.removeItem('active_wifi_session');
+  localStorage.removeItem('pending_auth_mode');
+  showLoginView();
+
+  showToast({
+    ok: true,
+    msg_th: 'ออกจากระบบและตัดการเชื่อมต่อแล้ว',
+    msg_mm: 'အကောင့်ထွက်ပြီး ဝိုင်ဖိုင် ဖြတ်တောက်လိုက်ပါပြီ',
+    msg_en: 'Signed out and disconnected'
+  });
 }
-
-// Live Countdown Timer
-(function initTimer() {
-  const expiresAt = 0;
-  if (!expiresAt) return;
-
-  function update() {
-    const now = Date.now();
-    const diff = Math.max(0, expiresAt - now);
-    const d = Math.floor(diff / 86400000);
-    const h = Math.floor((diff % 86400000) / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-
-    const elD = document.getElementById('cd-days');
-    const elH = document.getElementById('cd-hours');
-    const elM = document.getElementById('cd-mins');
-    const elS = document.getElementById('cd-secs');
-
-    if (elD) elD.textContent = String(d).padStart(2, '0');
-    if (elH) elH.textContent = String(h).padStart(2, '0');
-    if (elM) elM.textContent = String(m).padStart(2, '0');
-    if (elS) elS.textContent = String(s).padStart(2, '0');
-
-    if (diff <= 0) {
-      clearInterval(timer);
-      setTimeout(() => location.reload(), 1500);
-    }
-  }
-
-  update();
-  const timer = setInterval(update, 1000);
-})();
 
 function openGmailApp(e) {
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -1457,8 +1894,8 @@ function openGmailApp(e) {
   }
 }
 
-// Initialize saved language and digit-only constraints on page load
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize saved language, digit-only constraints, and session check on page load
+document.addEventListener('DOMContentLoaded', async () => {
   setLanguage(currentLang);
 
   ['free-otp-code', 'login-otp-code'].forEach(id => {
@@ -1473,6 +1910,24 @@ document.addEventListener('DOMContentLoaded', () => {
       this.value = text.replace(/[^0-9]/g, '').slice(0, 6);
     });
   });
+
+  // Check active session (Server API check first, then local session)
+  try {
+    const resp = await safeFetchJson('/api/session-status', {}, 2000);
+    const sessionAcc = (resp.ok && resp.data && (resp.data.account || (resp.data.active && resp.data.email ? resp.data : null)));
+    if (sessionAcc) {
+      saveActiveSession(sessionAcc);
+      showConnectedView(sessionAcc);
+      return;
+    }
+  } catch (e) {}
+
+  const localSession = getActiveSession();
+  if (localSession) {
+    showConnectedView(localSession);
+  } else {
+    showLoginView();
+  }
 });
 </script>
 </body>

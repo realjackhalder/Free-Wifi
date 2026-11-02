@@ -5,6 +5,13 @@
 // Languages: Thai (ไทย) 🇹🇭 | Burmese (မြန်မာ) 🇲🇲 | English 🇬🇧
 // ============================================================================
 
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT EXCEPTION]', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[UNHANDLED REJECTION]', reason);
+});
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -19,6 +26,7 @@ const vpn = require('./vpn');
 const fb = require('./firebase-backend');
 const otp = require('./otp');
 const telegram = require('./telegram');
+const crypto = require('crypto');
 
 const adminApp = express();
 const userApp = express();
@@ -34,7 +42,7 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
 });
 
-const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ dest: UPLOAD_DIR });
 
 // Apply shared body parsing & static asset handling to both servers
 const staticOptions = {
@@ -467,13 +475,13 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
     if (!req.file) {
       return res.json({
         ok: false,
-        msg_th: 'กรุณาแนบรูปภาพสลิปโอนเงิน',
-        msg_mm: 'ကျေးဇူးပြု၍ ငွေလွှဲပြေစာ ဓာတ်ပုံ တင်ပေးပါ',
-        msg_en: 'Please upload bank transfer slip screenshot'
+        msg_th: 'กรุณาแนบไฟล์สลิป',
+        msg_mm: 'ကျေးဇူးပြု၍ ဖိုင် တင်ပေးပါ',
+        msg_en: 'Please upload slip file'
       });
     }
 
-    // Scan bank slip image for mini-QR code
+    // Optional QR scan (for bank slips with QR; skips quietly for non-image or non-QR files without restriction)
     let qrPayload = null;
     try {
       const image = await Jimp.read(req.file.path);
@@ -481,21 +489,7 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
       const qr = jsQR(new Uint8ClampedArray(data), width, height);
       if (qr && qr.data) qrPayload = qr.data.trim();
     } catch (imgErr) {
-      console.error('[buy-package] Jimp/jsQR error:', imgErr.message);
-    }
-
-    // Check if slip is already used
-    if (qrPayload) {
-      const alreadyUsed = await db.isSlipUsed(qrPayload);
-      if (alreadyUsed) {
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        return res.json({
-          ok: false,
-          msg_th: 'สลิปนี้ถูกใช้งานไปแล้ว ไม่สามารถใช้ซ้ำได้',
-          msg_mm: 'ဤငွေလွှဲပြေစာကို အသုံးပြုပြီးဖြစ်ပါသည်',
-          msg_en: 'This payment slip has already been used.'
-        });
-      }
+      // Non-image or unreadable - allowed without restriction
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -506,16 +500,22 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
     const settings = await db.getAllSettings();
     const existing = await db.getAccount(cleanEmail);
 
-    // Save slip screenshot to uploads directory
-    const slipExt = path.extname(req.file.originalname) || '.jpg';
+    // Save uploaded file to uploads directory (preserve original extension)
+    const slipExt = path.extname(req.file.originalname) || '';
     const slipName = `slip_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}_${now}${slipExt}`;
     const slipDest = path.join(UPLOAD_DIR, slipName);
     fs.renameSync(req.file.path, slipDest);
 
+    // Ensure qr_payload is unique for DB storage so any file or duplicate upload never fails
+    let storedQrPayload = qrPayload;
+    if (!storedQrPayload || (await db.isSlipUsed(storedQrPayload))) {
+      storedQrPayload = `${qrPayload || 'upload'}_${cleanEmail}_${now}_${Math.random().toString(36).substring(2, 8)}`;
+    }
+
     // Upload slip to Firebase Cloud Storage if active
     let cloudUrl = null;
     if (fb.isReady()) {
-      cloudUrl = await fb.uploadSlipToStorage(slipDest, slipName, req.file.mimetype || 'image/jpeg');
+      cloudUrl = await fb.uploadSlipToStorage(slipDest, slipName, req.file.mimetype || 'application/octet-stream');
     }
 
     // Check if Telegram Bot is configured for Admin One-Click Approval
@@ -530,13 +530,13 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
         mac,
         filename: slipName,
         cloudUrl,
-        qrPayload: qrPayload || `tg_${cleanEmail}_${now}`,
+        qrPayload: storedQrPayload,
         amount: settings.monthlyPrice || 150,
         status: 'pending'
       });
       const slipId = recordResult?.lastID;
 
-      // 2. Send slip photo with Device IP, Email, and [Approve]/[Decline] buttons to Telegram
+      // 2. Send slip photo/document with Device IP, Email, and [Approve]/[Decline] buttons to Telegram
       telegram.sendSlipNotification({
         slipId,
         email: cleanEmail,
@@ -551,31 +551,20 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
         ok: true,
         pendingApproval: true,
         slipId,
-        msg_th: 'อัปโหลดสลิปเรียบร้อยแล้ว! ส่งให้แอดมินตรวจสอบทาง Telegram เรียบร้อยแล้ว (กำลังรอการอนุมัติ)',
-        msg_mm: 'ငွေလွှဲပြေစာ တင်ပြီးပါပြီ! Telegram မှတစ်ဆင့် စီမံခန့်ခွဲသူ စစ်ဆေးအတည်ပြုရန် စောင့်ဆိုင်းနေပါသည်...',
-        msg_en: 'Payment slip submitted! Waiting for Admin approval via Telegram...'
+        msg_th: 'อัปโหลดเรียบร้อยแล้ว! ส่งให้แอดมินตรวจสอบทาง Telegram เรียบร้อยแล้ว (กำลังรอการอนุมัติ)',
+        msg_mm: 'ဖိုင်တင်ပြီးပါပြီ! Telegram မှတစ်ဆင့် စီမံခန့်ခွဲသူ စစ်ဆေးအတည်ပြုရန် စောင့်ဆိုင်းနေပါသည်...',
+        msg_en: 'Upload submitted! Waiting for Admin approval via Telegram...'
       });
     }
 
-    // Fallback: If Telegram is not configured, require QR payload for automatic verification
-    if (!qrPayload || qrPayload.length < 25) {
-      if (fs.existsSync(slipDest)) fs.unlinkSync(slipDest);
-      return res.json({
-        ok: false,
-        msg_th: 'ไม่พบ QR Code ธนาคารในสลิป หรือสลิปไม่ชัดเจน กรุณาอัปโหลดสลิปใหม่',
-        msg_mm: 'ပြေစာတွင် ဘဏ် QR ကုဒ် မတွေ့ပါ သို့မဟုတ် ပုံမကြည်လင်ပါ။ ပြေစာအသစ် ပြန်တင်ပေးပါ (သို့မဟုတ် /admin တွင် Telegram Bot ချိတ်ဆက်ပါ)',
-        msg_en: 'No valid bank QR code found in slip. Please upload a clear bank receipt.'
-      });
-    }
-
-    // Auto-verify path (when Telegram is not configured)
+    // If Telegram is not configured: Auto-approve without any restriction
     await db.recordSlip({
       email: cleanEmail,
       ip,
       mac,
       filename: slipName,
       cloudUrl,
-      qrPayload,
+      qrPayload: storedQrPayload,
       amount: settings.monthlyPrice || 150,
       status: 'verified'
     });
@@ -599,18 +588,18 @@ userApp.post('/api/buy-package', upload.single('slip'), async (req, res) => {
 
     return res.json({
       ok: true,
-      msg_th: 'ตรวจสอบสลิปสำเร็จ! ผูกบัญชี Google และเปิดแพ็กเกจ VIP 30 วัน เรียบร้อยแล้ว',
-      msg_mm: 'ငွေလွှဲစစ်ဆေးပြီးပါပြီ! Google အကောင့်ဖြင့် ရက် ၃၀ VIP အင်တာနက် ရရှိပါပြီ',
-      msg_en: 'Slip verified! 30-Day VIP Unlimited Wi-Fi activated for your Google account!',
+      msg_th: 'อัปโหลดสำเร็จ! ผูกบัญชี Google และเปิดแพ็กเกจ VIP 30 วัน เรียบร้อยแล้ว',
+      msg_mm: 'ဖိုင်တင်ပြီးပါပြီ! Google အကောင့်ဖြင့် ရက် ၃၀ VIP အင်တာနက် ရရှိပါပြီ',
+      msg_en: 'Upload successful! 30-Day VIP Unlimited Wi-Fi activated for your Google account!',
       expiresAt: accountData.expiresAt
     });
   } catch (err) {
     console.error('[buy-package]', err);
     return res.json({
       ok: false,
-      msg_th: 'เกิดข้อผิดพลาดในการตรวจสอบสลิป',
-      msg_mm: 'ပြေစာစစ်ဆေးရာတွင် ချို့ယွင်းချက်ရှိပါသည်',
-      msg_en: 'Error verifying slip. Please try again.'
+      msg_th: 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์',
+      msg_mm: 'ဖိုင်တင်ရာတွင် ချို့ယွင်းချက်ရှိပါသည်',
+      msg_en: 'Error uploading file. Please try again.'
     });
   }
 });
@@ -792,10 +781,42 @@ adminApp.get('/my-qr', serveMyQr);
 // 4. Admin Management Dashboard (Port 3000 — Localhost / Admin Only)
 // ============================================================================
 
+// Admin session helpers (clean cookie-based authentication)
+const adminSessions = new Set();
+
+function getAdminCookie(req) {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/(?:^|;\s*)admin_session=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function setAdminSession(res) {
+  const token = crypto.randomBytes(24).toString('hex');
+  adminSessions.add(token);
+  res.setHeader('Set-Cookie', `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax`);
+  return token;
+}
+
+function clearAdminSession(req, res) {
+  const token = getAdminCookie(req);
+  if (token) adminSessions.delete(token);
+  res.setHeader('Set-Cookie', 'admin_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax');
+}
+
+async function isAuthorizedAdmin(req) {
+  const token = getAdminCookie(req);
+  if (token && adminSessions.has(token)) return true;
+  const pin = req.query.pin || (req.body && req.body.pin);
+  if (pin) {
+    const settings = await db.getAllSettings();
+    if (pin === settings.adminPin) return true;
+  }
+  return false;
+}
+
 // Admin root: redirect directly to /admin
 adminApp.get('/', (req, res) => {
-  const pin = req.query.pin;
-  if (pin) return res.redirect(`/admin?pin=${encodeURIComponent(pin)}`);
   return res.redirect('/admin');
 });
 
@@ -805,10 +826,36 @@ adminApp.get('/portal', (req, res) => {
   return res.redirect(`http://${host}:${USER_PORT}/portal`);
 });
 
+// Admin login POST handler
+adminApp.post('/admin/login', async (req, res) => {
+  const settings = await db.getAllSettings();
+  const pin = (req.body.pin || '').trim();
+  if (pin && pin === settings.adminPin) {
+    setAdminSession(res);
+    return res.redirect('/admin');
+  }
+  return res.send(renderAdminLogin('Incorrect PIN'));
+});
+
+// Admin logout GET handler
+adminApp.get('/admin/logout', (req, res) => {
+  clearAdminSession(req, res);
+  return res.redirect('/admin');
+});
+
 adminApp.get('/admin', async (req, res) => {
   const settings = await db.getAllSettings();
-  const pin = req.query.pin;
-  if (pin !== settings.adminPin) {
+
+  // If accessed with ?pin=..., authenticate and redirect immediately to strip PIN from URL
+  if (req.query.pin) {
+    if (req.query.pin === settings.adminPin) {
+      setAdminSession(res);
+      return res.redirect('/admin');
+    }
+  }
+
+  const authorized = await isAuthorizedAdmin(req);
+  if (!authorized) {
     return res.send(renderAdminLogin());
   }
 
@@ -820,25 +867,22 @@ adminApp.get('/admin', async (req, res) => {
   const msg = req.query.msg || null;
   const err = req.query.err || null;
 
-  return res.send(renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive, firebaseConfig, msg, err }));
+  return res.send(renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive, firebaseConfig, msg, err }));
 });
 
 adminApp.post('/admin/upload-qr', upload.single('qr'), async (req, res) => {
-  const settings = await db.getAllSettings();
-  const pin = req.query.pin;
-  if (pin !== settings.adminPin) return res.status(403).send('Unauthorized');
-  if (!req.file) return res.redirect(`/admin?pin=${pin}&err=${encodeURIComponent('ကျေးဇူးပြု၍ ဖိုင်ရွေးချယ်ပါ')}`);
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+  if (!req.file) return res.redirect(`/admin?err=${encodeURIComponent('Please select a file to upload')}`);
   const dest = path.join(PUBLIC_DIR, 'qr.jpg');
   fs.copyFileSync(req.file.path, dest);
   fs.unlinkSync(req.file.path);
-  return res.redirect(`/admin?pin=${pin}&msg=${encodeURIComponent('QR ကုဒ် ဓာတ်ပုံ အောင်မြင်စွာ တင်ပြီးပါပြီ')}`);
+  return res.redirect(`/admin?msg=${encodeURIComponent('PromptPay QR code uploaded successfully')}`);
 });
 
 adminApp.post('/admin/settings', async (req, res) => {
-  const settings = await db.getAllSettings();
-  const pin = req.query.pin;
-  if (pin !== settings.adminPin) return res.status(403).send('Unauthorized');
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
 
+  const settings = await db.getAllSettings();
   const { monthlyPrice, trialMinutes, adminPin, googleClientId, smtpHost, smtpPort, smtpUser, smtpPass, telegramBotToken, telegramChatId } = req.body;
   if (monthlyPrice) await db.setSetting('monthlyPrice', String(parseInt(monthlyPrice, 10) || 150));
   if (trialMinutes) await db.setSetting('trialMinutes', String(parseInt(trialMinutes, 10) || 60));
@@ -852,15 +896,13 @@ adminApp.post('/admin/settings', async (req, res) => {
   if (telegramChatId !== undefined) await db.setSetting('telegramChatId', telegramChatId.trim());
   telegram.reload();
 
-  return res.redirect(`/admin?pin=${adminPin || settings.adminPin}&msg=${encodeURIComponent('စနစ် ဆက်တင်များနှင့် Telegram Bot ဆက်တင်များ အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ')}`);
+  return res.redirect(`/admin?msg=${encodeURIComponent('System settings and Telegram Bot configuration saved successfully')}`);
 });
 
 // --- POST /admin/telegram-test ---
 adminApp.post('/admin/telegram-test', async (req, res) => {
-  const pin = req.query.pin || req.body.pin;
+  if (!await isAuthorizedAdmin(req)) return res.status(403).json({ ok: false, error: 'Unauthorized' });
   const settings = await db.getAllSettings();
-  if (pin !== settings.adminPin) return res.status(403).json({ ok: false, error: 'Unauthorized' });
-
   const token = (req.body.telegramBotToken || settings.telegramBotToken || '').trim();
   const chatId = (req.body.telegramChatId || settings.telegramChatId || '').trim();
   const result = await telegram.sendTestMessage(token, chatId);
@@ -880,9 +922,7 @@ userApp.get('/api/firebase-config', serveFirebaseConfig);
 
 // --- POST /admin/firebase-config ---
 adminApp.post('/admin/firebase-config', async (req, res) => {
-  const pin = req.query.pin || req.body.pin;
-  const settings = await db.getAllSettings();
-  if (pin !== settings.adminPin) return res.status(403).send('Unauthorized');
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
   const { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId } = req.body;
   fb.saveClientConfig({
     apiKey: (apiKey || '').trim(),
@@ -892,16 +932,14 @@ adminApp.post('/admin/firebase-config', async (req, res) => {
     messagingSenderId: (messagingSenderId || '').trim(),
     appId: (appId || '').trim()
   });
-  return res.redirect(`/admin?pin=${pin}&msg=${encodeURIComponent('Firebase ဆက်တင်များ အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ')}`);
+  return res.redirect(`/admin?msg=${encodeURIComponent('Firebase configuration saved successfully')}`);
 });
 
 adminApp.post('/admin/account/extend', async (req, res) => {
-  const settings = await db.getAllSettings();
-  const pin = req.query.pin;
-  if (pin !== settings.adminPin) return res.status(403).send('Unauthorized');
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
   const email = req.body.email || req.query.email;
   const acc = await db.getAccount(email);
-  if (!acc) return res.redirect(`/admin?pin=${pin}&err=${encodeURIComponent('အကောင့် မတွေ့ရှိပါ')}`);
+  if (!acc) return res.redirect(`/admin?err=${encodeURIComponent('Account not found')}`);
 
   const thirtyDays = 30 * 24 * 60 * 60 * 1000;
   const base = acc.expiresAt && acc.expiresAt > Date.now() ? acc.expiresAt : Date.now();
@@ -909,28 +947,24 @@ adminApp.post('/admin/account/extend', async (req, res) => {
   acc.plan = 'vip-30d';
 
   await db.saveAccount(acc);
-  return res.redirect(`/admin?pin=${pin}&msg=${encodeURIComponent('ရက် ၃၀ သက်တမ်းတိုးခြင်း အောင်မြင်ပါသည်')}`);
+  return res.redirect(`/admin?msg=${encodeURIComponent('Extended 30 days VIP successfully')}`);
 });
 
 adminApp.post('/admin/account/reset-trial', async (req, res) => {
-  const settings = await db.getAllSettings();
-  const pin = req.query.pin;
-  if (pin !== settings.adminPin) return res.status(403).send('Unauthorized');
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
   const email = req.body.email || req.query.email;
   const acc = await db.getAccount(email);
-  if (!acc) return res.redirect(`/admin?pin=${pin}&err=${encodeURIComponent('အကောင့် မတွေ့ရှိပါ')}`);
+  if (!acc) return res.redirect(`/admin?err=${encodeURIComponent('Account not found')}`);
   acc.lastTrialAt = null;
   await db.saveAccount(acc);
-  return res.redirect(`/admin?pin=${pin}&msg=${encodeURIComponent('အခမဲ့ စမ်းသုံးခွင့် ပြန်လည်စတင်ပြီးပါပြီ')}`);
+  return res.redirect(`/admin?msg=${encodeURIComponent('Reset 1-hour free trial successfully')}`);
 });
 
 adminApp.post('/admin/account/block', async (req, res) => {
-  const settings = await db.getAllSettings();
-  const pin = req.query.pin;
-  if (pin !== settings.adminPin) return res.status(403).send('Unauthorized');
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
   const email = req.body.email || req.query.email;
   const acc = await db.getAccount(email);
-  if (!acc) return res.redirect(`/admin?pin=${pin}&err=${encodeURIComponent('အကောင့် မတွေ့ရှိပါ')}`);
+  if (!acc) return res.redirect(`/admin?err=${encodeURIComponent('Account not found')}`);
 
   acc.blocked = !acc.blocked;
   if (acc.blocked && acc.activeIp) {
@@ -945,14 +979,12 @@ adminApp.post('/admin/account/block', async (req, res) => {
   }
 
   await db.saveAccount(acc);
-  const statusMsg = acc.blocked ? 'အကောင့်အား ယာယီပိတ်လိုက်ပါပြီ' : 'အကောင့်အား ပြန်လည်ဖွင့်လိုက်ပါပြီ';
-  return res.redirect(`/admin?pin=${pin}&msg=${encodeURIComponent(statusMsg)}`);
+  const statusMsg = acc.blocked ? 'Account has been blocked' : 'Account has been unblocked';
+  return res.redirect(`/admin?msg=${encodeURIComponent(statusMsg)}`);
 });
 
 adminApp.post('/admin/account/delete', async (req, res) => {
-  const settings = await db.getAllSettings();
-  const pin = req.query.pin;
-  if (pin !== settings.adminPin) return res.status(403).send('Unauthorized');
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
   const email = req.body.email || req.query.email;
   const acc = await db.getAccount(email);
   if (acc && acc.activeIp) {
@@ -963,7 +995,7 @@ adminApp.post('/admin/account/delete', async (req, res) => {
     }
   }
   await db.deleteAccount(email);
-  return res.redirect(`/admin?pin=${pin}&msg=${encodeURIComponent('အကောင့်အား အပြီးပိုင် ဖျက်ပြီးပါပြီ')}`);
+  return res.redirect(`/admin?msg=${encodeURIComponent('Account deleted successfully')}`);
 });
 
 // Admin fallback: redirect unknown paths on port 3000 to /admin
@@ -1034,7 +1066,7 @@ setInterval(async () => {
   console.log(`    Admin Server (3000): http://localhost:${ADMIN_PORT} (PIN: 1234)`);
   console.log(`    User Portal  (3001): http://localhost:${USER_PORT}/portal`);
   console.log(`    Database:            SQLite (wifi.db) + Firestore          `);
-  console.log(`    Admin Portal:        မြန်မာဘာသာ သီးသန့် (Burmese Only)    `);
+  console.log(`    Admin Portal:        English (ENG Only)                 `);
   console.log(`    User Portal Lng:     Thai (ไทย) | Myanmar (မြန်မာ) | English`);
   console.log(`    Firewall:            ${DRY_RUN ? 'DRY_RUN (Safe / Emulated)' : 'LIVE (pfctl/iptables)'}`);
   console.log(`  =============================================================\n`);
@@ -1464,10 +1496,10 @@ ${
       <div>
         <label class="block text-xs font-bold text-gray-600 uppercase mb-1" data-i18n="label_slip">แนบสลิปโอนเงิน</label>
         <div class="file-upload" id="dropzone" onclick="document.getElementById('slip-file').click()">
-          <input type="file" id="slip-file" accept="image/*" class="hidden" onchange="onFileSelected(this)" required />
+          <input type="file" id="slip-file" class="hidden" onchange="onFileSelected(this)" required />
           <img id="slip-preview" class="hidden max-h-36 mx-auto rounded-lg mb-2 shadow-sm object-contain" alt="Slip Preview" />
           <svg class="w-7 h-7 text-blue-500 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          <p id="file-label" class="text-xs text-gray-600 font-medium" data-i18n="dropzone_label">กดเพื่อเลือกรูปภาพสลิปธนาคาร</p>
+          <p id="file-label" class="text-xs text-gray-600 font-medium" data-i18n="dropzone_label">กดเพื่อเลือกไฟล์ (อัปโหลดได้ทุกไฟล์ ไม่จำกัดประเภท)</p>
         </div>
       </div>
       <button type="submit" id="btn-buy" class="btn-primary" data-i18n="btn_buy_vip">
@@ -1621,9 +1653,7 @@ const I18N = {
     vip_sub: "ผูกกับบัญชี Google เข้าใช้งานได้ตลอด 30 วัน",
     price_label: "ยอดชำระ:",
     price_amount: "${price} บาท",
-    label_slip: "แนบสลิปโอนเงิน",
-    dropzone_label: "กดเพื่อเลือกรูปภาพสลิปธนาคาร",
-    btn_buy_vip: "ยืนยันและเปิดใช้งาน VIP 30 วัน",
+    label_slip: "แนบสลิปโอนเงิน / ไฟล์หลักฐาน",\n    dropzone_label: "กดเพื่อเลือกไฟล์ (อัปโหลดได้ทุกไฟล์ ไม่จำกัดประเภท)",\n    btn_buy_vip: "อัปโหลดไฟล์และเปิดใช้งาน VIP 30 วัน",
     login_heading: "เข้าสู่ระบบด้วย Google",
     login_sub: "สำหรับสมาชิกที่มีแพ็กเกจ 30 วัน หรือเวลาฟรียังไม่หมด",
     btn_google_login: "เข้าสู่ระบบด้วย Google Account",
@@ -1686,9 +1716,7 @@ const I18N = {
     vip_sub: "Google အကောင့်နှင့် ချိတ်ဆက်ပြီး ၃၀ ရက် အကန့်အသတ်မဲ့ သုံးနိုင်သည်",
     price_label: "ပေးသွင်းရမည့်ငွေ:",
     price_amount: "${price} ဘတ်",
-    label_slip: "ငွေလွှဲပြေစာ ဓာတ်ပုံ တင်ပါ",
-    dropzone_label: "ငွေလွှဲပြေစာ ဓာတ်ပုံ ရွေးချယ်ရန် နှိပ်ပါ",
-    btn_buy_vip: "ပြေစာစစ်ဆေးပြီး ရက် ၃၀ VIP စတင်မည်",
+    label_slip: "ငွေလွှဲပြေစာ / ဖိုင် တင်ပါ",\n    dropzone_label: "ဖိုင်ရွေးချယ်ရန် နှိပ်ပါ (မည်သည့်ဖိုင်မဆို တင်နိုင်ပါသည်)",\n    btn_buy_vip: "ဖိုင်တင်ပြီး ရက် ၃၀ VIP စတင်မည်",
     login_heading: "Google ဖြင့် အကောင့်ဝင်ရန်",
     login_sub: "ရက် ၃၀ VIP အသင်းဝင်များနှင့် အခမဲ့အချိန် မကုန်သေးသူများအတွက်",
     btn_google_login: "Google Account ဖြင့် ဝင်ရောက်ပါ",
@@ -1751,9 +1779,7 @@ const I18N = {
     vip_sub: "Link with your Google account for 30 days unlimited access",
     price_label: "Amount Due:",
     price_amount: "${price} Baht",
-    label_slip: "Upload Transfer Slip",
-    dropzone_label: "Tap to select bank receipt photo",
-    btn_buy_vip: "Verify Slip & Activate 30-Day VIP",
+    label_slip: "Upload Transfer Slip / File",\n    dropzone_label: "Click to select file (Upload anything you want)",\n    btn_buy_vip: "Upload File & Activate 30-Day VIP",
     login_heading: "Sign in with Google",
     login_sub: "For existing 30-Day VIP members or active trial users",
     btn_google_login: "Sign in with Google Account",
@@ -1872,13 +1898,18 @@ function onFileSelected(input) {
     const prefix = currentLang === 'mm' ? '✓ ရွေးချယ်ပြီး: ' : (currentLang === 'en' ? '✓ Selected: ' : '✓ เลือกไฟล์แล้ว: ');
     label.textContent = prefix + file.name;
     dropzone.classList.add('has-file');
-    if (preview && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = e => {
-        preview.src = e.target.result;
-        preview.classList.remove('hidden');
-      };
-      reader.readAsDataURL(file);
+    if (preview) {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          preview.src = e.target.result;
+          preview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        preview.src = '';
+        preview.classList.add('hidden');
+      }
     }
   } else {
     label.textContent = I18N[currentLang].dropzone_label;
@@ -2297,15 +2328,15 @@ async function handleBuyPackage(e) {
   if (!fileInput.files || !fileInput.files[0]) {
     return showToast({ 
       ok: false, 
-      msg_th: 'กรุณาเลือกไฟล์สลิปธนาคาร', 
-      msg_mm: 'ငွေလွှဲပြေစာ ဓာတ်ပုံ ရွေးချယ်ပေးပါ', 
-      msg_en: 'Please select bank slip image' 
+      msg_th: 'กรุณาเลือกไฟล์สลิป',
+      msg_mm: 'ပြေစာဖိုင် ရွေးချယ်ပေးပါ',
+      msg_en: 'Please select slip file' 
     });
   }
 
   const btn = document.getElementById('btn-buy');
   btn.disabled = true;
-  btn.textContent = currentLang === 'mm' ? 'ပြေစာအား စစ်ဆေးနေပါသည်...' : (currentLang === 'en' ? 'Scanning & Verifying slip...' : 'กำลังประมวลผลและสแกนสลิป...');
+  btn.textContent = currentLang === 'mm' ? 'ဖိုင်အား တင်နေပါသည်...' : (currentLang === 'en' ? 'Uploading file...' : 'กำลังอัปโหลดไฟล์...');
 
   const formData = new FormData();
   formData.append('email', email);
@@ -2532,31 +2563,33 @@ document.addEventListener('DOMContentLoaded', () => {
 </html>`;
 }
 
-function renderAdminLogin() {
+function renderAdminLogin(error = null) {
   return `<!DOCTYPE html>
-<html lang="mm">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>စီမံခန့်ခွဲသူ အကောင့်ဝင်ရန် — Free Wi-Fi</title>
+<title>Admin Login — Free Wi-Fi</title>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Myanmar Text', 'Pyidaungsu', 'Padauk', sans-serif; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
 </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
   <div class="bg-gray-800 rounded-3xl p-8 max-w-sm w-full border border-gray-700 shadow-2xl text-center">
     <div class="inline-flex p-3 bg-blue-600 rounded-2xl mb-3 text-3xl shadow-lg">🛡️</div>
-    <h1 class="text-xl font-black mb-1 tracking-tight">Free Wi-Fi စီမံခန့်ခွဲသူ</h1>
-    <p class="text-xs text-gray-400 mb-6 font-medium">စီမံခန့်ခွဲသူ အကောင့်ဝင်ရောက်ရန်</p>
+    <h1 class="text-xl font-black mb-1 tracking-tight">Free Wi-Fi Admin</h1>
+    <p class="text-xs text-gray-400 mb-6 font-medium">Administrator Access Portal</p>
     
-    <form method="get" action="/admin" class="space-y-4">
+    ${error ? `<div class="bg-red-900/60 border border-red-500/50 text-red-200 text-xs px-3 py-2 rounded-xl mb-4 font-semibold">${error}</div>` : ''}
+
+    <form method="post" action="/admin/login" class="space-y-4">
       <div>
-        <label class="block text-left text-xs font-bold text-gray-400 mb-1.5 uppercase">PIN နံပါတ် ရိုက်ထည့်ပါ</label>
-        <input type="password" name="pin" placeholder="PIN နံပါတ် (နဂိုမူလ: 1234)" autofocus required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3.5 text-center text-lg font-mono focus:border-blue-500 outline-none text-white tracking-widest" />
+        <label class="block text-left text-xs font-bold text-gray-400 mb-1.5 uppercase">Enter Admin PIN</label>
+        <input type="password" name="pin" placeholder="Admin PIN (Default: 1234)" autofocus required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3.5 text-center text-lg font-mono focus:border-blue-500 outline-none text-white tracking-widest" />
       </div>
       <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 font-bold rounded-xl py-3.5 text-sm transition shadow-md active:scale-95">
-        ဒက်ရှ်ဘုတ်သို့ ဝင်ရောက်မည်
+        Enter Dashboard
       </button>
     </form>
   </div>
@@ -2564,7 +2597,7 @@ function renderAdminLogin() {
 </html>`;
 }
 
-function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive = false, firebaseConfig = {}, msg = null, err = null }) {
+function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = false, firebaseConfig = {}, msg = null, err = null }) {
   const totalUsers = accounts.length;
   const now = Date.now();
   let activeUsers = 0;
@@ -2577,15 +2610,15 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
     if (a.blocked) blockedUsers++;
   }
 
-  // Action mapping for IP Activity logs in Burmese
+  // Action mapping for IP Activity logs in English
   const actionLabels = {
-    buy_package: 'ရက် ၃၀ VIP ဝယ်ယူခြင်း',
-    free_trial: '၁ နာရီ အခမဲ့ ရယူခြင်း',
-    free_trial_otp: 'အခမဲ့ OTP အောင်မြင်ခြင်း',
-    login: 'အကောင့်ဝင်ရောက်ခြင်း',
-    login_otp: 'OTP ဖြင့် အကောင့်ဝင်ခြင်း',
-    logout: 'အကောင့်ထွက်ခြင်း',
-    blocked: 'အကောင့် ပိတ်ခံရခြင်း'
+    buy_package: '30-Day VIP Purchase',
+    free_trial: '1-Hour Free Trial',
+    free_trial_otp: 'Free Trial OTP Verified',
+    login: 'Account Sign-In',
+    login_otp: 'OTP Sign-In',
+    logout: 'User Disconnected',
+    blocked: 'Account Blocked'
   };
 
   // Account Rows (Google Email + Name)
@@ -2609,7 +2642,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
         </td>
         <td class="py-3 px-3">
           <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
-            ${a.plan === 'vip-30d' ? 'ရက် ၃၀ VIP' : '၁ နာရီ အခမဲ့'}
+            ${a.plan === 'vip-30d' ? '30-Day VIP' : '1-Hour Free'}
           </span>
         </td>
         <td class="py-3 px-3 font-mono text-gray-600">${a.activeIp || '<span class="text-gray-400">-</span>'}</td>
@@ -2617,31 +2650,31 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
         <td class="py-3 px-3">
           ${
             isExpired
-              ? '<span class="text-red-500 font-bold">သက်တမ်းကုန်</span>'
-              : '<span class="text-green-600 font-bold">' + daysLeft + ' ရက် ကျန်</span><br><span class="text-gray-400 text-[10px]">' + expDateStr + '</span>'
+              ? '<span class="text-red-500 font-bold">Expired</span>'
+              : '<span class="text-green-600 font-bold">' + daysLeft + ' Days Left</span><br><span class="text-gray-400 text-[10px]">' + expDateStr + '</span>'
           }
         </td>
         <td class="py-3 px-3">
-          ${a.blocked ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold">ပိတ်ထားသည်</span>' : '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">ပုံမှန်</span>'}
+          ${a.blocked ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold">Blocked</span>' : '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">Active</span>'}
         </td>
         <td class="py-3 px-3 space-x-1 whitespace-nowrap">
           <form method="post" action="/admin/account/extend?pin=${pin}" class="inline">
             <input type="hidden" name="email" value="${a.email}" />
-            <button class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded font-bold" title="ရက် ၃၀ သက်တမ်းတိုးမည်">+ရက် ၃၀</button>
+            <button class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded font-bold" title="Extend 30 Days VIP">+30 Days</button>
           </form>
           <form method="post" action="/admin/account/reset-trial?pin=${pin}" class="inline">
             <input type="hidden" name="email" value="${a.email}" />
-            <button class="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded font-bold" title="အခမဲ့ စမ်းသုံးခွင့် ပြန်စမည်">အခမဲ့ပြန်စ</button>
+            <button class="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded font-bold" title="Reset Free Trial">Reset Free</button>
           </form>
           <form method="post" action="/admin/account/block?pin=${pin}" class="inline">
             <input type="hidden" name="email" value="${a.email}" />
             <button class="px-2 py-1 ${a.blocked ? 'bg-gray-600 hover:bg-gray-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded font-bold">
-              ${a.blocked ? 'ပြန်ဖွင့်' : 'ပိတ်မည်'}
+              ${a.blocked ? 'Unblock' : 'Block'}
             </button>
           </form>
-          <form method="post" action="/admin/account/delete?pin=${pin}" class="inline" onsubmit="return confirm('ဤ Google အကောင့်ကို အပြီးပိုင် ဖျက်ရန် သေချာပါသလား?')">
+          <form method="post" action="/admin/account/delete?pin=${pin}" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete this Google account?')">
             <input type="hidden" name="email" value="${a.email}" />
-            <button class="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-bold">ဖျက်မည်</button>
+            <button class="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-bold">Delete</button>
           </form>
         </td>
       </tr>
@@ -2659,23 +2692,23 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
         <td class="py-3 px-3">
           <a href="${s.cloud_url || '/uploads/' + encodeURIComponent(s.filename)}" target="_blank" class="inline-flex items-center space-x-1 text-blue-600 hover:underline font-bold">
             <svg class="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            <span>${s.cloud_url ? 'Cloud Storage ပြေစာ ↗' : 'ပြေစာကြည့်မည်'}</span>
+            <span>${s.cloud_url ? 'Cloud Storage Slip ↗' : 'View Slip'}</span>
           </a>
         </td>
         <td class="py-3 px-3 font-mono font-bold text-gray-800">${s.email}</td>
         <td class="py-3 px-3 font-mono text-blue-700 font-bold bg-blue-50 rounded px-2 py-0.5 inline-block">${s.ip_address}</td>
         <td class="py-3 px-3 font-mono text-gray-500">${s.mac_address || '-'}</td>
         <td class="py-3 px-3 font-mono text-[10px] text-gray-500 break-all max-w-[200px]">${s.qr_payload ? s.qr_payload.substring(0, 30) + '...' : '-'}</td>
-        <td class="py-3 px-3 font-bold text-green-700">${s.amount} ဘတ်</td>
+        <td class="py-3 px-3 font-bold text-green-700">${s.amount} THB</td>
         <td class="py-3 px-3 text-gray-500">${dateStr}</td>
         <td class="py-3 px-3">
           ${
             s.status === 'approved' || s.status === 'verified'
-              ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">✓ အတည်ပြုပြီး</span>'
+              ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">✓ Approved</span>'
               : (s.status === 'pending'
-                ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 animate-pulse">⏳ စစ်ဆေးဆဲ (Pending)</span>'
+                ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 animate-pulse">⏳ Pending Review</span>'
                 : (s.status === 'declined'
-                  ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">✕ ပယ်ဖျက်သည်</span>'
+                  ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">✕ Declined</span>'
                   : '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-800">' + s.status + '</span>'))
           }
         </td>
@@ -2710,14 +2743,14 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
     .join('');
 
   return `<!DOCTYPE html>
-<html lang="mm">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>စီမံခန့်ခွဲသူ ဒက်ရှ်ဘုတ် — Free Wi-Fi Database</title>
+<title>Admin Dashboard — Free Wi-Fi Gateway</title>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Myanmar Text', 'Pyidaungsu', 'Padauk', sans-serif; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
 </style>
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen">
@@ -2728,12 +2761,12 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
     <div class="flex items-center space-x-3">
       <span class="text-2xl">📡</span>
       <div>
-        <h1 class="text-lg font-black tracking-tight">Free Wi-Fi စီမံခန့်ခွဲမှုစနစ်</h1>
-        <p class="text-xs text-gray-400">Google အကောင့်များ၊ ငွေလွှဲပြေစာများနှင့် IP Address မှတ်တမ်း ဒေတာဘေ့စ် (SQLite & Firestore)</p>
+        <h1 class="text-lg font-black tracking-tight">Free Wi-Fi Gateway Admin</h1>
+        <p class="text-xs text-gray-400">Google Accounts, Bank Slips & IP Connection Database (SQLite & Firestore)</p>
       </div>
     </div>
     <div class="flex items-center space-x-2 sm:space-x-3">
-      <a href="/admin" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold">ထွက်မည်</a>
+      <a href="/admin" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold">Sign Out</a>
     </div>
   </div>
 </header>
@@ -2754,19 +2787,19 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
   <!-- Stats Cards -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-      <p class="text-xs text-gray-500 font-bold uppercase">စုစုပေါင်း Google အကောင့်</p>
+      <p class="text-xs text-gray-500 font-bold uppercase">Total Accounts</p>
       <p class="text-2xl font-black text-gray-800 mt-1">${totalUsers}</p>
     </div>
     <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-      <p class="text-xs text-gray-500 font-bold uppercase">လက်ရှိ ချိတ်ဆက်ထားသူများ (Active)</p>
+      <p class="text-xs text-gray-500 font-bold uppercase">Active Connected Users</p>
       <p class="text-2xl font-black text-green-600 mt-1">${activeUsers}</p>
     </div>
     <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-      <p class="text-xs text-gray-500 font-bold uppercase">ရက် ၃၀ VIP အသင်းဝင်များ</p>
+      <p class="text-xs text-gray-500 font-bold uppercase">30-Day VIP Subscribers</p>
       <p class="text-2xl font-black text-indigo-600 mt-1">${vipUsers}</p>
     </div>
     <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-      <p class="text-xs text-gray-500 font-bold uppercase">စနစ်တွင်း ပြေစာများ</p>
+      <p class="text-xs text-gray-500 font-bold uppercase">Payment Slips</p>
       <p class="text-2xl font-black text-blue-600 mt-1">${slips.length}</p>
     </div>
   </div>
@@ -2777,16 +2810,16 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
     <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
       <div class="flex items-center space-x-2">
         <span class="text-xl">💳</span>
-        <h2 class="font-black text-sm text-gray-800">ငွေလက်ခံမည့် PromptPay QR ကုဒ် ဓာတ်ပုံ</h2>
+        <h2 class="font-black text-sm text-gray-800">PromptPay Bank QR Code Photo</h2>
       </div>
-      <p class="text-xs text-gray-500">သုံးစွဲသူများ ငွေလွှဲနိုင်ရန်အတွက် သင့် PromptPay QR ကုဒ် ဓာတ်ပုံကို တင်ပါ</p>
+      <p class="text-xs text-gray-500">Upload your PromptPay QR image for customers to scan and transfer payment</p>
       <div class="flex items-center space-x-4">
         <div class="w-24 h-24 bg-gray-100 rounded-xl border border-gray-200 p-1 flex items-center justify-center flex-shrink-0">
           <img src="/my-qr" alt="QR Preview" class="max-w-full max-h-full object-contain" />
         </div>
         <form method="post" action="/admin/upload-qr?pin=${pin}" enctype="multipart/form-data" class="space-y-2 flex-1">
           <input type="file" name="qr" accept="image/*" required class="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-          <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">QR ကုဒ် အသစ်တင်မည် / အစားထိုးမည်</button>
+          <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">Upload / Replace QR Code</button>
         </form>
       </div>
     </div>
@@ -2795,27 +2828,27 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
     <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
       <div class="flex items-center space-x-2">
         <span class="text-xl">⚙️</span>
-        <h2 class="font-black text-sm text-gray-800">စနစ် ဆက်တင်များ</h2>
+        <h2 class="font-black text-sm text-gray-800">System Settings</h2>
       </div>
       <form method="post" action="/admin/settings?pin=${pin}" class="space-y-3">
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-gray-600 mb-1">ရက် ၃၀ VIP ပက်ကေ့ဂျ် ဈေးနှုန်း (ဘတ်)</label>
+            <label class="block text-xs font-bold text-gray-600 mb-1">30-Day VIP Package Price (THB)</label>
             <input type="number" name="monthlyPrice" value="${settings.monthlyPrice || 150}" required class="w-full border border-gray-300 rounded-lg p-2 text-xs font-bold" />
           </div>
           <div>
-            <label class="block text-xs font-bold text-gray-600 mb-1">အခမဲ့ သုံးစွဲခွင့် အချိန် (မိနစ်)</label>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Free Trial Duration (Minutes)</label>
             <input type="number" name="trialMinutes" value="${settings.trialMinutes || 60}" required class="w-full border border-gray-300 rounded-lg p-2 text-xs font-bold" />
           </div>
         </div>
         <div>
-          <label class="block text-xs font-bold text-gray-600 mb-1">စီမံခန့်ခွဲသူ PIN နံပါတ်</label>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Administrator PIN Code</label>
           <input type="text" name="adminPin" value="${settings.adminPin || '1234'}" required class="w-full border border-gray-300 rounded-lg p-2 text-xs font-mono font-bold" />
         </div>
 
         <div class="pt-3 border-t border-gray-100">
           <div class="flex items-center space-x-1 mb-2">
-            <span class="text-xs font-bold text-gray-700">📧 OTP အီးမေးလ် ပို့ဆောင်ရေး ဆက်တင်များ (Gmail SMTP)</span>
+            <span class="text-xs font-bold text-gray-700">📧 OTP Email Delivery Settings (Gmail SMTP)</span>
           </div>
           <div class="grid grid-cols-2 gap-2 text-xs">
             <div>
@@ -2823,7 +2856,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
               <input type="text" name="smtpHost" value="${settings.smtpHost || ''}" placeholder="smtp.gmail.com" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
             </div>
             <div>
-              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Port (465 သို့ 587)</label>
+              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Port (465 or 587)</label>
               <input type="text" name="smtpPort" value="${settings.smtpPort || '587'}" placeholder="587" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
             </div>
           </div>
@@ -2833,22 +2866,22 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
               <input type="email" name="smtpUser" value="${settings.smtpUser || ''}" placeholder="mywifi@gmail.com" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
             </div>
             <div>
-              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Google App Password (၁၆ လုံး)</label>
-              <input type="password" name="smtpPass" placeholder="${settings.smtpPass ? '•••••••••••••••• (မပြောင်းလဲလိုပါက ကွက်လပ်ထားပါ)' : 'abcd efgh ijkl mnop'}" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
+              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Google App Password (16 chars)</label>
+              <input type="password" name="smtpPass" placeholder="${settings.smtpPass ? '•••••••••••••••• (Leave blank to keep unchanged)' : 'abcd efgh ijkl mnop'}" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
             </div>
           </div>
           <p class="text-[10px] text-gray-400 mt-1.5">
-            💡 Gmail ဖြင့်ပို့ပါက Google Account > Security > 2-Step Verification > <strong>App Passwords</strong> မှ ၁၆ လုံးပါ စကားဝှက် ရယူထည့်သွင်းပါ။ Spam/Junk မရောက်စေရန် Anti-Spam Headers နှင့် Multi-Part Plain Text အလိုအလျောက် ထည့်သွင်းထားပါသည်။
+            💡 For Gmail, go to Google Account > Security > 2-Step Verification > <strong>App Passwords</strong> and generate a 16-character password. Anti-Spam headers and Plain Text fallbacks are embedded automatically.
           </p>
         </div>
 
         <div class="pt-3 border-t border-gray-100">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-bold text-gray-700">🤖 Telegram Bot ပြေစာ အတည်ပြုစနစ် (One-Click Approval)</span>
+            <span class="text-xs font-bold text-gray-700">🤖 Telegram Bot Slip Approval (One-Click Approval)</span>
             ${
               settings.telegramBotToken && settings.telegramChatId
-                ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">✓ ချိတ်ဆက်ထားသည် (Active)</span>'
-                : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800">မချိတ်ဆက်ရသေးပါ</span>'
+                ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">✓ Connected (Active)</span>'
+                : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800">Not Configured</span>'
             }
           </div>
           <div class="grid grid-cols-2 gap-2 text-xs">
@@ -2863,86 +2896,19 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
           </div>
           <div class="flex items-center justify-between mt-2 flex-wrap gap-2">
             <p class="text-[10px] text-gray-400">
-              💡 @BotFather မှ Bot Token ရယူပါ။ Chat ID သိလိုပါက @userinfobot သို့ /start ပို့ပါ သို့မဟုတ် bot ထံ /id ပို့ပါ။
+              💡 Get Bot Token from @BotFather. To find your Chat ID, send /start to @userinfobot or send /id to your bot.
             </p>
             <button type="button" onclick="testTelegram()" class="px-2.5 py-1 text-[11px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded transition active:scale-95 whitespace-nowrap">
-              Test Message စမ်းသပ်မည်
+              Send Test Message
             </button>
           </div>
         </div>
 
-        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">ဆက်တင်များ သိမ်းဆည်းမည်</button>
+        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">Save System Settings</button>
       </form>
     </div>
   </div>
 
-  <!-- Firebase Cloud Database & Hosting Management -->
-  <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-    <div class="flex items-center justify-between flex-wrap gap-2">
-      <div class="flex items-center space-x-2">
-        <span class="text-xl">🔥</span>
-        <div>
-          <h2 class="font-black text-sm text-gray-800">Firebase Cloud Database & Hosting ချိတ်ဆက်မှု</h2>
-          <p class="text-xs text-gray-500">Database (Firestore)၊ Google Auth နှင့် Hosting အတွက် Google Firebase ချိတ်ဆက်မှုစနစ်</p>
-        </div>
-      </div>
-      <span class="px-3 py-1 rounded-full text-xs font-bold ${isFirebaseActive ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-        ${isFirebaseActive ? '🟢 Cloud Firestore: ချိတ်ဆက်ပြီး (အလိုအလျောက် Sync လုပ်နေသည်)' : '🟡 SQLite ဖြင့် အလုပ်လုပ်နေသည် (Cloud ချိတ်ဆက်ရန် firebase-service-account.json ထည့်ပါ)'}
-      </span>
-    </div>
-
-    <div class="grid md:grid-cols-2 gap-4 text-xs">
-      <!-- Firebase Client Config Form -->
-      <form method="post" action="/admin/firebase-config?pin=${pin}" class="space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-200">
-        <div class="flex items-center justify-between">
-          <h3 class="font-bold text-gray-700">၁။ Firebase Web Client သတ်မှတ်ချက်များ (Google Sign-In)</h3>
-          <span class="text-[10px] text-blue-600 font-mono">firebase-client.json</span>
-        </div>
-        <p class="text-[11px] text-gray-500">Firebase Console > Project Settings > General > Your apps (Web) မှ ကူးယူပါ</p>
-        <div>
-          <label class="block font-semibold text-gray-600 mb-0.5">API Key (apiKey)</label>
-          <input type="text" name="apiKey" value="${firebaseConfig.apiKey || ''}" placeholder="AIzaSy..." class="w-full border rounded p-1.5 font-mono text-xs bg-white" />
-        </div>
-        <div>
-          <label class="block font-semibold text-gray-600 mb-0.5">Auth Domain (authDomain)</label>
-          <input type="text" name="authDomain" value="${firebaseConfig.authDomain || ''}" placeholder="your-project.firebaseapp.com" class="w-full border rounded p-1.5 font-mono text-xs bg-white" />
-        </div>
-        <div>
-          <label class="block font-semibold text-gray-600 mb-0.5">Project ID (projectId)</label>
-          <input type="text" name="projectId" value="${firebaseConfig.projectId || ''}" placeholder="your-project-id" class="w-full border rounded p-1.5 font-mono text-xs bg-white" />
-        </div>
-        <div>
-          <label class="block font-semibold text-gray-600 mb-0.5">App ID (appId)</label>
-          <input type="text" name="appId" value="${firebaseConfig.appId || ''}" placeholder="1:123456789:web:abcdef" class="w-full border rounded p-1.5 font-mono text-xs bg-white" />
-        </div>
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition active:scale-95">Firebase Client ဆက်တင် သိမ်းဆည်းမည်</button>
-      </form>
-
-      <!-- Cloud Firestore & Hosting Instructions -->
-      <div class="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
-        <div>
-          <h3 class="font-bold text-gray-700">၂။ Cloud Firestore Backend သို့ ချိတ်ဆက်ခြင်း</h3>
-          <p class="text-[11px] text-gray-600 mt-1">
-            Service Account Key ကို <strong>Firebase Console > Project Settings > Service accounts > Generate new private key</strong> မှ ဒေါင်းလုဒ်လုပ်ပါ
-          </p>
-          <p class="text-[11px] text-gray-600 mt-0.5">ဖိုင်အား ပရောဂျက် ဖိုဒါထဲတွင် အောက်ပါအမည်ဖြင့် သိမ်းပါ:</p>
-          <code class="block bg-gray-800 text-green-400 p-2 rounded text-[11px] font-mono break-all mt-1">
-            d:\\Free-Wifi\\firebase-service-account.json
-          </code>
-        </div>
-
-        <div class="pt-2 border-t border-gray-200">
-          <h3 class="font-bold text-gray-700">၃။ Firebase Hosting သို့ တင်ခြင်း (Deploy)</h3>
-          <p class="text-[11px] text-gray-600 mt-0.5"><code>firebase.json</code>၊ <code>.firebaserc</code> နှင့် <code>firestore.rules</code> ဖိုင်များကို ပြင်ဆင်ပြီးပါပြီ</p>
-          <div class="bg-gray-800 text-blue-300 p-2.5 rounded text-[11px] font-mono space-y-1 mt-1">
-            <p><span class="text-gray-500"># ၁။ Firebase CLI ကို ထည့်သွင်းပါ</span><br>npm install -g firebase-tools</p>
-            <p><span class="text-gray-500"># ၂။ အကောင့်ဝင်ပြီး ပရောဂျက် ရွေးပါ</span><br>firebase login<br>firebase use --add</p>
-            <p><span class="text-gray-500"># ၃။ Hosting & Firestore သို့ Deploy လုပ်ပါ</span><br>firebase deploy</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- TABLE 1: Accounts (Google Accounts) Table -->
   <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
@@ -2950,28 +2916,28 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
       <div class="flex items-center space-x-2">
         <span class="text-xl">👥</span>
         <div>
-          <h2 class="font-black text-sm text-gray-800">Google အကောင့်များနှင့် Wi-Fi ချိတ်ဆက်မှုများ</h2>
-          <p class="text-xs text-gray-500">ဖုန်းနံပါတ်နှင့် PIN အစား Google အကောင့်ဖြင့် အသုံးပြုခြင်း</p>
+          <h2 class="font-black text-sm text-gray-800">Google Accounts & Wi-Fi Access</h2>
+          <p class="text-xs text-gray-500">Users authenticated via Google Sign-In & active Wi-Fi session status</p>
         </div>
       </div>
-      <span class="text-xs text-gray-500">စုစုပေါင်း အကောင့် ${totalUsers} ခု</span>
+      <span class="text-xs text-gray-500">Total: ${totalUsers} Accounts</span>
     </div>
 
     <div class="overflow-x-auto">
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-            <th class="py-2.5 px-3">Google အကောင့်</th>
-            <th class="py-2.5 px-3">ပက်ကေ့ဂျ်</th>
-            <th class="py-2.5 px-3">လက်ရှိ IP</th>
-            <th class="py-2.5 px-3">MAC လိပ်စာ</th>
-            <th class="py-2.5 px-3">သက်တမ်းကုန်ဆုံးမည့်ရက်</th>
-            <th class="py-2.5 px-3">အခြေအနေ</th>
-            <th class="py-2.5 px-3">စီမံခန့်ခွဲမှု</th>
+            <th class="py-2.5 px-3">Google Account</th>
+            <th class="py-2.5 px-3">Plan</th>
+            <th class="py-2.5 px-3">Active IP</th>
+            <th class="py-2.5 px-3">MAC Address</th>
+            <th class="py-2.5 px-3">Expiration Date</th>
+            <th class="py-2.5 px-3">Status</th>
+            <th class="py-2.5 px-3">Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${accountRows || '<tr><td colspan="7" class="text-center py-6 text-xs text-gray-400">စနစ်ထဲတွင် Google အကောင့် မရှိသေးပါ</td></tr>'}
+          ${accountRows || '<tr><td colspan="7" class="text-center py-6 text-xs text-gray-400">No Google accounts in database yet</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -2983,30 +2949,30 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
       <div class="flex items-center space-x-2">
         <span class="text-xl">🧾</span>
         <div>
-          <h2 class="font-black text-sm text-gray-800">ငွေလွှဲပြေစာများနှင့် IP Address မှတ်တမ်း ဒေတာဘေ့စ်</h2>
-          <p class="text-xs text-gray-500">ဖောက်သည်များ တင်ထားသော ပြေစာများ၊ Google အကောင့်နှင့် IP Address များကို စစ်ဆေးခြင်း</p>
+          <h2 class="font-black text-sm text-gray-800">Payment Slips & Verification Database</h2>
+          <p class="text-xs text-gray-500">Customer bank transfer slips with Google Account and IP address audit</p>
         </div>
       </div>
-      <span class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">စနစ်တွင်း ပြေစာ ${slips.length} စောင် ရှိသည်</span>
+      <span class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">${slips.length} Slips in Database</span>
     </div>
 
     <div class="overflow-x-auto">
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-            <th class="py-2.5 px-3">#နံပါတ်</th>
-            <th class="py-2.5 px-3">ပြေစာပုံ</th>
-            <th class="py-2.5 px-3">Google အကောင့်</th>
-            <th class="py-2.5 px-3">တင်ခဲ့သော IP လိပ်စာ</th>
-            <th class="py-2.5 px-3">MAC လိပ်စာ</th>
-            <th class="py-2.5 px-3">ဘဏ် QR ကုဒ်</th>
-            <th class="py-2.5 px-3">ငွေပမာဏ</th>
-            <th class="py-2.5 px-3">တင်ခဲ့သည့် အချိန်</th>
-            <th class="py-2.5 px-3">အခြေအနေ</th>
+            <th class="py-2.5 px-3">#ID</th>
+            <th class="py-2.5 px-3">Slip Image</th>
+            <th class="py-2.5 px-3">Google Account</th>
+            <th class="py-2.5 px-3">Device IP</th>
+            <th class="py-2.5 px-3">MAC Address</th>
+            <th class="py-2.5 px-3">Bank QR Payload</th>
+            <th class="py-2.5 px-3">Amount</th>
+            <th class="py-2.5 px-3">Upload Time</th>
+            <th class="py-2.5 px-3">Status</th>
           </tr>
         </thead>
         <tbody>
-          ${slipRows || '<tr><td colspan="9" class="text-center py-6 text-xs text-gray-400">ဒေတာဘေ့စ်တွင် ငွေလွှဲပြေစာ မရှိသေးပါ</td></tr>'}
+          ${slipRows || '<tr><td colspan="9" class="text-center py-6 text-xs text-gray-400">No payment slips in database yet</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -3018,8 +2984,8 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
       <div class="flex items-center space-x-2">
         <span class="text-xl">📊</span>
         <div>
-          <h2 class="font-black text-sm text-gray-800">အချိန်နှင့်တပြေးညီ IP ချိတ်ဆက်မှုနှင့် လှုပ်ရှားမှု မှတ်တမ်း</h2>
-          <p class="text-xs text-gray-500">အခမဲ့ရယူခြင်း၊ ငွေလွှဲခြင်း၊ အကောင့်ဝင်ခြင်းနှင့် သက်တမ်းကုန်ဆုံးခြင်း IP မှတ်တမ်းများ</p>
+          <h2 class="font-black text-sm text-gray-800">Real-Time IP Connection & Activity Logs</h2>
+          <p class="text-xs text-gray-500">Audit trail for free trial activations, payments, logins, and expirations</p>
         </div>
       </div>
     </div>
@@ -3028,15 +2994,15 @@ function renderAdmin({ accounts, slips, ipLogs, settings, pin, isFirebaseActive 
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-            <th class="py-2.5 px-3">IP လိပ်စာ</th>
-            <th class="py-2.5 px-3">MAC လိပ်စာ</th>
-            <th class="py-2.5 px-3">Google အီးမေးလ်</th>
-            <th class="py-2.5 px-3">ဆောင်ရွက်ချက်</th>
-            <th class="py-2.5 px-3">အချိန်</th>
+            <th class="py-2.5 px-3">IP Address</th>
+            <th class="py-2.5 px-3">MAC Address</th>
+            <th class="py-2.5 px-3">Google Email</th>
+            <th class="py-2.5 px-3">Action</th>
+            <th class="py-2.5 px-3">Time</th>
           </tr>
         </thead>
         <tbody>
-          ${logRows || '<tr><td colspan="5" class="text-center py-4 text-xs text-gray-400">IP မှတ်တမ်း မရှိသေးပါ</td></tr>'}
+          ${logRows || '<tr><td colspan="5" class="text-center py-4 text-xs text-gray-400">No IP activity logs yet</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -3048,7 +3014,7 @@ async function testTelegram() {
   const token = document.getElementById('tg-token').value.trim();
   const chatId = document.getElementById('tg-chatid').value.trim();
   if (!token || !chatId) {
-    alert('ကျေးဇူးပြု၍ Telegram Bot Token နှင့် Chat ID ရိုက်ထည့်ပါ');
+    alert('Please enter both Telegram Bot Token and Chat ID');
     return;
   }
   try {
@@ -3059,12 +3025,12 @@ async function testTelegram() {
     });
     const data = await res.json();
     if (data.success) {
-      alert('✓ Telegram သို့ စမ်းသပ်စာ ပို့ဆောင်ခြင်း အောင်မြင်ပါသည်! သင့် Telegram App ကို စစ်ဆေးကြည့်ပါ။');
+      alert('✓ Test message sent successfully to Telegram! Please check your Telegram App.');
     } else {
-      alert('⚠️ ပို့ဆောင်၍ မရပါ: ' + (data.error || 'Unknown Error'));
+      alert('⚠️ Failed to send: ' + (data.error || 'Unknown Error'));
     }
   } catch (e) {
-    alert('ချိတ်ဆက်မှု ချို့ယွင်းချက်: ' + e.message);
+    alert('Connection error: ' + e.message);
   }
 }
 </script>

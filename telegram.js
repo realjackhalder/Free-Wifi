@@ -67,34 +67,66 @@ async function sendSlipNotification({ slipId, email, ip, mac, amount, slipFilePa
   };
 
   try {
-    // 1. Try sending as Photo if file exists
+    // 1. Send file as Photo if image, or as Document if other file format
     if (slipFilePath && fs.existsSync(slipFilePath)) {
-      const formData = new FormData();
       const fileBuffer = fs.readFileSync(slipFilePath);
       const ext = path.extname(slipFilePath).toLowerCase();
-      const mime = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : 'image/jpeg');
-      const blob = new Blob([fileBuffer], { type: mime });
+      const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
 
-      formData.append('chat_id', chatId);
-      formData.append('photo', blob, path.basename(slipFilePath));
-      formData.append('caption', caption);
-      formData.append('parse_mode', 'HTML');
-      formData.append('reply_markup', JSON.stringify(inlineKeyboard));
+      if (isImage) {
+        try {
+          const mime = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : (ext === '.gif' ? 'image/gif' : 'image/jpeg'));
+          const blob = new Blob([fileBuffer], { type: mime });
+          const formData = new FormData();
+          formData.append('chat_id', chatId);
+          formData.append('photo', blob, path.basename(slipFilePath));
+          formData.append('caption', caption);
+          formData.append('parse_mode', 'HTML');
+          formData.append('reply_markup', JSON.stringify(inlineKeyboard));
 
-      const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.ok) {
-        console.log(`✅ [TELEGRAM] Slip #${slipId} photo sent to Telegram chat ${chatId}`);
-        return { success: true, messageId: data.result.message_id };
-      } else {
-        console.warn(`[TELEGRAM sendPhoto failed]`, data.description);
+          const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+            method: 'POST',
+            body: formData
+          });
+          const data = await res.json();
+          if (data.ok) {
+            console.log(`✅ [TELEGRAM] Slip #${slipId} photo sent to Telegram chat ${chatId}`);
+            return { success: true, messageId: data.result.message_id };
+          } else {
+            console.warn(`[TELEGRAM sendPhoto failed]`, data.description);
+          }
+        } catch (imgErr) {
+          console.warn('[TELEGRAM sendPhoto error]', imgErr.message);
+        }
+      }
+
+      // If not an image or sendPhoto failed, send as Document (supports any file type)
+      try {
+        const docBlob = new Blob([fileBuffer]);
+        const docFormData = new FormData();
+        docFormData.append('chat_id', chatId);
+        docFormData.append('document', docBlob, path.basename(slipFilePath));
+        docFormData.append('caption', caption);
+        docFormData.append('parse_mode', 'HTML');
+        docFormData.append('reply_markup', JSON.stringify(inlineKeyboard));
+
+        const docRes = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+          method: 'POST',
+          body: docFormData
+        });
+        const docData = await docRes.json();
+        if (docData.ok) {
+          console.log(`✅ [TELEGRAM] Slip #${slipId} document sent to Telegram chat ${chatId}`);
+          return { success: true, messageId: docData.result.message_id };
+        } else {
+          console.warn(`[TELEGRAM sendDocument failed]`, docData.description);
+        }
+      } catch (docErr) {
+        console.warn('[TELEGRAM sendDocument error]', docErr.message);
       }
     }
 
-    // 2. Fallback to text message if photo fails
+    // 2. Fallback to text message if photo and document fail
     const textRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
