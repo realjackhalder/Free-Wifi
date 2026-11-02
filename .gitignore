@@ -4,7 +4,6 @@ uploads/*
 public/qr.jpg
 public/qr.png
 db.json
-firebase-service-account.json
 .env*
 
 
