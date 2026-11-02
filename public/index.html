@@ -8,6 +8,22 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="format-detection" content="telephone=no">
 <title>Free Wi-Fi — Sign in with Google</title>
+<script>
+  // Domain-based routing:
+  // free-wifi-portal.firebaseapp.com -> Admin Portal
+  // free-wifi-portal.web.app         -> User Captive Portal
+  (function() {
+    var host = window.location.hostname.toLowerCase();
+    var path = window.location.pathname || '';
+
+    // CRITICAL: Never redirect Firebase internal auth handlers (/__/auth/handler, etc.)
+    if (path.startsWith('/__')) return;
+
+    if (host.includes('firebaseapp.com') && !path.includes('admin')) {
+      window.location.replace('/admin.html' + window.location.search);
+    }
+  })();
+</script>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
