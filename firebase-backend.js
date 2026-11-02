@@ -6,8 +6,25 @@
 const fs = require('fs');
 const path = require('path');
 let admin = null;
+let getCert = null;
+let getFirestoreFn = null;
+let getAuthFn = null;
+let getStorageFn = null;
+
 try {
   admin = require('firebase-admin');
+  try {
+    getCert = (admin && admin.credential && admin.credential.cert) || (admin && admin.cert) || require('firebase-admin/app').cert;
+  } catch (e) {}
+  try {
+    getFirestoreFn = require('firebase-admin/firestore').getFirestore;
+  } catch (e) {}
+  try {
+    getAuthFn = require('firebase-admin/auth').getAuth;
+  } catch (e) {}
+  try {
+    getStorageFn = require('firebase-admin/storage').getStorage;
+  } catch (e) {}
 } catch (e) {
   console.warn('[FIREBASE] firebase-admin package not loaded:', e.message);
 }
@@ -22,6 +39,37 @@ let firebaseStorage = null;
 
 const DEFAULT_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'free-wifi-portal.firebasestorage.app';
 
+function resolveCredential(serviceAccount) {
+  if (admin && admin.credential && typeof admin.credential.cert === 'function') {
+    return admin.credential.cert(serviceAccount);
+  }
+  if (typeof getCert === 'function') {
+    return getCert(serviceAccount);
+  }
+  if (admin && typeof admin.cert === 'function') {
+    return admin.cert(serviceAccount);
+  }
+  return null;
+}
+
+function resolveFirestore() {
+  if (typeof admin.firestore === 'function') return admin.firestore();
+  if (typeof getFirestoreFn === 'function') return getFirestoreFn();
+  return null;
+}
+
+function resolveAuth() {
+  if (typeof admin.auth === 'function') return admin.auth();
+  if (typeof getAuthFn === 'function') return getAuthFn();
+  return null;
+}
+
+function resolveStorage() {
+  if (typeof admin.storage === 'function') return admin.storage();
+  if (typeof getStorageFn === 'function') return getStorageFn();
+  return null;
+}
+
 /**
  * Initialize Firebase Admin with service account JSON or environment variables
  */
@@ -29,9 +77,9 @@ function initFirebase() {
   if (!admin) return false;
   if (admin.apps && admin.apps.length > 0) {
     isInitialized = true;
-    firestoreDb = admin.firestore();
-    firebaseAuth = admin.auth();
-    firebaseStorage = typeof admin.storage === 'function' ? admin.storage() : null;
+    firestoreDb = resolveFirestore();
+    firebaseAuth = resolveAuth();
+    firebaseStorage = resolveStorage();
     return true;
   }
 
@@ -39,14 +87,15 @@ function initFirebase() {
     // 1. Check for local firebase-service-account.json
     if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
       const serviceAccount = JSON.parse(fs.readFileSync(SERVICE_ACCOUNT_PATH, 'utf-8'));
+      const credential = resolveCredential(serviceAccount);
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+        ...(credential ? { credential } : {}),
         storageBucket: DEFAULT_STORAGE_BUCKET
       });
       isInitialized = true;
-      firestoreDb = admin.firestore();
-      firebaseAuth = admin.auth();
-      firebaseStorage = typeof admin.storage === 'function' ? admin.storage() : null;
+      firestoreDb = resolveFirestore();
+      firebaseAuth = resolveAuth();
+      firebaseStorage = resolveStorage();
       console.log('✅ [FIREBASE] Successfully initialized with firebase-service-account.json');
       return true;
     }
@@ -54,14 +103,15 @@ function initFirebase() {
     // 2. Check for environment variables
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      const credential = resolveCredential(serviceAccount);
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+        ...(credential ? { credential } : {}),
         storageBucket: DEFAULT_STORAGE_BUCKET
       });
       isInitialized = true;
-      firestoreDb = admin.firestore();
-      firebaseAuth = admin.auth();
-      firebaseStorage = typeof admin.storage === 'function' ? admin.storage() : null;
+      firestoreDb = resolveFirestore();
+      firebaseAuth = resolveAuth();
+      firebaseStorage = resolveStorage();
       console.log('✅ [FIREBASE] Successfully initialized with FIREBASE_SERVICE_ACCOUNT env');
       return true;
     }
@@ -72,9 +122,9 @@ function initFirebase() {
         storageBucket: DEFAULT_STORAGE_BUCKET
       });
       isInitialized = true;
-      firestoreDb = admin.firestore();
-      firebaseAuth = admin.auth();
-      firebaseStorage = typeof admin.storage === 'function' ? admin.storage() : null;
+      firestoreDb = resolveFirestore();
+      firebaseAuth = resolveAuth();
+      firebaseStorage = resolveStorage();
       console.log('✅ [FIREBASE] Initialized with Application Default Credentials');
       return true;
     }
@@ -91,9 +141,10 @@ function initFirebase() {
  * Upload a payment slip to Firebase Cloud Storage and return public/signed URL
  */
 async function uploadSlipToStorage(localFilePath, destinationFileName, mimeType = 'application/octet-stream') {
-  if (!isInitialized || !admin || typeof admin.storage !== 'function') return null;
+  const storage = resolveStorage();
+  if (!isInitialized || !storage || typeof storage.bucket !== 'function') return null;
   try {
-    const bucket = admin.storage().bucket();
+    const bucket = storage.bucket();
     await bucket.upload(localFilePath, {
       destination: `slips/${destinationFileName}`,
       metadata: {
