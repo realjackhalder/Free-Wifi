@@ -1087,7 +1087,7 @@ adminApp.post('/admin/login', async (req, res) => {
     setAdminSession(res);
     return res.redirect('/admin');
   }
-  return res.send(renderAdminLogin('Incorrect PIN'));
+  return res.send(getAdminRenderer().renderAdminLogin('Incorrect PIN'));
 });
 
 // Admin logout GET handler
@@ -1095,6 +1095,13 @@ adminApp.get('/admin/logout', (req, res) => {
   clearAdminSession(req, res);
   return res.redirect('/admin');
 });
+
+function getAdminRenderer() {
+  try {
+    delete require.cache[require.resolve('./admin-ui')];
+  } catch (e) {}
+  return require('./admin-ui');
+}
 
 adminApp.get('/admin', async (req, res) => {
   const settings = await db.getAllSettings();
@@ -1109,7 +1116,7 @@ adminApp.get('/admin', async (req, res) => {
 
   const authorized = await isAuthorizedAdmin(req);
   if (!authorized) {
-    return res.send(renderAdminLogin());
+    return res.send(getAdminRenderer().renderAdminLogin());
   }
 
   const accounts = await db.getAllAccounts();
@@ -1142,7 +1149,7 @@ adminApp.get('/admin', async (req, res) => {
   const pendingCount = slips.filter(s => s.status === 'pending').length;
   const activeTab = req.query.tab || (pendingCount > 0 ? 'slips' : 'accounts');
 
-  return res.send(renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive, firebaseConfig, msg, err, activeTab }));
+  return res.send(getAdminRenderer().renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive, firebaseConfig, msg, err, activeTab }));
 });
 
 // --- GET /api/admin-data (JSON endpoint for admin portal & dashboard) ---

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
 <title>Free Wi-Fi Gateway — Admin</title>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -11,6 +12,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics-compat.js"></script>
 <style>
   :root {
+    color-scheme: dark;
     --glass-bg: #000000;
     --glass-surface: rgba(255, 255, 255, 0.035);
     --glass-border: rgba(255, 255, 255, 0.08);
@@ -116,10 +118,10 @@
     align-items: center !important;
     justify-content: center !important;
     white-space: nowrap !important;
-    font-size: 11px !important;
+    font-size: 10px !important;
     font-weight: 700 !important;
     line-height: 1 !important;
-    padding: 3.5px 8.5px !important;
+    padding: 2.5px 7px !important;
     border-radius: 9999px !important;
     letter-spacing: 0.02em !important;
     cursor: default !important;
@@ -186,6 +188,22 @@
     background: rgba(255, 255, 255, 0.08);
     border-color: #ffffff;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+  }
+
+  /* Dark Mode Select & Dropdown Options */
+  select.glisse-input,
+  select {
+    color-scheme: dark !important;
+    background-color: #18181b !important;
+    color: #ffffff !important;
+    cursor: pointer;
+  }
+  select option,
+  select.glisse-input option {
+    background-color: #18181b !important;
+    color: #ffffff !important;
+    padding: 10px 14px;
+    font-size: 0.85rem;
   }
 
   /* Symmetrical Segmented Dock */
@@ -776,12 +794,12 @@
 
         <div>
           <label class="block text-xs font-bold text-zinc-300 mb-1">VIP Duration (Days)</label>
-          <select id="grant-days" class="glisse-input w-full font-bold text-sky-400 bg-zinc-900">
-            <option value="7">7 Days VIP</option>
-            <option value="30" selected>30 Days VIP (Standard Package)</option>
-            <option value="60">60 Days VIP</option>
-            <option value="90">90 Days VIP (Quarterly)</option>
-            <option value="365">365 Days VIP (Annual)</option>
+          <select id="grant-days" class="glisse-input w-full font-bold text-zinc-100 bg-zinc-900 border border-white/20" style="color-scheme: dark; background-color: #18181b; color: #ffffff;">
+            <option value="7" style="background-color: #18181b; color: #ffffff;">7 Days VIP</option>
+            <option value="30" selected style="background-color: #18181b; color: #ffffff;">30 Days VIP (Standard Package)</option>
+            <option value="60" style="background-color: #18181b; color: #ffffff;">60 Days VIP</option>
+            <option value="90" style="background-color: #18181b; color: #ffffff;">90 Days VIP (Quarterly)</option>
+            <option value="365" style="background-color: #18181b; color: #ffffff;">365 Days VIP (Annual)</option>
           </select>
         </div>
 
@@ -1206,8 +1224,8 @@
 
         const expDate = exp ? new Date(exp) : null;
         const expDateStr = expDate ? expDate.toLocaleDateString('en-GB') : '-';
-        const expTimeStr = expDate ? expDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-        const expDetail = d > 0 ? expDateStr : (expTimeStr ? `${expDateStr} ${expTimeStr}` : expDateStr);
+        const expTimeStr = expDate ? expDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+        const expFullStr = expDate ? `${expDateStr} ${expTimeStr}` : '-';
 
         const initial = (a.name ? a.name.charAt(0) : (a.email ? a.email.charAt(0) : 'G')).toUpperCase();
         const isVip = a.plan === 'vip-30d' || a.package_type === 'vip_30d';
@@ -1229,29 +1247,32 @@
               </div>
             </div>
           </td>
-          <td class="py-3 px-3 whitespace-nowrap">
+          <td class="py-3 px-3 whitespace-nowrap" style="min-width: 105px;">
             ${
               isPendingSlip
-                ? `<span class="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60 animate-pulse">⏳ Pending Slip</span>`
-                : `<span class="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-bold ${isVip ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">${isVip ? '★ 30-Day VIP' : '1-Hour Free'}</span>`
+                ? `<span class="badge-pill badge-pending animate-pulse" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="Payment slip awaiting verification">⏳ Pending Slip</span>`
+                : `<span class="badge-pill ${isVip ? 'badge-vip' : 'badge-trial'}" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="${isVip ? '30-Day VIP Subscription' : '1-Hour Free Wi-Fi'}">${isVip ? '★ 30-Day VIP' : '1-Hour Free'}</span>`
             }
           </td>
           <td class="py-3 px-3 font-mono text-zinc-200">
             ${(a.activeIp || a.ip) ? `<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${a.activeIp || a.ip}</span>` : '<span class="text-zinc-500">Offline</span>'}
           </td>
           <td class="py-3 px-3 font-mono text-zinc-400">${a.activeMac || a.mac || '-'}</td>
-          <td class="py-3 px-3 whitespace-nowrap">
+          <td class="py-3 px-3 whitespace-nowrap" style="min-width: 95px;">
             ${
               isPendingSlip
-                ? '<span class="text-amber-400 font-bold">Awaiting Verification</span>'
-                : (isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${remainStr}</span> <span class="text-[10px] text-zinc-500">(${expDetail})</span>`)
+                ? '<span class="badge-pill badge-pending" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="Awaiting Verification">Awaiting Slip</span>'
+                : (isExpired
+                    ? `<span class="badge-pill badge-time-expired" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="Expired: ${expFullStr}">Expired</span>`
+                    : `<span class="badge-pill ${diff <= 900000 ? 'badge-time-warning' : 'badge-time-active'}" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="Expires: ${expFullStr}">${remainStr}</span>`
+                  )
             }
           </td>
-          <td class="py-3 px-3 whitespace-nowrap">
+          <td class="py-3 px-3 whitespace-nowrap" style="min-width: 80px;">
             ${
               isPendingSlip
-                ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60">Pending</span>'
-                : (a.blocked ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-950/40 text-red-300 border border-red-800/60">Blocked</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60">Active</span>')
+                ? '<span class="badge-pill badge-pending" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;">Pending</span>'
+                : (a.blocked ? '<span class="badge-pill badge-time-expired" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;">Blocked</span>' : '<span class="badge-pill badge-time-active" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;">Active</span>')
             }
           </td>
           <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">

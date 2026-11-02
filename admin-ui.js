@@ -54,6 +54,22 @@ function renderAdminLogin(error = null) {
     border-color: #ffffff;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
   }
+
+  /* Dark Mode Select & Dropdown Options */
+  select.glisse-input,
+  select {
+    color-scheme: dark !important;
+    background-color: #18181b !important;
+    color: #ffffff !important;
+    cursor: pointer;
+  }
+  select option,
+  select.glisse-input option {
+    background-color: #18181b !important;
+    color: #ffffff !important;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+  }
   .glisse-btn-primary {
     background: #ffffff;
     color: #000000;
@@ -130,10 +146,12 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
 <title>Free Wi-Fi Gateway — Admin</title>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <style>
   :root {
+    color-scheme: dark;
     --glass-bg: #000000;
     --glass-surface: rgba(255, 255, 255, 0.035);
     --glass-border: rgba(255, 255, 255, 0.08);
@@ -233,6 +251,65 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
     transform: translateY(-1px);
   }
 
+  /* Small Pill Badges (Plan, Time, Status) */
+  .badge-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    padding: 2.5px 7px !important;
+    border-radius: 9999px !important;
+    letter-spacing: 0.02em !important;
+    cursor: default !important;
+    transition: all 0.15s ease !important;
+    user-select: none !important;
+  }
+  .badge-pill:hover {
+    filter: brightness(1.2) !important;
+  }
+  .badge-vip {
+    background: rgba(147, 51, 234, 0.18) !important;
+    color: #d8b4fe !important;
+    border: 1px solid rgba(168, 85, 247, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(147, 51, 234, 0.15) !important;
+  }
+  .badge-trial {
+    background: rgba(14, 165, 233, 0.18) !important;
+    color: #7dd3fc !important;
+    border: 1px solid rgba(56, 189, 248, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(14, 165, 233, 0.15) !important;
+  }
+  .badge-pending {
+    background: rgba(245, 158, 11, 0.18) !important;
+    color: #fde047 !important;
+    border: 1px solid rgba(245, 158, 11, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(245, 158, 11, 0.15) !important;
+  }
+  .badge-time-active {
+    background: rgba(16, 185, 129, 0.18) !important;
+    color: #6ee7b7 !important;
+    border: 1px solid rgba(16, 185, 129, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(16, 185, 129, 0.15) !important;
+    cursor: help !important;
+  }
+  .badge-time-warning {
+    background: rgba(245, 158, 11, 0.18) !important;
+    color: #fcd34d !important;
+    border: 1px solid rgba(245, 158, 11, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(245, 158, 11, 0.15) !important;
+    cursor: help !important;
+  }
+  .badge-time-expired {
+    background: rgba(239, 68, 68, 0.18) !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(239, 68, 68, 0.45) !important;
+    box-shadow: 0 1px 4px rgba(239, 68, 68, 0.15) !important;
+    cursor: help !important;
+  }
+
   /* Frosted Glass Inputs */
   .glisse-input {
     background: rgba(255, 255, 255, 0.05);
@@ -250,6 +327,22 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
     background: rgba(255, 255, 255, 0.08);
     border-color: #ffffff;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+  }
+
+  /* Dark Mode Select & Dropdown Options */
+  select.glisse-input,
+  select {
+    color-scheme: dark !important;
+    background-color: #18181b !important;
+    color: #ffffff !important;
+    cursor: pointer;
+  }
+  select option,
+  select.glisse-input option {
+    background-color: #18181b !important;
+    color: #ffffff !important;
+    padding: 10px 14px;
+    font-size: 0.85rem;
   }
 
   /* Symmetrical Segmented Dock in True Dark Frosted Glass */
@@ -481,11 +574,11 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
             <thead>
               <tr class="border-b border-white/10 text-[11px] font-bold text-zinc-400 uppercase tracking-wider bg-white/[0.02]">
                 <th class="py-3 px-4">User / Google Account</th>
-                <th class="py-3 px-3 whitespace-nowrap">Plan</th>
+                <th class="py-3 px-3 whitespace-nowrap" style="min-width: 105px;">Plan</th>
                 <th class="py-3 px-3 whitespace-nowrap">Device IP</th>
                 <th class="py-3 px-3 whitespace-nowrap">MAC Address</th>
-                <th class="py-3 px-3 whitespace-nowrap">Remaining Time</th>
-                <th class="py-3 px-3 whitespace-nowrap">Status</th>
+                <th class="py-3 px-3 whitespace-nowrap" style="min-width: 95px;">Remaining Time</th>
+                <th class="py-3 px-3 whitespace-nowrap" style="min-width: 80px;">Status</th>
                 <th class="py-3 px-4 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
@@ -516,8 +609,8 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
 
                       const expDate = exp ? new Date(exp) : null;
                       const expDateStr = expDate ? expDate.toLocaleDateString('en-GB') : '-';
-                      const expTimeStr = expDate ? expDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-                      const expDetail = d > 0 ? expDateStr : (expTimeStr ? `${expDateStr} ${expTimeStr}` : expDateStr);
+                      const expTimeStr = expDate ? expDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+                      const expFullStr = expDate ? `${expDateStr} ${expTimeStr}` : '-';
 
                       const initial = (a.name ? a.name.charAt(0) : (a.email ? a.email.charAt(0) : 'G')).toUpperCase();
                       const relatedSlip = sortedSlips.find(s => s.email && s.email.toLowerCase() === (a.email || '').toLowerCase() && (s.status || 'pending').toLowerCase() === 'pending');
@@ -538,29 +631,32 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                             </div>
                           </div>
                         </td>
-                        <td class="py-3 px-3 whitespace-nowrap">
+                        <td class="py-3 px-3 whitespace-nowrap" style="min-width: 105px;">
                           ${
                             isPendingSlip
-                              ? `<span class="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60 animate-pulse">⏳ Pending Slip</span>`
-                              : `<span class="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">${a.plan === 'vip-30d' ? '★ 30-Day VIP' : '1-Hour Free'}</span>`
+                              ? `<span class="badge-pill badge-pending animate-pulse" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="Payment slip awaiting verification">⏳ Pending Slip</span>`
+                              : `<span class="badge-pill ${a.plan === 'vip-30d' ? 'badge-vip' : 'badge-trial'}" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="${a.plan === 'vip-30d' ? '30-Day VIP Subscription' : '1-Hour Free Wi-Fi'}">${a.plan === 'vip-30d' ? '★ 30-Day VIP' : '1-Hour Free'}</span>`
                           }
                         </td>
                         <td class="py-3 px-3 font-mono text-zinc-200">
                           ${a.activeIp ? `<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${a.activeIp}</span>` : '<span class="text-zinc-500">Offline</span>'}
                         </td>
                         <td class="py-3 px-3 font-mono text-zinc-400">${a.activeMac || '-'}</td>
-                        <td class="py-3 px-3 whitespace-nowrap">
+                        <td class="py-3 px-3 whitespace-nowrap" style="min-width: 95px;">
                           ${
                             isPendingSlip
-                              ? '<span class="text-amber-400 font-bold">Awaiting Verification</span>'
-                              : (isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${remainStr}</span> <span class="text-[10px] text-zinc-500">(${expDetail})</span>`)
+                              ? '<span class="badge-pill badge-pending" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="Awaiting Verification">Awaiting Slip</span>'
+                              : (isExpired
+                                  ? `<span class="badge-pill badge-time-expired" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="Expired: ${expFullStr}">Expired</span>`
+                                  : `<span class="badge-pill ${diff <= 900000 ? 'badge-time-warning' : 'badge-time-active'}" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;" title="Expires: ${expFullStr}">${remainStr}</span>`
+                                )
                           }
                         </td>
-                        <td class="py-3 px-3 whitespace-nowrap">
+                        <td class="py-3 px-3 whitespace-nowrap" style="min-width: 80px;">
                           ${
                             isPendingSlip
-                              ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60">Pending</span>'
-                              : (a.blocked ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-950/40 text-red-300 border border-red-800/60">Blocked</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60">Active</span>')
+                              ? '<span class="badge-pill badge-pending" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;">Pending</span>'
+                              : (a.blocked ? '<span class="badge-pill badge-time-expired" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;">Blocked</span>' : '<span class="badge-pill badge-time-active" style="font-size:10px;padding:2.5px 7px;white-space:nowrap;display:inline-flex;">Active</span>')
                           }
                         </td>
                         <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
@@ -1077,12 +1173,12 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
 
         <div>
           <label class="block text-xs font-bold text-zinc-300 mb-1">VIP Duration (Days)</label>
-          <select name="days" class="glisse-input w-full font-bold text-sky-400 bg-zinc-900">
-            <option value="7">7 Days VIP</option>
-            <option value="30" selected>30 Days VIP (Standard Package)</option>
-            <option value="60">60 Days VIP</option>
-            <option value="90">90 Days VIP (Quarterly)</option>
-            <option value="365">365 Days VIP (Annual)</option>
+          <select name="days" class="glisse-input w-full font-bold text-zinc-100 bg-zinc-900 border border-white/20" style="color-scheme: dark; background-color: #18181b; color: #ffffff;">
+            <option value="7" style="background-color: #18181b; color: #ffffff;">7 Days VIP</option>
+            <option value="30" selected style="background-color: #18181b; color: #ffffff;">30 Days VIP (Standard Package)</option>
+            <option value="60" style="background-color: #18181b; color: #ffffff;">60 Days VIP</option>
+            <option value="90" style="background-color: #18181b; color: #ffffff;">90 Days VIP (Quarterly)</option>
+            <option value="365" style="background-color: #18181b; color: #ffffff;">365 Days VIP (Annual)</option>
           </select>
         </div>
 
