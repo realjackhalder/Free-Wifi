@@ -36,8 +36,21 @@ let isInitialized = false;
 let firestoreDb = null;
 let firebaseAuth = null;
 let firebaseStorage = null;
+let authErrorLogged = false;
 
 const DEFAULT_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'free-wifi-portal.firebasestorage.app';
+
+function markUnavailable(reason = '') {
+  isInitialized = false;
+  firestoreDb = null;
+  firebaseAuth = null;
+  firebaseStorage = null;
+  if (!authErrorLogged) {
+    authErrorLogged = true;
+    console.warn(`⚠️ [FIREBASE] Authentication failed (${reason}). Disabling Cloud Firestore and using local SQLite (wifi.db).`);
+    console.warn('👉 To re-enable Cloud Firestore: Generate a fresh private key in Firebase Console -> Project Settings -> Service Accounts -> "Generate new private key", and replace firebase-service-account.json');
+  }
+}
 
 function resolveCredential(serviceAccount) {
   if (admin && admin.credential && typeof admin.credential.cert === 'function') {
@@ -96,7 +109,16 @@ function initFirebase() {
       firestoreDb = resolveFirestore();
       firebaseAuth = resolveAuth();
       firebaseStorage = resolveStorage();
-      console.log('✅ [FIREBASE] Successfully initialized with firebase-service-account.json');
+
+      if (credential && typeof credential.getAccessToken === 'function') {
+        credential.getAccessToken().then(() => {
+          console.log('✅ [FIREBASE] Successfully authenticated with Cloud Firestore');
+        }).catch((err) => {
+          markUnavailable(err.message || 'Invalid JWT Signature');
+        });
+      } else {
+        console.log('✅ [FIREBASE] Initialized with firebase-service-account.json');
+      }
       return true;
     }
 
@@ -112,7 +134,16 @@ function initFirebase() {
       firestoreDb = resolveFirestore();
       firebaseAuth = resolveAuth();
       firebaseStorage = resolveStorage();
-      console.log('✅ [FIREBASE] Successfully initialized with FIREBASE_SERVICE_ACCOUNT env');
+
+      if (credential && typeof credential.getAccessToken === 'function') {
+        credential.getAccessToken().then(() => {
+          console.log('✅ [FIREBASE] Successfully authenticated with Cloud Firestore');
+        }).catch((err) => {
+          markUnavailable(err.message || 'Invalid JWT Signature');
+        });
+      } else {
+        console.log('✅ [FIREBASE] Successfully initialized with FIREBASE_SERVICE_ACCOUNT env');
+      }
       return true;
     }
 
@@ -230,6 +261,7 @@ initFirebase();
 module.exports = {
   admin,
   initFirebase,
+  markUnavailable,
   isReady: () => isInitialized && !!firestoreDb,
   getDb: () => firestoreDb,
   getAuth: () => firebaseAuth,

@@ -8,6 +8,18 @@ const path = require('path');
 const fs = require('fs');
 const fb = require('./firebase-backend');
 
+function handleFirestoreError(context, err) {
+  const msg = (err && (err.message || err.details || String(err))) || '';
+  const code = err && err.code;
+  if (code === 16 || msg.includes('UNAUTHENTICATED') || msg.includes('invalid_grant') || msg.includes('credential')) {
+    if (typeof fb.markUnavailable === 'function') {
+      fb.markUnavailable(msg);
+    }
+  } else {
+    console.warn(`[FIRESTORE ${context}]`, msg);
+  }
+}
+
 const DB_PATH = path.join(__dirname, 'wifi.db');
 const db = new sqlite3.Database(DB_PATH);
 
@@ -163,7 +175,7 @@ async function getAccount(email) {
         };
       }
     } catch (e) {
-      console.warn('[FIRESTORE getAccount]', e.message);
+      handleFirestoreError('getAccount', e);
     }
   }
 
@@ -279,7 +291,7 @@ async function getAccountByIp(ip) {
         return account;
       }
     } catch (e) {
-      /* ignore */
+      handleFirestoreError('isIpAuthorized', e);
     }
   } else {
     // Cloud Firestore REST API lookup
@@ -344,7 +356,7 @@ async function saveAccount(acc) {
     try {
       await fb.getDb().collection('accounts').doc(email).set(accountData, { merge: true });
     } catch (e) {
-      console.warn('[FIRESTORE saveAccount]', e.message);
+      handleFirestoreError('saveAccount', e);
     }
   }
 
@@ -390,7 +402,7 @@ async function getAllAccounts() {
         return snap.docs.map(doc => doc.data());
       }
     } catch (e) {
-      console.warn('[FIRESTORE getAllAccounts]', e.message);
+      handleFirestoreError('getAllAccounts', e);
     }
   }
 
@@ -416,7 +428,7 @@ async function deleteAccount(email) {
     try {
       await fb.getDb().collection('accounts').doc(cleanEmail).delete();
     } catch (e) {
-      console.warn('[FIRESTORE deleteAccount]', e.message);
+      handleFirestoreError('deleteAccount', e);
     }
   }
   return await run(`DELETE FROM accounts WHERE LOWER(email) = LOWER(?)`, [cleanEmail]);
@@ -444,7 +456,7 @@ async function recordSlip({ email, ip, mac, filename, qrPayload, amount = 150, s
     try {
       await fb.getDb().collection('slips').add(slipData);
     } catch (e) {
-      console.warn('[FIRESTORE recordSlip]', e.message);
+      handleFirestoreError('recordSlip', e);
     }
   }
 
@@ -461,7 +473,7 @@ async function isSlipUsed(qrPayload) {
       const snap = await fb.getDb().collection('slips').where('qr_payload', '==', qrPayload).limit(1).get();
       if (!snap.empty) return true;
     } catch (e) {
-      /* ignore */
+      handleFirestoreError('isSlipUsed', e);
     }
   }
   const row = await get(`SELECT id FROM slips WHERE qr_payload = ?`, [qrPayload]);
@@ -476,7 +488,7 @@ async function getAllSlips() {
         return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
     } catch (e) {
-      /* ignore */
+      handleFirestoreError('getAllSlips', e);
     }
   }
   return await all(`SELECT * FROM slips ORDER BY uploaded_at DESC`);
@@ -491,7 +503,7 @@ async function updateSlipStatus(id, status) {
     try {
       await fb.getDb().collection('slips').doc(String(id)).set({ status }, { merge: true });
     } catch (e) {
-      /* ignore */
+      handleFirestoreError('updateSlipStatus', e);
     }
   }
   return await run(`UPDATE slips SET status = ? WHERE id = ?`, [status, id]);
@@ -511,7 +523,7 @@ async function logIpAction({ email, ip, mac, action }) {
     try {
       await fb.getDb().collection('ip_logs').add(logData);
     } catch (e) {
-      /* ignore */
+      handleFirestoreError('logIpAction', e);
     }
   }
 
@@ -530,7 +542,7 @@ async function getRecentIpLogs(limit = 50) {
         return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
     } catch (e) {
-      /* ignore */
+      handleFirestoreError('getRecentIpLogs', e);
     }
   }
   return await all(`SELECT * FROM ip_logs ORDER BY timestamp DESC LIMIT ?`, [limit]);
@@ -542,7 +554,9 @@ async function clearIpLogs() {
 
 async function deleteSlip(id) {
   if (fb.isReady()) {
-    try { await fb.getDb().collection('slips').doc(String(id)).delete(); } catch (e) {}
+    try { await fb.getDb().collection('slips').doc(String(id)).delete(); } catch (e) {
+      handleFirestoreError('deleteSlip', e);
+    }
   }
   return await run(`DELETE FROM slips WHERE id = ?`, [id]);
 }
@@ -561,7 +575,7 @@ async function setSetting(key, value) {
     try {
       await fb.getDb().collection('settings').doc('config').set({ [key]: String(value) }, { merge: true });
     } catch (e) {
-      /* ignore */
+      handleFirestoreError('setSetting', e);
     }
   }
   return await run(

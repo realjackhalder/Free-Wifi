@@ -1691,7 +1691,7 @@ setInterval(syncFirestoreActiveAccounts, 3000);
 async function publishGatewayInfo() {
   const lanIp = getServerIp();
   try {
-    await fetch('https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/system/gateway?updateMask.fieldPaths=lanIp&updateMask.fieldPaths=userPort&updateMask.fieldPaths=adminPort&updateMask.fieldPaths=updatedAt', {
+    const res = await fetch('https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/system/gateway?updateMask.fieldPaths=lanIp&updateMask.fieldPaths=userPort&updateMask.fieldPaths=adminPort&updateMask.fieldPaths=updatedAt', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1703,7 +1703,9 @@ async function publishGatewayInfo() {
         }
       })
     });
-    console.log(`🌐 [GATEWAY] Published local gateway LAN IP (${lanIp}:${USER_PORT}) to Firestore system/gateway`);
+    if (res.ok) {
+      console.log(`🌐 [GATEWAY] Published local gateway LAN IP (${lanIp}:${USER_PORT}) to Firestore system/gateway`);
+    }
   } catch (e) {
     // quiet catch
   }
