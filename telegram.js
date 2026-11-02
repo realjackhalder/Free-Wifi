@@ -93,8 +93,8 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        { text: '✓ Approve', callback_data: `approve:${slipId}` },
-        { text: '✕ Decline', callback_data: `decline:${slipId}` }
+        { text: 'Approve', callback_data: `approve:${slipId}` },
+        { text: 'Decline', callback_data: `decline:${slipId}` }
       ]
     ]
   };
@@ -599,8 +599,8 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        { text: '✓ Approve', callback_data: `approve:${slipId}` },
-        { text: '✕ Decline', callback_data: `decline:${slipId}` }
+        { text: 'Approve', callback_data: `approve:${slipId}` },
+        { text: 'Decline', callback_data: `decline:${slipId}` }
       ]
     ]
   };
