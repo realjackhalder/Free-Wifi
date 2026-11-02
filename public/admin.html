@@ -397,7 +397,8 @@
       // Attempt verification against local server first
       try {
         const res = await fetch(`/api/admin-data?pin=${encodeURIComponent(pin)}`);
-        if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
           if (data.ok) {
             activePin = pin;
@@ -472,7 +473,8 @@
       try {
         // 1. Try local server API
         const res = await fetch(`/api/admin-data?pin=${encodeURIComponent(activePin)}`);
-        if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
           if (data.ok) {
             renderDashboard(data);
