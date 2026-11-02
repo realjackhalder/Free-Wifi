@@ -1,6 +1,6 @@
 // ============================================================================
-// Free Wi-Fi Gateway - White Mode Interface
-// Symmetrical, Apple-style Frosted Glass UI with multi-tab actions
+// Free Wi-Fi Gateway - True Dark Mode Interface with Liquid Glass
+// Symmetrical, visionOS-style Dark Liquid Glass UI (Pure Solid & Glass Colors)
 // ============================================================================
 
 function renderAdminLogin(error = null) {
@@ -13,103 +13,82 @@ function renderAdminLogin(error = null) {
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <style>
   :root {
-    --glisse-bg: #f8fafc;
-    --glisse-surface: rgba(255, 255, 255, 0.92);
-    --glisse-border: rgba(226, 232, 240, 0.9);
-    --glisse-border-top: #ffffff;
-    --glisse-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.08), 0 8px 16px -4px rgba(15, 23, 42, 0.03);
-    --glisse-inner: inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
-    --glisse-blur: blur(28px) saturate(180%);
+    --glass-bg: #000000;
+    --glass-surface: rgba(255, 255, 255, 0.04);
+    --glass-border: rgba(255, 255, 255, 0.09);
+    --glass-border-specular: rgba(255, 255, 255, 0.22);
+    --glass-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.95);
+    --glass-inner: inset 0 1px 0 0 rgba(255, 255, 255, 0.16);
+    --glass-blur: blur(32px) saturate(190%);
   }
+  * { box-sizing: border-box; }
   body {
-    background-color: var(--glisse-bg);
-    color: #0f172a;
+    background-color: var(--glass-bg);
+    color: #f1f5f9;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     min-height: 100vh;
+    margin: 0;
     overflow-x: hidden;
   }
-  .glisse-aura {
-    position: fixed;
-    pointer-events: none;
-    z-index: 0;
-    filter: blur(100px);
-    opacity: 0.7;
-    border-radius: 50%;
-  }
-  .glisse-aura-1 {
-    top: -120px;
-    left: 15%;
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, rgba(56, 189, 248, 0.22) 0%, rgba(147, 197, 253, 0.1) 50%, transparent 70%);
-  }
-  .glisse-aura-2 {
-    bottom: -100px;
-    right: 15%;
-    width: 540px;
-    height: 540px;
-    background: radial-gradient(circle, rgba(168, 85, 247, 0.16) 0%, rgba(244, 114, 182, 0.08) 50%, transparent 70%);
-  }
   .glisse-card {
-    background: var(--glisse-surface);
-    backdrop-filter: var(--glisse-blur);
-    -webkit-backdrop-filter: var(--glisse-blur);
-    border: 1px solid var(--glisse-border);
-    border-top: 1px solid var(--glisse-border-top);
-    box-shadow: var(--glisse-inner), var(--glisse-shadow);
+    background: var(--glass-surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-specular);
+    box-shadow: var(--glass-inner), var(--glass-shadow);
     border-radius: 28px;
   }
   .glisse-input {
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
-    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
-    color: #0f172a;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+    color: #ffffff;
     border-radius: 16px;
     outline: none;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glisse-input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
   }
   .glisse-btn-primary {
-    background: linear-gradient(135deg, #2563eb, #0284c7);
-    border: 1px solid rgba(37, 99, 235, 0.3);
-    border-top: 1px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    color: #ffffff;
+    background: #ffffff;
+    color: #000000;
+    border: 1px solid #ffffff;
+    box-shadow: 0 4px 16px rgba(255, 255, 255, 0.15);
+    font-weight: 700;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glisse-btn-primary:hover {
+    background: #e2e8f0;
     transform: translateY(-1px);
-    box-shadow: 0 12px 28px -4px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    filter: brightness(1.05);
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.25);
   }
   .glisse-btn-primary:active {
     transform: translateY(1px) scale(0.98);
   }
 </style>
 </head>
-<body class="flex items-center justify-center p-4 min-h-screen relative">
-  <div class="glisse-aura glisse-aura-1"></div>
-  <div class="glisse-aura glisse-aura-2"></div>
-
+<body class="flex items-center justify-center p-4 min-h-screen">
   <div class="glisse-card p-8 sm:p-10 max-w-md w-full relative z-10 text-center">
-    <div class="inline-flex p-4 rounded-3xl mb-4 bg-gradient-to-tr from-blue-500/15 to-cyan-500/10 border border-blue-200/60 shadow-sm backdrop-blur-xl">
+    <div class="inline-flex p-4 rounded-3xl mb-4 bg-white/5 border border-white/10 backdrop-blur-xl">
       <span class="text-4xl">🛡️</span>
     </div>
     
-    <h1 class="text-2xl font-black tracking-tight text-slate-900 mb-1">Gateway Admin</h1>
-    <p class="text-xs text-slate-500 mb-6 font-medium">Administrator Access Portal</p>
+    <h1 class="text-2xl font-black tracking-tight text-white mb-1">Gateway Admin</h1>
+    <p class="text-xs text-zinc-400 mb-6 font-medium">Administrator Access Portal</p>
     
-    ${error ? `<div class="bg-red-50 border border-red-200 text-red-700 text-xs px-4 py-2.5 rounded-2xl mb-5 font-semibold">${error}</div>` : ''}
+    ${error ? `<div class="bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-2xl mb-5 font-semibold">${error}</div>` : ''}
 
     <form method="post" action="/admin/login" class="space-y-5 text-left">
       <div>
-        <label class="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Administrator PIN</label>
+        <label class="block text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">Administrator PIN</label>
         <input type="password" name="pin" placeholder="••••" autofocus required class="glisse-input w-full px-4 py-3.5 text-center text-xl font-mono tracking-widest" />
       </div>
-      <button type="submit" class="glisse-btn-primary w-full py-3.5 rounded-2xl font-bold text-sm tracking-wide shadow-md">
+      <button type="submit" class="glisse-btn-primary w-full py-3.5 rounded-2xl font-bold text-sm tracking-wide">
         Unlock Dashboard →
       </button>
     </form>
@@ -143,137 +122,112 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <style>
   :root {
-    --glisse-bg: #f8fafc;
-    --glisse-surface: rgba(255, 255, 255, 0.9);
-    --glisse-surface-hover: rgba(255, 255, 255, 0.98);
-    --glisse-border: rgba(226, 232, 240, 0.85);
-    --glisse-border-specular: #ffffff;
-    --glisse-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.05), 0 4px 12px -2px rgba(15, 23, 42, 0.02);
-    --glisse-inner-specular: inset 0 1px 1px 0 #ffffff;
-    --glisse-blur: blur(28px) saturate(180%);
+    --glass-bg: #000000;
+    --glass-surface: rgba(255, 255, 255, 0.035);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-border-specular: rgba(255, 255, 255, 0.22);
+    --glass-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.85);
+    --glass-inner-specular: inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+    --glass-blur: blur(32px) saturate(190%);
   }
 
+  * { box-sizing: border-box; }
+
   body {
-    background-color: var(--glisse-bg);
-    color: #0f172a;
+    background-color: var(--glass-bg);
+    color: #f1f5f9;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     min-height: 100vh;
     position: relative;
     overflow-x: hidden;
   }
 
-  /* Ambient light orbs */
-  .glisse-aura {
-    position: fixed;
-    pointer-events: none;
-    z-index: 0;
-    filter: blur(100px);
-    opacity: 0.65;
-    border-radius: 50%;
-  }
-  .glisse-aura-1 {
-    top: -140px;
-    left: 8%;
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(56, 189, 248, 0.22) 0%, rgba(147, 197, 253, 0.1) 50%, transparent 70%);
-  }
-  .glisse-aura-2 {
-    top: 40px;
-    right: 8%;
-    width: 650px;
-    height: 650px;
-    background: radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, rgba(244, 114, 182, 0.08) 50%, transparent 70%);
-  }
-  .glisse-aura-3 {
-    bottom: -150px;
-    left: 35%;
-    width: 700px;
-    height: 700px;
-    background: radial-gradient(circle, rgba(52, 211, 153, 0.14) 0%, rgba(56, 189, 248, 0.08) 50%, transparent 70%);
-  }
-
-  /* Frosted white cards */
+  /* Dark Frosted Glass Cards */
   .glisse-card {
-    background: var(--glisse-surface);
-    backdrop-filter: var(--glisse-blur);
-    -webkit-backdrop-filter: var(--glisse-blur);
-    border: 1px solid var(--glisse-border);
-    border-top: 1px solid var(--glisse-border-specular);
-    box-shadow: var(--glisse-inner-specular), var(--glisse-shadow);
+    background: var(--glass-surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-specular);
+    box-shadow: var(--glass-inner-specular), var(--glass-shadow);
     border-radius: 24px;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glisse-card:hover {
-    border-color: rgba(203, 213, 225, 0.9);
-    box-shadow: inset 0 1px 1px 0 #ffffff, 0 24px 48px -12px rgba(15, 23, 42, 0.08);
+    border-color: rgba(255, 255, 255, 0.14);
+    border-top-color: rgba(255, 255, 255, 0.32);
+    box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.22), 0 24px 50px -10px rgba(0, 0, 0, 0.95);
   }
 
-  /* Frosted White Buttons */
+  /* Frosted Glass Buttons - Pure Solid & Glass Styling */
   .glisse-btn-primary {
-    background: linear-gradient(135deg, #2563eb, #0284c7);
-    border: 1px solid rgba(37, 99, 235, 0.2);
-    border-top: 1px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 6px 18px -3px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    color: #ffffff;
+    background: #ffffff;
+    color: #000000;
+    border: 1px solid #ffffff;
+    box-shadow: 0 4px 14px rgba(255, 255, 255, 0.15);
+    font-weight: 700;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glisse-btn-primary:hover {
+    background: #e2e8f0;
+    color: #000000;
     transform: translateY(-1px);
-    box-shadow: 0 10px 24px -3px rgba(37, 99, 235, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    filter: brightness(1.05);
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.25);
   }
   .glisse-btn-primary:active {
     transform: translateY(1px) scale(0.98);
   }
 
   .glisse-btn-secondary {
-    background: rgba(255, 255, 255, 0.85);
-    border: 1px solid #cbd5e1;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-    color: #334155;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    color: #f1f5f9;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glisse-btn-secondary:hover {
-    background: #ffffff;
-    border-color: #94a3b8;
-    color: #0f172a;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.06);
   }
 
   .glisse-btn-danger {
-    background: linear-gradient(135deg, #dc2626, #ef4444);
-    border: 1px solid rgba(220, 38, 38, 0.2);
-    border-top: 1px solid rgba(255, 255, 255, 0.35);
-    box-shadow: 0 6px 16px -3px rgba(220, 38, 38, 0.35);
-    color: #ffffff;
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    border-top: 1px solid rgba(248, 113, 113, 0.6);
+    color: #fca5a5;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glisse-btn-danger:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
     transform: translateY(-1px);
-    filter: brightness(1.05);
   }
 
   .glisse-btn-success {
-    background: linear-gradient(135deg, #059669, #10b981);
-    border: 1px solid rgba(5, 150, 105, 0.2);
-    border-top: 1px solid rgba(255, 255, 255, 0.35);
-    box-shadow: 0 6px 16px -3px rgba(16, 185, 129, 0.35);
-    color: #ffffff;
+    background: rgba(16, 185, 129, 0.18);
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    border-top: 1px solid rgba(52, 211, 153, 0.6);
+    color: #6ee7b7;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glisse-btn-success:hover {
+    background: #059669;
+    color: #ffffff;
+    border-color: #059669;
     transform: translateY(-1px);
-    filter: brightness(1.05);
   }
 
-  /* Frosted White Inputs */
+  /* Frosted Glass Inputs */
   .glisse-input {
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
-    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
-    color: #0f172a;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+    color: #ffffff;
     border-radius: 14px;
     padding: 9px 14px;
     font-size: 0.85rem;
@@ -281,17 +235,19 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
     transition: all 0.2s;
   }
   .glisse-input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
   }
 
-  /* Symmetrical Segmented Dock in White Mode */
+  /* Symmetrical Segmented Dock in True Dark Frosted Glass */
   .glisse-dock {
-    background: rgba(255, 255, 255, 0.78);
+    background: rgba(18, 18, 18, 0.72);
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
-    border: 1px solid rgba(203, 213, 225, 0.7);
-    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 16px 36px rgba(0, 0, 0, 0.8);
     border-radius: 9999px;
     padding: 5px;
     display: inline-flex;
@@ -304,7 +260,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
     border-radius: 9999px;
     font-size: 0.825rem;
     font-weight: 600;
-    color: #64748b;
+    color: #a1a1aa;
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
@@ -314,22 +270,22 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
     user-select: none;
   }
   .glisse-tab:hover {
-    color: #0f172a;
-    background: rgba(241, 245, 249, 0.8);
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.06);
   }
   .glisse-tab.active {
-    color: #0f172a;
+    color: #000000;
     background: #ffffff;
-    border: 1px solid rgba(203, 213, 225, 0.8);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06), inset 0 1px 0 #ffffff;
+    border: 1px solid #ffffff;
+    box-shadow: 0 4px 14px rgba(255, 255, 255, 0.25);
     font-weight: 700;
   }
 
   /* Modal Backdrop */
   .glisse-modal-backdrop {
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(0, 0, 0, 0.82);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
 
   .tab-pane {
@@ -346,32 +302,28 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
   }
 </style>
 </head>
-<body class="min-h-screen text-slate-800 relative pb-16">
-  <!-- Chromatic Background Orbs -->
-  <div class="glisse-aura glisse-aura-1"></div>
-  <div class="glisse-aura glisse-aura-2"></div>
-  <div class="glisse-aura glisse-aura-3"></div>
+<body class="min-h-screen text-zinc-200 relative pb-16">
 
   <!-- Top Glass Bar (Symmetrical Layout) -->
-  <header class="relative z-20 border-b border-slate-200/70 bg-white/70 backdrop-blur-xl py-4 px-4 sm:px-8">
+  <header class="relative z-20 border-b border-white/10 bg-black/60 backdrop-blur-xl py-4 px-4 sm:px-8">
     <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
       <!-- Left: Logo & Branding -->
       <div class="flex items-center space-x-3.5">
-        <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-500/20 to-cyan-500/15 border border-blue-200 flex items-center justify-center text-xl shadow-sm">
+        <div class="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-xl">
           📡
         </div>
         <div>
-          <h1 class="text-base font-black tracking-tight text-slate-900">
+          <h1 class="text-base font-black tracking-tight text-white">
             Free Wi-Fi Gateway
           </h1>
-          <p class="text-[11px] text-slate-500 font-medium">Admin Management Portal</p>
+          <p class="text-[11px] text-zinc-400 font-medium">Admin Management Portal</p>
         </div>
       </div>
 
       <!-- Center: Status Pills -->
       <div class="hidden md:flex items-center space-x-2 text-xs">
-        <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold flex items-center gap-1.5 shadow-sm">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="px-3 py-1 rounded-full bg-emerald-950/40 text-emerald-300 border border-emerald-800/60 font-semibold flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           Gateway Active
         </span>
       </div>
@@ -381,7 +333,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         <button onclick="location.reload()" class="glisse-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5" title="Refresh Dashboard">
           <span>🔄</span> Refresh
         </button>
-        <a href="/admin/logout" class="glisse-btn-danger px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm">
+        <a href="/admin/logout" class="glisse-btn-danger px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
           <span>🚪</span> Sign Out
         </a>
       </div>
@@ -393,17 +345,17 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
     <!-- Flash Messages -->
     ${
       msg
-        ? `<div class="glisse-card p-4 border-emerald-300 bg-emerald-50/90 text-emerald-800 text-xs font-bold flex items-center justify-between shadow-sm">
+        ? `<div class="glisse-card p-4 border-emerald-800/60 bg-emerald-950/40 text-emerald-300 text-xs font-bold flex items-center justify-between">
             <div class="flex items-center space-x-2"><span>✓</span><span>${msg}</span></div>
-            <button onclick="this.parentElement.remove()" class="text-emerald-600 hover:text-emerald-900">✕</button>
+            <button onclick="this.parentElement.remove()" class="text-emerald-400 hover:text-emerald-200">✕</button>
           </div>`
         : ''
     }
     ${
       err
-        ? `<div class="glisse-card p-4 border-red-300 bg-red-50/90 text-red-800 text-xs font-bold flex items-center justify-between shadow-sm">
+        ? `<div class="glisse-card p-4 border-red-800/60 bg-red-950/40 text-red-300 text-xs font-bold flex items-center justify-between">
             <div class="flex items-center space-x-2"><span>⚠️</span><span>${err}</span></div>
-            <button onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-900">✕</button>
+            <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-200">✕</button>
           </div>`
         : ''
     }
@@ -412,41 +364,41 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="glisse-card p-5 relative overflow-hidden group">
         <div class="flex items-center justify-between">
-          <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Total Accounts</p>
+          <p class="text-xs font-bold uppercase tracking-wider text-zinc-400">Total Accounts</p>
           <span class="text-lg">👥</span>
         </div>
-        <p class="text-3xl font-black text-slate-900 mt-2">${totalUsers}</p>
-        <p class="text-[11px] text-slate-500 mt-1">Google Accounts registered</p>
+        <p class="text-3xl font-black text-white mt-2">${totalUsers}</p>
+        <p class="text-[11px] text-zinc-500 mt-1">Google Accounts registered</p>
       </div>
 
       <div class="glisse-card p-5 relative overflow-hidden group">
         <div class="flex items-center justify-between">
-          <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Online Now</p>
+          <p class="text-xs font-bold uppercase tracking-wider text-zinc-400">Online Now</p>
           <span class="text-lg">🟢</span>
         </div>
-        <p class="text-3xl font-black text-emerald-600 mt-2">${activeUsers}</p>
-        <p class="text-[11px] text-slate-500 mt-1">Active Wi-Fi devices</p>
+        <p class="text-3xl font-black text-emerald-400 mt-2">${activeUsers}</p>
+        <p class="text-[11px] text-zinc-500 mt-1">Active Wi-Fi devices</p>
       </div>
 
       <div class="glisse-card p-5 relative overflow-hidden group">
         <div class="flex items-center justify-between">
-          <p class="text-xs font-bold uppercase tracking-wider text-slate-500">VIP Members</p>
+          <p class="text-xs font-bold uppercase tracking-wider text-zinc-400">VIP Members</p>
           <span class="text-lg">⭐</span>
         </div>
-        <p class="text-3xl font-black text-purple-600 mt-2">${vipUsers}</p>
-        <p class="text-[11px] text-slate-500 mt-1">30-Day VIP Subscriptions</p>
+        <p class="text-3xl font-black text-purple-400 mt-2">${vipUsers}</p>
+        <p class="text-[11px] text-zinc-500 mt-1">30-Day VIP Subscriptions</p>
       </div>
 
       <div class="glisse-card p-5 relative overflow-hidden group">
         <div class="flex items-center justify-between">
-          <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Payment Slips</p>
+          <p class="text-xs font-bold uppercase tracking-wider text-zinc-400">Payment Slips</p>
           <span class="text-lg">🧾</span>
         </div>
         <div class="flex items-baseline space-x-2 mt-2">
-          <p class="text-3xl font-black text-amber-600">${slips.length}</p>
-          ${pendingCount > 0 ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">${pendingCount} Pending</span>` : ''}
+          <p class="text-3xl font-black text-amber-400">${slips.length}</p>
+          ${pendingCount > 0 ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/60">${pendingCount} Pending</span>` : ''}
         </div>
-        <p class="text-[11px] text-slate-500 mt-1">PromptPay slip uploads</p>
+        <p class="text-[11px] text-zinc-500 mt-1">PromptPay slip uploads</p>
       </div>
     </div>
 
@@ -458,7 +410,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         </button>
         <button onclick="switchTab('slips')" id="tab-btn-slips" class="glisse-tab ${activeTab === 'slips' ? 'active' : ''}">
           <span>🧾</span> Slips
-          ${pendingCount > 0 ? `<span class="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">${pendingCount}</span>` : ''}
+          ${pendingCount > 0 ? `<span class="bg-amber-400 text-black text-[10px] font-black px-1.5 py-0.2 rounded-full">${pendingCount}</span>` : ''}
         </button>
         <button onclick="switchTab('billing')" id="tab-btn-billing" class="glisse-tab ${activeTab === 'billing' ? 'active' : ''}">
           <span>💳</span> PromptPay QR
@@ -492,7 +444,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         </div>
 
         <div class="flex items-center space-x-2 w-full md:w-auto justify-end">
-          <button onclick="openGrantModal()" class="glisse-btn-primary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md">
+          <button onclick="openGrantModal()" class="glisse-btn-primary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
             <span>➕</span> Grant VIP Access
           </button>
         </div>
@@ -503,7 +455,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-xs">
             <thead>
-              <tr class="border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider bg-slate-50/80">
+              <tr class="border-b border-white/10 text-[11px] font-bold text-zinc-400 uppercase tracking-wider bg-white/[0.02]">
                 <th class="py-3 px-4">User / Google Account</th>
                 <th class="py-3 px-3">Plan</th>
                 <th class="py-3 px-3">Device IP</th>
@@ -513,10 +465,10 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                 <th class="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody id="accounts-tbody" class="divide-y divide-slate-100">
+            <tbody id="accounts-tbody" class="divide-y divide-white/[0.05]">
               ${
                 accounts.length === 0
-                  ? '<tr><td colspan="7" class="py-12 text-center text-slate-400">No registered Google accounts found</td></tr>'
+                  ? '<tr><td colspan="7" class="py-12 text-center text-zinc-500">No registered Google accounts found</td></tr>'
                   : accounts.map(a => {
                       const isExpired = !a.expiresAt || a.expiresAt <= now;
                       const daysLeft = a.expiresAt && !isExpired ? Math.ceil((a.expiresAt - now) / 86400000) : 0;
@@ -525,32 +477,32 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                       const planType = a.plan === 'vip-30d' ? 'vip' : 'trial';
 
                       return `
-                      <tr class="account-row hover:bg-slate-50/70 transition" data-email="${a.email.toLowerCase()}" data-name="${(a.name||'').toLowerCase()}" data-ip="${a.activeIp || ''}" data-plan="${planType}" data-blocked="${a.blocked ? '1' : '0'}">
+                      <tr class="account-row hover:bg-white/[0.03] transition" data-email="${a.email.toLowerCase()}" data-name="${(a.name||'').toLowerCase()}" data-ip="${a.activeIp || ''}" data-plan="${planType}" data-blocked="${a.blocked ? '1' : '0'}">
                         <td class="py-3 px-4">
                           <div class="flex items-center space-x-3">
-                            <div class="w-8 h-8 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center font-bold text-xs text-white shadow-sm">
+                            <div class="w-8 h-8 rounded-2xl bg-white/[0.08] border border-white/15 flex items-center justify-center font-bold text-xs text-white">
                               ${initial}
                             </div>
                             <div>
-                              <p class="font-bold text-slate-800">${a.name || '-'}</p>
-                              <p class="font-mono text-[11px] text-slate-500">${a.email}</p>
+                              <p class="font-bold text-white">${a.name || '-'}</p>
+                              <p class="font-mono text-[11px] text-zinc-400">${a.email}</p>
                             </div>
                           </div>
                         </td>
                         <td class="py-3 px-3">
-                          <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}">
+                          <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">
                             ${a.plan === 'vip-30d' ? '★ 30-Day VIP' : '1-Hour Free'}
                           </span>
                         </td>
-                        <td class="py-3 px-3 font-mono text-slate-700">
-                          ${a.activeIp ? `<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>${a.activeIp}</span>` : '<span class="text-slate-400">Offline</span>'}
+                        <td class="py-3 px-3 font-mono text-zinc-200">
+                          ${a.activeIp ? `<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${a.activeIp}</span>` : '<span class="text-zinc-500">Offline</span>'}
                         </td>
-                        <td class="py-3 px-3 font-mono text-slate-500">${a.activeMac || '-'}</td>
+                        <td class="py-3 px-3 font-mono text-zinc-400">${a.activeMac || '-'}</td>
                         <td class="py-3 px-3">
-                          ${isExpired ? '<span class="text-red-600 font-bold">Expired</span>' : `<span class="text-emerald-700 font-bold">${daysLeft}d left</span> <span class="text-[10px] text-slate-400">(${expStr})</span>`}
+                          ${isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${daysLeft}d left</span> <span class="text-[10px] text-zinc-500">(${expStr})</span>`}
                         </td>
                         <td class="py-3 px-3">
-                          ${a.blocked ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">Blocked</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Active</span>'}
+                          ${a.blocked ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-950/40 text-red-300 border border-red-800/60">Blocked</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60">Active</span>'}
                         </td>
                         <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
                           <form method="post" action="/admin/account/extend" class="inline">
@@ -574,7 +526,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                           </form>
                           <form method="post" action="/admin/account/delete" class="inline" onsubmit="return confirm('Permanently delete account ${a.email}?')">
                             <input type="hidden" name="email" value="${a.email}" />
-                            <button type="submit" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] text-red-500 hover:text-red-700 font-bold">✕</button>
+                            <button type="submit" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] text-red-400 hover:text-red-300 font-bold">✕</button>
                           </form>
                         </td>
                       </tr>`;
@@ -598,14 +550,14 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
           <button onclick="filterSlipStatus('approved')" class="slip-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold glisse-btn-secondary">Approved</button>
           <button onclick="filterSlipStatus('declined')" class="slip-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold glisse-btn-secondary">Declined</button>
         </div>
-        <p class="text-xs text-slate-500 font-medium">Verify PromptPay receipts with 1-click VIP activation</p>
+        <p class="text-xs text-zinc-400 font-medium">Verify PromptPay receipts with 1-click VIP activation</p>
       </div>
 
       <!-- Slips Symmetrical Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="slips-grid">
         ${
           slips.length === 0
-            ? '<div class="col-span-full glisse-card py-16 text-center text-slate-400">No payment slips uploaded yet.</div>'
+            ? '<div class="col-span-full glisse-card py-16 text-center text-zinc-500">No payment slips uploaded yet.</div>'
             : slips.map(s => {
                 const imgUrl = s.cloudUrl || (s.filename ? `/uploads/${s.filename}` : '/my-qr');
                 const dateStr = new Date(s.uploaded_at).toLocaleString('en-GB');
@@ -615,14 +567,14 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                 return `
                 <div class="glisse-card p-4 flex flex-col justify-between space-y-3 slip-card" data-status="${s.status}">
                   <div>
-                    <div class="relative w-full h-44 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 group cursor-pointer" onclick="openLightbox('${imgUrl}', 'Slip #${s.id} - ${s.email}')">
+                    <div class="relative w-full h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/10 group cursor-pointer" onclick="openLightbox('${imgUrl}', 'Slip #${s.id} - ${s.email}')">
                       <img src="${imgUrl}" alt="Slip #${s.id}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='/my-qr'" />
-                      <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent flex items-end p-3">
-                        <span class="text-[11px] font-bold text-white bg-slate-900/70 px-2.5 py-0.5 rounded-lg backdrop-blur-md">🔍 Click to inspect</span>
+                      <div class="absolute inset-0 bg-black/40 flex items-end p-3">
+                        <span class="text-[11px] font-bold text-white bg-black/80 px-2.5 py-0.5 rounded-lg border border-white/10 backdrop-blur-md">🔍 Click to inspect</span>
                       </div>
                       <div class="absolute top-2.5 right-2.5">
-                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm ${
-                          isApproved ? 'bg-emerald-600 text-white' : (isPending ? 'bg-amber-500 text-white' : 'bg-red-600 text-white')
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          isApproved ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-700/60' : (isPending ? 'bg-amber-950/70 text-amber-300 border border-amber-700/60' : 'bg-red-950/70 text-red-300 border border-red-700/60')
                         }">
                           ${s.status.toUpperCase()}
                         </span>
@@ -631,11 +583,11 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
 
                     <div class="mt-3 space-y-1 text-xs">
                       <div class="flex items-center justify-between">
-                        <span class="font-bold text-slate-900 text-sm">Slip #${s.id}</span>
-                        <span class="font-mono font-bold text-blue-600">${s.amount || 150} THB</span>
+                        <span class="font-bold text-white text-sm">Slip #${s.id}</span>
+                        <span class="font-mono font-bold text-sky-400">${s.amount || 150} THB</span>
                       </div>
-                      <p class="font-mono text-slate-600 break-all">${s.email}</p>
-                      <div class="flex items-center justify-between text-[11px] text-slate-400 font-mono pt-1">
+                      <p class="font-mono text-zinc-300 break-all">${s.email}</p>
+                      <div class="flex items-center justify-between text-[11px] text-zinc-500 font-mono pt-1">
                         <span>IP: ${s.ip_address || '-'}</span>
                         <span>${dateStr}</span>
                       </div>
@@ -643,19 +595,19 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                   </div>
 
                   <!-- Slip Actions -->
-                  <div class="pt-3 border-t border-slate-100 flex items-center space-x-2">
+                  <div class="pt-3 border-t border-white/[0.08] flex items-center space-x-2">
                     ${
                       isPending
                         ? `
                         <form method="post" action="/admin/slip/approve" class="flex-1">
                           <input type="hidden" name="slipId" value="${s.id}" />
-                          <button type="submit" class="glisse-btn-success w-full py-2 rounded-xl text-xs font-bold shadow-sm">
+                          <button type="submit" class="glisse-btn-success w-full py-2 rounded-xl text-xs font-bold">
                             ✓ Approve VIP
                           </button>
                         </form>
                         <form method="post" action="/admin/slip/decline" class="flex-1">
                           <input type="hidden" name="slipId" value="${s.id}" />
-                          <button type="submit" class="glisse-btn-secondary w-full py-2 rounded-xl text-xs font-bold text-red-600 hover:text-red-700">
+                          <button type="submit" class="glisse-btn-secondary w-full py-2 rounded-xl text-xs font-bold text-red-400 hover:text-red-300">
                             ✕ Decline
                           </button>
                         </form>`
@@ -665,7 +617,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                         </button>
                         <form method="post" action="/admin/slip/delete" class="inline" onsubmit="return confirm('Delete this slip record?')">
                           <input type="hidden" name="slipId" value="${s.id}" />
-                          <button type="submit" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs text-red-500 hover:text-red-700 font-bold" title="Delete slip">
+                          <button type="submit" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs text-red-400 hover:text-red-300 font-bold" title="Delete slip">
                             🗑
                           </button>
                         </form>`
@@ -689,20 +641,20 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
               <div class="flex items-center space-x-2.5">
                 <span class="text-2xl">💳</span>
                 <div>
-                  <h2 class="font-black text-sm text-slate-900">PromptPay QR Code</h2>
-                  <p class="text-xs text-slate-500">Displayed on User Captive Portal for payment</p>
+                  <h2 class="font-black text-sm text-white">PromptPay QR Code</h2>
+                  <p class="text-xs text-zinc-400">Displayed on User Captive Portal for payment</p>
                 </div>
               </div>
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">Active</span>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-950/40 text-sky-300 border border-sky-800/60">Active</span>
             </div>
 
-            <div class="flex flex-col sm:flex-row items-center gap-6 mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-              <div class="w-36 h-36 rounded-2xl bg-white p-2 shadow-sm border border-slate-200 flex items-center justify-center flex-shrink-0">
+            <div class="flex flex-col sm:flex-row items-center gap-6 mt-4 p-4 rounded-2xl bg-white/[0.03] border border-white/10">
+              <div class="w-36 h-36 rounded-2xl bg-white p-2 shadow-sm flex items-center justify-center flex-shrink-0">
                 <img src="/my-qr" alt="PromptPay QR" class="max-w-full max-h-full object-contain" />
               </div>
-              <div class="space-y-2 text-xs text-slate-600 flex-1">
-                <p class="font-bold text-slate-900">PromptPay Bank Transfer</p>
-                <p class="text-slate-500 text-[11px]">Recommended: Upload your official Thai PromptPay QR Code JPG/PNG image so users can scan and pay seamlessly.</p>
+              <div class="space-y-2 text-xs text-zinc-300 flex-1">
+                <p class="font-bold text-white">PromptPay Bank Transfer</p>
+                <p class="text-zinc-400 text-[11px]">Upload your official Thai PromptPay QR Code JPG/PNG image so users can scan and pay seamlessly.</p>
                 <div class="pt-1 flex items-center space-x-2">
                   <a href="/my-qr" target="_blank" download="promptpay-qr.jpg" class="glisse-btn-secondary px-3 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1">
                     ⬇️ Download
@@ -716,11 +668,11 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
           </div>
 
           <!-- Upload QR Form -->
-          <form method="post" action="/admin/upload-qr" enctype="multipart/form-data" class="space-y-3 pt-3 border-t border-slate-100">
-            <label class="block text-xs font-bold text-slate-700">Upload / Replace QR Image</label>
+          <form method="post" action="/admin/upload-qr" enctype="multipart/form-data" class="space-y-3 pt-3 border-t border-white/[0.08]">
+            <label class="block text-xs font-bold text-zinc-300">Upload / Replace QR Image</label>
             <div class="flex items-center space-x-3">
-              <input type="file" name="qr" accept="image/*" required class="glisse-input flex-1 text-xs file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white" />
-              <button type="submit" class="glisse-btn-primary px-4 py-2 rounded-xl text-xs font-bold shadow-md whitespace-nowrap">
+              <input type="file" name="qr" accept="image/*" required class="glisse-input flex-1 text-xs file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white file:text-black" />
+              <button type="submit" class="glisse-btn-primary px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap">
                 Upload QR
               </button>
             </div>
@@ -733,40 +685,40 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
             <div class="flex items-center space-x-2.5 mb-2">
               <span class="text-2xl">💰</span>
               <div>
-                <h2 class="font-black text-sm text-slate-900">VIP Package & Free Trial</h2>
-                <p class="text-xs text-slate-500">Configure prices and trial duration</p>
+                <h2 class="font-black text-sm text-white">VIP Package & Free Trial</h2>
+                <p class="text-xs text-zinc-400">Configure prices and trial duration</p>
               </div>
             </div>
 
             <form method="post" action="/admin/settings" class="space-y-4 mt-4">
               <input type="hidden" name="activeTab" value="billing" />
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">30-Day VIP Package Price (THB / Baht)</label>
+                <label class="block text-xs font-bold text-zinc-300 mb-1">30-Day VIP Package Price (THB / Baht)</label>
                 <div class="relative">
-                  <input type="number" name="monthlyPrice" value="${settings.monthlyPrice || 150}" required class="glisse-input w-full pr-12 font-bold text-blue-600 text-sm" />
-                  <span class="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">THB</span>
+                  <input type="number" name="monthlyPrice" value="${settings.monthlyPrice || 150}" required class="glisse-input w-full pr-12 font-bold text-sky-400 text-sm" />
+                  <span class="absolute right-3.5 top-2.5 text-xs font-bold text-zinc-500">THB</span>
                 </div>
-                <p class="text-[11px] text-slate-500 mt-1">Displayed on the Wi-Fi payment portal.</p>
+                <p class="text-[11px] text-zinc-500 mt-1">Displayed on the Wi-Fi payment portal.</p>
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Free Trial Duration (Minutes)</label>
+                <label class="block text-xs font-bold text-zinc-300 mb-1">Free Trial Duration (Minutes)</label>
                 <div class="relative">
-                  <input type="number" name="trialMinutes" value="${settings.trialMinutes || 60}" required class="glisse-input w-full pr-14 font-bold text-emerald-600 text-sm" />
-                  <span class="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">Mins</span>
+                  <input type="number" name="trialMinutes" value="${settings.trialMinutes || 60}" required class="glisse-input w-full pr-14 font-bold text-emerald-400 text-sm" />
+                  <span class="absolute right-3.5 top-2.5 text-xs font-bold text-zinc-500">Mins</span>
                 </div>
-                <p class="text-[11px] text-slate-500 mt-1">Duration of complimentary internet access per Google account.</p>
+                <p class="text-[11px] text-zinc-500 mt-1">Duration of complimentary internet access per Google account.</p>
               </div>
 
               <div class="pt-3">
-                <button type="submit" class="glisse-btn-primary w-full py-2.5 rounded-xl text-xs font-bold shadow-md">
+                <button type="submit" class="glisse-btn-primary w-full py-2.5 rounded-xl text-xs font-bold">
                   Save Billing & Package Settings
                 </button>
               </div>
             </form>
           </div>
 
-          <div class="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-xs text-blue-900">
+          <div class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-zinc-300">
             💡 <strong>VIP Package:</strong> Users receive unthrottled 30-day continuous internet access with automatic re-connect upon returning to the Wi-Fi network.
           </div>
         </div>
@@ -785,11 +737,11 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
               <div class="flex items-center space-x-2.5">
                 <span class="text-2xl">🤖</span>
                 <div>
-                  <h2 class="font-black text-sm text-slate-900">Telegram Approval Bot</h2>
-                  <p class="text-xs text-slate-500">1-Click approve/decline bank slips from your phone</p>
+                  <h2 class="font-black text-sm text-white">Telegram Approval Bot</h2>
+                  <p class="text-xs text-zinc-400">1-Click approve/decline bank slips from your phone</p>
                 </div>
               </div>
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${settings.telegramBotToken && settings.telegramChatId ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${settings.telegramBotToken && settings.telegramChatId ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/60' : 'bg-white/5 text-zinc-500 border border-white/10'}">
                 ${settings.telegramBotToken && settings.telegramChatId ? 'Configured' : 'Not Set'}
               </span>
             </div>
@@ -797,19 +749,19 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
             <form method="post" action="/admin/settings" class="space-y-4">
               <input type="hidden" name="activeTab" value="telegram" />
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Telegram Bot Token</label>
+                <label class="block text-xs font-bold text-zinc-300 mb-1">Telegram Bot Token</label>
                 <input type="text" id="tg-token" name="telegramBotToken" value="${settings.telegramBotToken || ''}" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="glisse-input w-full font-mono text-xs" />
-                <p class="text-[11px] text-slate-500 mt-1">Obtain from @BotFather on Telegram.</p>
+                <p class="text-[11px] text-zinc-500 mt-1">Obtain from @BotFather on Telegram.</p>
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Your Telegram Chat ID</label>
+                <label class="block text-xs font-bold text-zinc-300 mb-1">Your Telegram Chat ID</label>
                 <input type="text" id="tg-chatid" name="telegramChatId" value="${settings.telegramChatId || ''}" placeholder="e.g. 1534450061" class="glisse-input w-full font-mono text-xs" />
-                <p class="text-[11px] text-slate-500 mt-1">Send <code>/id</code> or <code>/start</code> to your bot to find your Chat ID.</p>
+                <p class="text-[11px] text-zinc-500 mt-1">Send <code>/id</code> or <code>/start</code> to your bot to find your Chat ID.</p>
               </div>
 
               <div class="grid grid-cols-2 gap-3 pt-2">
-                <button type="submit" class="glisse-btn-primary py-2.5 rounded-xl text-xs font-bold shadow-md">
+                <button type="submit" class="glisse-btn-primary py-2.5 rounded-xl text-xs font-bold">
                   Save Credentials
                 </button>
                 <button type="button" onclick="testTelegram()" class="glisse-btn-secondary py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
@@ -828,25 +780,25 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
             <div class="flex items-center space-x-2.5 mb-3">
               <span class="text-2xl">📖</span>
               <div>
-                <h2 class="font-black text-sm text-slate-900">How It Works</h2>
-                <p class="text-xs text-slate-500">Step-by-step 3-minute setup</p>
+                <h2 class="font-black text-sm text-white">How It Works</h2>
+                <p class="text-xs text-zinc-400">Step-by-step 3-minute setup</p>
               </div>
             </div>
 
-            <ol class="space-y-3 text-xs text-slate-600 list-decimal list-inside">
-              <li class="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <strong class="text-slate-900">Create your Bot:</strong> Open <a href="https://t.me/BotFather" target="_blank" class="text-blue-600 underline font-bold">@BotFather</a> on Telegram, send <code>/newbot</code>, and copy the HTTP API Token.
+            <ol class="space-y-3 text-xs text-zinc-300 list-decimal list-inside">
+              <li class="p-2.5 rounded-xl bg-white/[0.03] border border-white/10">
+                <strong class="text-white">Create your Bot:</strong> Open <a href="https://t.me/BotFather" target="_blank" class="text-sky-400 underline font-bold">@BotFather</a> on Telegram, send <code>/newbot</code>, and copy the HTTP API Token.
               </li>
-              <li class="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <strong class="text-slate-900">Start your Bot:</strong> Search for your newly created bot username on Telegram, click <strong>START</strong>, or send <code>/start</code>.
+              <li class="p-2.5 rounded-xl bg-white/[0.03] border border-white/10">
+                <strong class="text-white">Start your Bot:</strong> Search for your newly created bot username on Telegram, click <strong>START</strong>, or send <code>/start</code>.
               </li>
-              <li class="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <strong class="text-slate-900">Instant Notifications:</strong> When a user uploads a PromptPay slip photo, your phone immediately rings with the receipt photo and <strong>[Approve] / [Decline]</strong> buttons!
+              <li class="p-2.5 rounded-xl bg-white/[0.03] border border-white/10">
+                <strong class="text-white">Instant Notifications:</strong> When a user uploads a PromptPay slip photo, your phone immediately rings with the receipt photo and <strong>[Approve] / [Decline]</strong> buttons!
               </li>
             </ol>
           </div>
 
-          <div class="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
+          <div class="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-800/50 text-xs text-emerald-300 flex items-center gap-2">
             <span>🛡️</span>
             <span>No public IP or port forwarding required — uses secure outbound long-polling!</span>
           </div>
@@ -865,36 +817,36 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
             <div class="flex items-center space-x-2.5 mb-3">
               <span class="text-2xl">🔐</span>
               <div>
-                <h2 class="font-black text-sm text-slate-900">Admin Authentication PIN</h2>
-                <p class="text-xs text-slate-500">Change your dashboard password</p>
+                <h2 class="font-black text-sm text-white">Admin Authentication PIN</h2>
+                <p class="text-xs text-zinc-400">Change your dashboard password</p>
               </div>
             </div>
 
             <form method="post" action="/admin/settings" class="space-y-4">
               <input type="hidden" name="activeTab" value="settings" />
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">New Administrator PIN</label>
+                <label class="block text-xs font-bold text-zinc-300 mb-1">New Administrator PIN</label>
                 <input type="password" name="adminPin" value="${settings.adminPin || '1234'}" required class="glisse-input w-full font-mono text-xs tracking-widest" />
-                <p class="text-[11px] text-slate-500 mt-1">Must be at least 4 numeric digits.</p>
+                <p class="text-[11px] text-zinc-500 mt-1">Must be at least 4 numeric digits.</p>
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Google OAuth Client ID</label>
+                <label class="block text-xs font-bold text-zinc-300 mb-1">Google OAuth Client ID</label>
                 <input type="text" name="googleClientId" value="${settings.googleClientId || ''}" placeholder="e.g. 197252344762-...apps.googleusercontent.com" class="glisse-input w-full font-mono text-xs" />
-                <p class="text-[11px] text-slate-500 mt-1">For Sign In with Google authentication.</p>
+                <p class="text-[11px] text-zinc-500 mt-1">For Sign In with Google authentication.</p>
               </div>
 
               <div class="pt-2">
-                <button type="submit" class="glisse-btn-primary w-full py-2.5 rounded-xl text-xs font-bold shadow-md">
+                <button type="submit" class="glisse-btn-primary w-full py-2.5 rounded-xl text-xs font-bold">
                   Update Admin Security Settings
                 </button>
               </div>
             </form>
           </div>
 
-          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 space-y-1">
+          <div class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-zinc-400 space-y-1">
             <p><strong>Session Security:</strong> Authenticated via HttpOnly SameSite session cookies.</p>
-            <p class="text-[11px] text-slate-400">PINs are never leaked into URLs or browser navigation history.</p>
+            <p class="text-[11px] text-zinc-500">PINs are never leaked into URLs or browser navigation history.</p>
           </div>
         </div>
 
@@ -904,8 +856,8 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
             <div class="flex items-center space-x-2.5 mb-3">
               <span class="text-2xl">📧</span>
               <div>
-                <h2 class="font-black text-sm text-slate-900">Gmail SMTP (Email OTP Delivery)</h2>
-                <p class="text-xs text-slate-500">Deliver 6-digit verification codes to users</p>
+                <h2 class="font-black text-sm text-white">Gmail SMTP (Email OTP Delivery)</h2>
+                <p class="text-xs text-zinc-400">Deliver 6-digit verification codes to users</p>
               </div>
             </div>
 
@@ -913,35 +865,35 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
               <input type="hidden" name="activeTab" value="settings" />
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">SMTP Host</label>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Host</label>
                   <input type="text" name="smtpHost" value="${settings.smtpHost || ''}" placeholder="smtp.gmail.com" class="glisse-input w-full font-mono text-xs" />
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">SMTP Port</label>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Port</label>
                   <input type="text" name="smtpPort" value="${settings.smtpPort || '587'}" placeholder="587" class="glisse-input w-full font-mono text-xs" />
                 </div>
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">SMTP Username / Email</label>
+                <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Username / Email</label>
                 <input type="text" name="smtpUser" value="${settings.smtpUser || ''}" placeholder="your-email@gmail.com" class="glisse-input w-full font-mono text-xs" />
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Google App Password</label>
+                <label class="block text-xs font-bold text-zinc-300 mb-1">Google App Password</label>
                 <input type="password" name="smtpPass" value="${settings.smtpPass ? '********' : ''}" placeholder="16-character app password" class="glisse-input w-full font-mono text-xs" />
-                <p class="text-[11px] text-slate-500 mt-1">Generate via Google Account > Security > 2-Step Verification > App passwords.</p>
+                <p class="text-[11px] text-zinc-500 mt-1">Generate via Google Account > Security > 2-Step Verification > App passwords.</p>
               </div>
 
               <div class="pt-2">
-                <button type="submit" class="glisse-btn-primary w-full py-2.5 rounded-xl text-xs font-bold shadow-md">
+                <button type="submit" class="glisse-btn-primary w-full py-2.5 rounded-xl text-xs font-bold">
                   Save SMTP Configuration
                 </button>
               </div>
             </form>
           </div>
 
-          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+          <div class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-zinc-400">
             ✉️ Optional fallback delivery when users log in with email instead of One-Tap Google Account.
           </div>
         </div>
@@ -975,7 +927,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-xs">
             <thead>
-              <tr class="border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider bg-slate-50/80">
+              <tr class="border-b border-white/10 text-[11px] font-bold text-zinc-400 uppercase tracking-wider bg-white/[0.02]">
                 <th class="py-3 px-4">Device IP</th>
                 <th class="py-3 px-3">MAC Address</th>
                 <th class="py-3 px-3">Google Email</th>
@@ -984,30 +936,30 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
                 <th class="py-3 px-4 text-right">Quick Action</th>
               </tr>
             </thead>
-            <tbody id="logs-tbody" class="divide-y divide-slate-100">
+            <tbody id="logs-tbody" class="divide-y divide-white/[0.05]">
               ${
                 ipLogs.length === 0
-                  ? '<tr><td colspan="6" class="py-12 text-center text-slate-400">No network traffic logs recorded yet</td></tr>'
+                  ? '<tr><td colspan="6" class="py-12 text-center text-zinc-500">No network traffic logs recorded yet</td></tr>'
                   : ipLogs.map(l => {
                       const timeStr = new Date(l.timestamp).toLocaleString('en-GB');
                       return `
-                      <tr class="log-row hover:bg-slate-50/70 transition" data-ip="${l.ip_address}" data-email="${l.email || ''}" data-action="${l.action}">
-                        <td class="py-3 px-4 font-mono font-bold text-blue-600">${l.ip_address}</td>
-                        <td class="py-3 px-3 font-mono text-slate-500">${l.mac_address || '-'}</td>
-                        <td class="py-3 px-3 font-mono text-slate-700">${l.email || '-'}</td>
+                      <tr class="log-row hover:bg-white/[0.03] transition" data-ip="${l.ip_address}" data-email="${l.email || ''}" data-action="${l.action}">
+                        <td class="py-3 px-4 font-mono font-bold text-sky-400">${l.ip_address}</td>
+                        <td class="py-3 px-3 font-mono text-zinc-400">${l.mac_address || '-'}</td>
+                        <td class="py-3 px-3 font-mono text-zinc-300">${l.email || '-'}</td>
                         <td class="py-3 px-3">
                           <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            l.action === 'buy_package' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
-                            (l.action === 'blocked' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700 border border-blue-200')
+                            l.action === 'buy_package' ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' :
+                            (l.action === 'blocked' ? 'bg-red-950/40 text-red-300 border border-red-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60')
                           }">
                             ${l.action}
                           </span>
                         </td>
-                        <td class="py-3 px-3 text-slate-500">${timeStr}</td>
+                        <td class="py-3 px-3 text-zinc-400">${timeStr}</td>
                         <td class="py-3 px-4 text-right">
                           <form method="post" action="/admin/account/revoke-ip" class="inline">
                             <input type="hidden" name="ip" value="${l.ip_address}" />
-                            <button type="submit" class="glisse-btn-secondary px-2.5 py-1 rounded-lg text-[11px] font-bold text-red-600 hover:text-red-700" title="Revoke access immediately">
+                            <button type="submit" class="glisse-btn-secondary px-2.5 py-1 rounded-lg text-[11px] font-bold text-red-400 hover:text-red-300" title="Revoke access immediately">
                               Kick IP
                             </button>
                           </form>
@@ -1027,28 +979,28 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
   <!-- MODAL: GRANT VIP ACCESS (Action Dialog)                               -->
   <!-- ===================================================================== -->
   <div id="grant-modal" class="fixed inset-0 z-50 glisse-modal-backdrop hidden flex items-center justify-center p-4">
-    <div class="glisse-card p-6 sm:p-8 max-w-md w-full relative space-y-4">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
-        <h3 class="font-black text-slate-900 text-base flex items-center gap-2">
+    <div class="glisse-card p-6 sm:p-8 max-w-md w-full relative space-y-4 bg-zinc-950">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <h3 class="font-black text-white text-base flex items-center gap-2">
           <span>➕</span> Grant VIP Access
         </h3>
-        <button onclick="closeGrantModal()" class="text-slate-400 hover:text-slate-700 text-lg">✕</button>
+        <button onclick="closeGrantModal()" class="text-zinc-400 hover:text-white text-lg">✕</button>
       </div>
 
       <form method="post" action="/admin/account/grant" class="space-y-4">
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">User Email Address</label>
+          <label class="block text-xs font-bold text-zinc-300 mb-1">User Email Address</label>
           <input type="email" name="email" required placeholder="user@gmail.com" class="glisse-input w-full" />
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">User Name (Optional)</label>
+          <label class="block text-xs font-bold text-zinc-300 mb-1">User Name (Optional)</label>
           <input type="text" name="name" placeholder="John Doe" class="glisse-input w-full" />
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">VIP Duration (Days)</label>
-          <select name="days" class="glisse-input w-full font-bold text-blue-600">
+          <label class="block text-xs font-bold text-zinc-300 mb-1">VIP Duration (Days)</label>
+          <select name="days" class="glisse-input w-full font-bold text-sky-400 bg-zinc-900">
             <option value="7">7 Days VIP</option>
             <option value="30" selected>30 Days VIP (Standard Package)</option>
             <option value="60">60 Days VIP</option>
@@ -1061,7 +1013,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
           <button type="button" onclick="closeGrantModal()" class="glisse-btn-secondary flex-1 py-2.5 rounded-xl text-xs font-bold">
             Cancel
           </button>
-          <button type="submit" class="glisse-btn-primary flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md">
+          <button type="submit" class="glisse-btn-primary flex-1 py-2.5 rounded-xl text-xs font-bold">
             Grant VIP Now
           </button>
         </div>
@@ -1073,13 +1025,13 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
   <!-- MODAL: RECEIPT LIGHTBOX (Image Inspector)                             -->
   <!-- ===================================================================== -->
   <div id="lightbox-modal" class="fixed inset-0 z-50 glisse-modal-backdrop hidden flex items-center justify-center p-4" onclick="closeLightbox(event)">
-    <div class="glisse-card p-4 sm:p-6 max-w-2xl w-full relative space-y-3" onclick="event.stopPropagation()">
-      <div class="flex items-center justify-between pb-2 border-b border-slate-200">
-        <h4 id="lightbox-title" class="font-bold text-slate-900 text-sm">Receipt Inspector</h4>
-        <button onclick="closeLightbox()" class="text-slate-400 hover:text-slate-700 text-lg">✕</button>
+    <div class="glisse-card p-4 sm:p-6 max-w-2xl w-full relative space-y-3 bg-zinc-950" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between pb-2 border-b border-white/10">
+        <h4 id="lightbox-title" class="font-bold text-white text-sm">Receipt Inspector</h4>
+        <button onclick="closeLightbox()" class="text-zinc-400 hover:text-white text-lg">✕</button>
       </div>
-      <div class="w-full max-h-[70vh] overflow-auto flex items-center justify-center rounded-2xl bg-slate-100 p-2 border border-slate-200">
-        <img id="lightbox-img" src="" alt="Receipt" class="max-w-full max-h-[65vh] object-contain rounded-xl shadow-md" />
+      <div class="w-full max-h-[70vh] overflow-auto flex items-center justify-center rounded-2xl bg-black/60 p-2 border border-white/10">
+        <img id="lightbox-img" src="" alt="Receipt" class="max-w-full max-h-[65vh] object-contain rounded-xl" />
       </div>
       <div class="flex items-center justify-end space-x-2 pt-2">
         <a id="lightbox-download" href="" download="receipt.jpg" class="glisse-btn-secondary px-4 py-1.5 rounded-xl text-xs font-bold">
@@ -1196,7 +1148,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         return;
       }
 
-      resultBox.className = 'p-3 rounded-2xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200';
+      resultBox.className = 'p-3 rounded-2xl text-xs font-bold bg-white/5 text-sky-300 border border-sky-500/30';
       resultBox.innerText = '⏳ Sending test notification to Telegram...';
       resultBox.classList.remove('hidden');
 
@@ -1221,7 +1173,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
         }
       } catch (e) {}
 
-      // 2. Direct Telegram Bot API fallback (works everywhere, including Firebase Hosting)
+      // 2. Direct Telegram Bot API fallback
       if (!testSuccess && !errorMsg) {
         try {
           const tgUrl = 'https://api.telegram.org/bot' + encodeURIComponent(token) + '/sendMessage';
@@ -1230,7 +1182,7 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: '🔔 <b>Free Wi-Fi Gateway</b>\n\n✅ Telegram Bot connected successfully!\n🕒 Time: ' + new Date().toLocaleString() + '\n🌐 Dashboard: Admin Portal',
+              text: '🔔 <b>Free Wi-Fi Gateway</b>\\n\\n✅ Telegram Bot connected successfully!\\n🕒 Time: ' + new Date().toLocaleString() + '\\n🌐 Dashboard: Admin Portal',
               parse_mode: 'HTML'
             })
           });
@@ -1251,10 +1203,10 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
       }
 
       if (testSuccess) {
-        resultBox.className = 'p-3 rounded-2xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300';
+        resultBox.className = 'p-3 rounded-2xl text-xs font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60';
         resultBox.innerText = '✓ Test notification delivered to your Telegram app!';
       } else {
-        resultBox.className = 'p-3 rounded-2xl text-xs font-bold bg-red-50 text-red-800 border border-red-300';
+        resultBox.className = 'p-3 rounded-2xl text-xs font-bold bg-red-950/40 text-red-300 border border-red-800/60';
         resultBox.innerText = '⚠️ Telegram error: ' + (errorMsg || 'Failed to send');
       }
     }

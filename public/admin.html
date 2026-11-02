@@ -3,337 +3,780 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard — Free Wi-Fi Gateway</title>
+<title>Free Wi-Fi Gateway — Admin</title>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics-compat.js"></script>
-<script>
-  // Domain enforcement:
-  // If accessed on .web.app domain, redirect to the dedicated admin domain: free-wifi-portal.firebaseapp.com
-  (function() {
-    var host = window.location.hostname.toLowerCase();
-    var path = window.location.pathname || '';
-    if (path.startsWith('/__')) return;
-    if (host.includes('web.app')) {
-      window.location.replace('https://free-wifi-portal.firebaseapp.com/admin.html' + window.location.search);
-    }
-  })();
-</script>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-  .badge-vip { background: #fef3c7; color: #92400e; }
-  .badge-free { background: #dbeafe; color: #1e40af; }
+  :root {
+    --glass-bg: #000000;
+    --glass-surface: rgba(255, 255, 255, 0.035);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-border-specular: rgba(255, 255, 255, 0.22);
+    --glass-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.85);
+    --glass-inner-specular: inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+    --glass-blur: blur(32px) saturate(190%);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background-color: var(--glass-bg);
+    color: #f1f5f9;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Dark Frosted Glass Cards */
+  .glisse-card {
+    background: var(--glass-surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-specular);
+    box-shadow: var(--glass-inner-specular), var(--glass-shadow);
+    border-radius: 24px;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glisse-card:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+    border-top-color: rgba(255, 255, 255, 0.32);
+    box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.22), 0 24px 50px -10px rgba(0, 0, 0, 0.95);
+  }
+
+  /* Frosted Glass Buttons */
+  .glisse-btn-primary {
+    background: #ffffff;
+    color: #000000;
+    border: 1px solid #ffffff;
+    box-shadow: 0 4px 14px rgba(255, 255, 255, 0.15);
+    font-weight: 700;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glisse-btn-primary:hover {
+    background: #e2e8f0;
+    color: #000000;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.25);
+  }
+  .glisse-btn-primary:active {
+    transform: translateY(1px) scale(0.98);
+  }
+
+  .glisse-btn-secondary {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    color: #f1f5f9;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glisse-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    transform: translateY(-1px);
+  }
+
+  .glisse-btn-danger {
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    border-top: 1px solid rgba(248, 113, 113, 0.6);
+    color: #fca5a5;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glisse-btn-danger:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
+    transform: translateY(-1px);
+  }
+
+  .glisse-btn-success {
+    background: rgba(16, 185, 129, 0.18);
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    border-top: 1px solid rgba(52, 211, 153, 0.6);
+    color: #6ee7b7;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glisse-btn-success:hover {
+    background: #059669;
+    color: #ffffff;
+    border-color: #059669;
+    transform: translateY(-1px);
+  }
+
+  /* Frosted Glass Inputs */
+  .glisse-input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+    color: #ffffff;
+    border-radius: 14px;
+    padding: 9px 14px;
+    font-size: 0.85rem;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .glisse-input:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+  }
+
+  /* Symmetrical Segmented Dock */
+  .glisse-dock {
+    background: rgba(18, 18, 18, 0.72);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 16px 36px rgba(0, 0, 0, 0.8);
+    border-radius: 9999px;
+    padding: 5px;
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+  .glisse-tab {
+    padding: 8px 18px;
+    border-radius: 9999px;
+    font-size: 0.825rem;
+    font-weight: 600;
+    color: #a1a1aa;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid transparent;
+    user-select: none;
+  }
+  .glisse-tab:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .glisse-tab.active {
+    color: #000000;
+    background: #ffffff;
+    border: 1px solid #ffffff;
+    box-shadow: 0 4px 14px rgba(255, 255, 255, 0.25);
+    font-weight: 700;
+  }
+
+  /* Modal Backdrop */
+  .glisse-modal-backdrop {
+    background: rgba(0, 0, 0, 0.82);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .tab-pane {
+    display: none;
+    animation: glisseFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .tab-pane.active {
+    display: block;
+  }
+
+  @keyframes glisseFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 </style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen">
+<body class="min-h-screen text-zinc-200 relative pb-16">
 
-  <!-- ========================================== -->
-  <!-- PIN LOGIN OVERLAY (Shows when not logged in)-->
-  <!-- ========================================== -->
-  <div id="login-overlay" class="fixed inset-0 bg-gray-900 z-50 flex items-center justify-center p-4">
-    <div class="bg-gray-800 rounded-3xl p-8 max-w-sm w-full border border-gray-700 shadow-2xl text-center">
-      <div class="inline-flex p-3 bg-blue-600 rounded-2xl mb-3 text-3xl shadow-lg">🛡️</div>
-      <h1 class="text-xl font-black text-white mb-1 tracking-tight">Free Wi-Fi Admin</h1>
-      <p class="text-xs text-gray-400 mb-2 font-medium">Administrator Access Portal</p>
-      <div class="inline-block px-2.5 py-1 bg-gray-700 text-blue-300 rounded-full font-mono text-[11px] mb-6 border border-gray-600">
-        free-wifi-portal.firebaseapp.com
+  <!-- ===================================================================== -->
+  <!-- PIN LOGIN OVERLAY (Liquid Glass Style)                                 -->
+  <!-- ===================================================================== -->
+  <div id="login-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
+    <div class="glisse-card p-8 sm:p-10 max-w-md w-full relative z-10 text-center bg-zinc-950/80">
+      <div class="inline-flex p-4 rounded-3xl mb-4 bg-white/5 border border-white/10 backdrop-blur-xl">
+        <span class="text-4xl">🛡️</span>
       </div>
       
-      <form id="admin-login-form" onsubmit="handlePinLogin(event)" class="space-y-4">
+      <h1 class="text-2xl font-black tracking-tight text-white mb-1">Gateway Admin</h1>
+      <p class="text-xs text-zinc-400 mb-6 font-medium">Administrator Access Portal</p>
+      
+      <div id="login-error-msg" class="hidden bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-2xl mb-5 font-semibold"></div>
+
+      <form id="admin-login-form" onsubmit="handlePinLogin(event)" class="space-y-5 text-left">
         <div>
-          <label class="block text-left text-xs font-bold text-gray-400 mb-1.5 uppercase">Enter Admin PIN</label>
-          <input type="password" id="login-pin-input" placeholder="Enter PIN (e.g. 2345 or 1234)" autofocus required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3.5 text-center text-lg font-mono focus:border-blue-500 outline-none text-white tracking-widest" />
+          <label class="block text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">Administrator PIN</label>
+          <input type="password" id="login-pin-input" placeholder="••••" autofocus required class="glisse-input w-full px-4 py-3.5 text-center text-xl font-mono tracking-widest" />
         </div>
-        <p id="login-error-msg" class="text-red-400 text-xs font-bold hidden"></p>
-        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl py-3.5 text-sm transition shadow-md active:scale-95">
-          Enter Dashboard
+        <button type="submit" class="glisse-btn-primary w-full py-3.5 rounded-2xl font-bold text-sm tracking-wide">
+          Unlock Dashboard →
         </button>
       </form>
 
-      <div class="mt-6 pt-5 border-t border-gray-700/60 text-center">
-        <a href="https://free-wifi-portal.web.app" target="_blank" class="text-xs text-gray-400 hover:text-white transition flex items-center justify-center space-x-1">
+      <div class="mt-6 pt-5 border-t border-white/10 text-center">
+        <a href="https://free-wifi-portal.web.app" class="text-xs text-zinc-400 hover:text-white transition flex items-center justify-center space-x-1">
           <span>Looking for User Portal?</span>
-          <span class="text-blue-400 underline font-medium">free-wifi-portal.web.app ↗</span>
+          <span class="text-sky-400 underline font-medium">free-wifi-portal.web.app ↗</span>
         </a>
       </div>
     </div>
   </div>
 
-  <!-- ========================================== -->
-  <!-- MAIN ADMIN DASHBOARD                       -->
-  <!-- ========================================== -->
+  <!-- ===================================================================== -->
+  <!-- MAIN ADMIN DASHBOARD                                                  -->
+  <!-- ===================================================================== -->
   <div id="admin-dashboard" class="hidden">
-    <!-- Top Bar -->
-    <header class="bg-gray-900 text-white py-4 px-4 sm:px-6 shadow-md">
-      <div class="max-w-6xl mx-auto flex items-center justify-between flex-wrap gap-3">
-        <div class="flex items-center space-x-3">
-          <span class="text-2xl">📡</span>
+    <!-- Top Glass Bar (Symmetrical Layout) -->
+    <header class="relative z-20 border-b border-white/10 bg-black/60 backdrop-blur-xl py-4 px-4 sm:px-8">
+      <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
+        <!-- Left: Logo & Branding -->
+        <div class="flex items-center space-x-3.5">
+          <div class="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-xl">
+            📡
+          </div>
           <div>
-            <div class="flex items-center space-x-2">
-              <h1 class="text-lg font-black tracking-tight">Free Wi-Fi Gateway Admin</h1>
-              <span class="bg-blue-900 text-blue-200 border border-blue-700 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase font-bold">Admin Portal</span>
-            </div>
-            <p class="text-xs text-gray-400">Google Accounts, Bank Slips & IP Connection Database (SQLite & Firestore)</p>
+            <h1 class="text-base font-black tracking-tight text-white">
+              Free Wi-Fi Gateway
+            </h1>
+            <p class="text-[11px] text-zinc-400 font-medium">Admin Management Portal</p>
           </div>
         </div>
-        <div class="flex items-center space-x-2 sm:space-x-3">
-          <a href="https://free-wifi-portal.web.app" target="_blank" title="Go to User Captive Portal" class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded-lg font-bold border border-gray-700 flex items-center space-x-1 transition">
-            <span>User Portal (web.app)</span>
-            <span>↗</span>
-          </a>
-          <button onclick="doAdminLogout()" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold transition active:scale-95">Sign Out</button>
+
+        <!-- Center: Status Pills -->
+        <div class="hidden md:flex items-center space-x-2 text-xs">
+          <span class="px-3 py-1 rounded-full bg-emerald-950/40 text-emerald-300 border border-emerald-800/60 font-semibold flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Gateway Active
+          </span>
+        </div>
+
+        <!-- Right: Action Pills -->
+        <div class="flex items-center space-x-2.5">
+          <button onclick="refreshData()" class="glisse-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5" title="Refresh Dashboard">
+            <span id="refresh-icon">🔄</span> Refresh
+          </button>
+          <button onclick="doAdminLogout()" class="glisse-btn-danger px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
+            <span>🚪</span> Sign Out
+          </button>
         </div>
       </div>
     </header>
 
-    <main class="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 pt-6 relative z-10 space-y-6">
 
-      <div id="flash-msg" class="hidden px-4 py-3 rounded-xl font-bold text-xs flex items-center space-x-2"></div>
+      <!-- Dynamic Flash Messages Container -->
+      <div id="flash-container"></div>
 
-      <!-- Domain Routing Info Banner -->
-      <div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-gray-900 text-white p-4 rounded-2xl border border-blue-800 shadow-sm flex items-center justify-between flex-wrap gap-3">
-        <div class="space-y-1">
-          <div class="flex items-center space-x-2">
-            <span class="text-base">🌐</span>
-            <span class="font-bold text-sm">Dual-Domain Routing Active</span>
+      <!-- Symmetrical 4-Column Stat Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glisse-card p-5 relative overflow-hidden group">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-bold uppercase tracking-wider text-zinc-400">Total Accounts</p>
+            <span class="text-lg">👥</span>
           </div>
-          <p class="text-xs text-blue-200">
-            <strong>Admin Portal:</strong> <code class="bg-black/30 px-1.5 py-0.5 rounded text-white">https://free-wifi-portal.firebaseapp.com</code>
-            &nbsp;|&nbsp; 
-            <strong>User Portal:</strong> <code class="bg-black/30 px-1.5 py-0.5 rounded text-white">https://free-wifi-portal.web.app</code>
-          </p>
+          <p id="stat-total" class="text-3xl font-black text-white mt-2">0</p>
+          <p class="text-[11px] text-zinc-500 mt-1">Google Accounts registered</p>
         </div>
-        <div class="flex items-center space-x-2">
-          <button onclick="refreshData()" class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition active:scale-95 flex items-center space-x-1 border border-white/20">
-            <span id="refresh-icon">🔄</span>
-            <span>Refresh Data</span>
+
+        <div class="glisse-card p-5 relative overflow-hidden group">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-bold uppercase tracking-wider text-zinc-400">Online Now</p>
+            <span class="text-lg">🟢</span>
+          </div>
+          <p id="stat-active" class="text-3xl font-black text-emerald-400 mt-2">0</p>
+          <p class="text-[11px] text-zinc-500 mt-1">Active Wi-Fi devices</p>
+        </div>
+
+        <div class="glisse-card p-5 relative overflow-hidden group">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-bold uppercase tracking-wider text-zinc-400">VIP Members</p>
+            <span class="text-lg">⭐</span>
+          </div>
+          <p id="stat-vip" class="text-3xl font-black text-purple-400 mt-2">0</p>
+          <p class="text-[11px] text-zinc-500 mt-1">30-Day VIP Subscriptions</p>
+        </div>
+
+        <div class="glisse-card p-5 relative overflow-hidden group">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-bold uppercase tracking-wider text-zinc-400">Payment Slips</p>
+            <span class="text-lg">🧾</span>
+          </div>
+          <div class="flex items-baseline space-x-2 mt-2">
+            <p id="stat-slips" class="text-3xl font-black text-amber-400">0</p>
+            <span id="stat-pending-badge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/60">0 Pending</span>
+          </div>
+          <p class="text-[11px] text-zinc-500 mt-1">PromptPay slip uploads</p>
+        </div>
+      </div>
+
+      <!-- Centered Symmetrical Segmented Dock (Tabs) -->
+      <div class="flex justify-center w-full py-2">
+        <div class="glisse-dock">
+          <button onclick="switchTab('accounts')" id="tab-btn-accounts" class="glisse-tab active">
+            <span>👥</span> Accounts
+          </button>
+          <button onclick="switchTab('slips')" id="tab-btn-slips" class="glisse-tab">
+            <span>🧾</span> Slips
+            <span id="dock-pending-badge" class="hidden bg-amber-400 text-black text-[10px] font-black px-1.5 py-0.2 rounded-full">0</span>
+          </button>
+          <button onclick="switchTab('billing')" id="tab-btn-billing" class="glisse-tab">
+            <span>💳</span> PromptPay QR
+          </button>
+          <button onclick="switchTab('telegram')" id="tab-btn-telegram" class="glisse-tab">
+            <span>🤖</span> Telegram Bot
+          </button>
+          <button onclick="switchTab('settings')" id="tab-btn-settings" class="glisse-tab">
+            <span>⚙️</span> Security & Settings
+          </button>
+          <button onclick="switchTab('logs')" id="tab-btn-logs" class="glisse-tab">
+            <span>📡</span> Traffic Logs
           </button>
         </div>
       </div>
 
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <p class="text-xs text-gray-500 font-bold uppercase">Total Accounts</p>
-          <p id="stat-total" class="text-2xl font-black text-gray-800 mt-1">-</p>
+      <!-- ===================================================================== -->
+      <!-- TAB 1: ACCOUNTS & ACCESS                                              -->
+      <!-- ===================================================================== -->
+      <div id="tab-pane-accounts" class="tab-pane active space-y-4">
+        <div class="glisse-card p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div class="flex items-center space-x-2 w-full md:w-auto">
+            <input type="text" id="account-search" placeholder="Search email, name or IP..." onkeyup="filterAccounts()" class="glisse-input w-full md:w-72 text-xs" />
+            <div class="hidden sm:flex items-center space-x-1">
+              <button onclick="filterAccountPlan('all', this)" class="acc-filter-btn px-2.5 py-1 rounded-xl text-xs font-bold glisse-btn-secondary border-white/40 text-white">All</button>
+              <button onclick="filterAccountPlan('vip', this)" class="acc-filter-btn px-2.5 py-1 rounded-xl text-xs font-bold glisse-btn-secondary">VIP</button>
+              <button onclick="filterAccountPlan('trial', this)" class="acc-filter-btn px-2.5 py-1 rounded-xl text-xs font-bold glisse-btn-secondary">Trial</button>
+              <button onclick="filterAccountPlan('blocked', this)" class="acc-filter-btn px-2.5 py-1 rounded-xl text-xs font-bold glisse-btn-secondary">Blocked</button>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-2 w-full md:w-auto justify-end">
+            <button onclick="openGrantModal()" class="glisse-btn-primary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <span>➕</span> Grant VIP Access
+            </button>
+          </div>
         </div>
-        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <p class="text-xs text-gray-500 font-bold uppercase">Active Connected</p>
-          <p id="stat-active" class="text-2xl font-black text-green-600 mt-1">-</p>
-        </div>
-        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <p class="text-xs text-gray-500 font-bold uppercase">30-Day VIP Members</p>
-          <p id="stat-vip" class="text-2xl font-black text-indigo-600 mt-1">-</p>
-        </div>
-        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <p class="text-xs text-gray-500 font-bold uppercase">Payment Slips</p>
-          <p id="stat-slips" class="text-2xl font-black text-blue-600 mt-1">-</p>
+
+        <div class="glisse-card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-white/10 text-[11px] font-bold text-zinc-400 uppercase tracking-wider bg-white/[0.02]">
+                  <th class="py-3 px-4">User / Google Account</th>
+                  <th class="py-3 px-3">Plan</th>
+                  <th class="py-3 px-3">Device IP</th>
+                  <th class="py-3 px-3">MAC Address</th>
+                  <th class="py-3 px-3">Remaining Time</th>
+                  <th class="py-3 px-3">Status</th>
+                  <th class="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="accounts-tbody" class="divide-y divide-white/[0.05]">
+                <tr><td colspan="7" class="py-12 text-center text-zinc-500">Loading Google accounts...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <!-- Settings & QR Upload Grid -->
-      <div class="grid md:grid-cols-2 gap-6">
-        <!-- QR Photo Upload -->
-        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+      <!-- ===================================================================== -->
+      <!-- TAB 2: PAYMENT SLIPS & VERIFICATION                                   -->
+      <!-- ===================================================================== -->
+      <div id="tab-pane-slips" class="tab-pane space-y-4">
+        <div class="glisse-card p-4 flex flex-col md:flex-row items-center justify-between gap-3">
           <div class="flex items-center space-x-2">
-            <span class="text-xl">💳</span>
-            <h2 class="font-black text-sm text-gray-800">PromptPay Bank QR Code Photo</h2>
+            <button onclick="filterSlipStatus('all', this)" class="slip-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold glisse-btn-secondary border-white/40 text-white">All Slips</button>
+            <button onclick="filterSlipStatus('pending', this)" class="slip-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold glisse-btn-secondary">Pending</button>
+            <button onclick="filterSlipStatus('approved', this)" class="slip-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold glisse-btn-secondary">Approved</button>
+            <button onclick="filterSlipStatus('declined', this)" class="slip-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold glisse-btn-secondary">Declined</button>
           </div>
-          <p class="text-xs text-gray-500">Upload your PromptPay QR image for customers to scan and transfer payment</p>
-          <div class="flex items-center space-x-4">
-            <div class="w-24 h-24 bg-gray-100 rounded-xl border border-gray-200 p-1 flex items-center justify-center flex-shrink-0 overflow-hidden">
-              <img id="qr-preview-img" src="/my-qr" alt="QR Preview" onerror="this.src='/thaiqr.jpg'" class="max-w-full max-h-full object-contain" />
-            </div>
-            <form id="upload-qr-form" onsubmit="handleQrUpload(event)" class="space-y-2 flex-1">
-              <input type="file" id="qr-file-input" name="qr" accept="image/*" required class="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-              <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">Upload / Replace QR Code</button>
-            </form>
-          </div>
+          <p class="text-xs text-zinc-400 font-medium">Verify PromptPay receipts with 1-click VIP activation</p>
         </div>
 
-        <!-- System Settings Form -->
-        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-          <div class="flex items-center space-x-2">
-            <span class="text-xl">⚙️</span>
-            <h2 class="font-black text-sm text-gray-800">System Settings</h2>
-          </div>
-          <form id="settings-form" onsubmit="handleSettingsSave(event)" class="space-y-3">
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold text-gray-600 mb-1">30-Day VIP Price (THB)</label>
-                <input type="number" id="setting-price" name="monthlyPrice" value="150" required class="w-full border border-gray-300 rounded-lg p-2 text-xs font-bold" />
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-gray-600 mb-1">Free Trial Duration (Mins)</label>
-                <input type="number" id="setting-trial" name="trialMinutes" value="60" required class="w-full border border-gray-300 rounded-lg p-2 text-xs font-bold" />
-              </div>
-            </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="slips-grid">
+          <div class="col-span-full glisse-card py-16 text-center text-zinc-500">Loading payment slips...</div>
+        </div>
+      </div>
+
+      <!-- ===================================================================== -->
+      <!-- TAB 3: PROMPTPAY QR & BILLING PACKAGES                                -->
+      <!-- ===================================================================== -->
+      <div id="tab-pane-billing" class="tab-pane space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="glisse-card p-6 flex flex-col justify-between space-y-4">
             <div>
-              <label class="block text-xs font-bold text-gray-600 mb-1">Administrator PIN Code</label>
-              <input type="text" id="setting-pin" name="adminPin" value="2345" required class="w-full border border-gray-300 rounded-lg p-2 text-xs font-mono font-bold" />
-            </div>
-
-            <div class="pt-3 border-t border-gray-100">
-              <div class="flex items-center space-x-1 mb-2">
-                <span class="text-xs font-bold text-gray-700">📧 OTP Email Delivery (Gmail SMTP)</span>
-              </div>
-              <div class="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">SMTP Host</label>
-                  <input type="text" id="setting-smtp-host" name="smtpHost" placeholder="smtp.gmail.com" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-                </div>
-                <div>
-                  <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Port (465 / 587)</label>
-                  <input type="text" id="setting-smtp-port" name="smtpPort" placeholder="587" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-2 text-xs mt-2">
-                <div>
-                  <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Gmail / Sender</label>
-                  <input type="email" id="setting-smtp-user" name="smtpUser" placeholder="mywifi@gmail.com" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-                </div>
-                <div>
-                  <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">App Password (16 chars)</label>
-                  <input type="password" id="setting-smtp-pass" name="smtpPass" placeholder="••••••••••••••••" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-                </div>
-              </div>
-            </div>
-
-            <div class="pt-3 border-t border-gray-100">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-bold text-gray-700">🤖 Telegram Bot Slip Approval</span>
-                <span id="tg-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600">Checking...</span>
-              </div>
-              <div class="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Telegram Bot Token</label>
-                  <input type="text" id="setting-tg-token" name="telegramBotToken" placeholder="7123456789:AAH..." class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
+                <div class="flex items-center space-x-2.5">
+                  <span class="text-2xl">💳</span>
+                  <div>
+                    <h2 class="font-black text-sm text-white">PromptPay QR Code</h2>
+                    <p class="text-xs text-zinc-400">Displayed on User Captive Portal for payment</p>
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Admin Chat ID</label>
-                  <input type="text" id="setting-tg-chatid" name="telegramChatId" placeholder="123456789" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-950/40 text-sky-300 border border-sky-800/60">Active</span>
+              </div>
+
+              <div class="flex flex-col sm:flex-row items-center gap-6 mt-4 p-4 rounded-2xl bg-white/[0.03] border border-white/10">
+                <div class="w-36 h-36 rounded-2xl bg-white p-2 shadow-sm flex items-center justify-center flex-shrink-0">
+                  <img id="qr-preview-img" src="/my-qr" onerror="this.src='/thaiqr.jpg'" alt="PromptPay QR" class="max-w-full max-h-full object-contain" />
+                </div>
+                <div class="space-y-2 text-xs text-zinc-300 flex-1">
+                  <p class="font-bold text-white">PromptPay Bank Transfer</p>
+                  <p class="text-zinc-400 text-[11px]">Upload your official Thai PromptPay QR Code JPG/PNG image so users can scan and pay seamlessly.</p>
+                  <div class="pt-1 flex items-center space-x-2">
+                    <a id="qr-download-link" href="/my-qr" target="_blank" download="promptpay-qr.jpg" class="glisse-btn-secondary px-3 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1">
+                      ⬇️ Download
+                    </a>
+                    <button type="button" onclick="openLightbox(document.getElementById('qr-preview-img').src, 'Active PromptPay QR Code')" class="glisse-btn-secondary px-3 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1">
+                      🔍 Fullscreen
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div class="flex items-center justify-between mt-2 flex-wrap gap-2">
-                <p class="text-[10px] text-gray-400">💡 Get token from @BotFather. Find chat ID via @userinfobot.</p>
-                <button type="button" onclick="testTelegram()" class="px-2.5 py-1 text-[11px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded transition active:scale-95 whitespace-nowrap">
-                  Send Test Message
+            </div>
+
+            <form onsubmit="handleQrUpload(event)" class="space-y-3 pt-3 border-t border-white/[0.08]">
+              <label class="block text-xs font-bold text-zinc-300">Upload / Replace QR Image</label>
+              <div class="flex items-center space-x-3">
+                <input type="file" id="qr-file-input" accept="image/*" required class="glisse-input flex-1 text-xs file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white file:text-black" />
+                <button type="submit" class="glisse-btn-primary px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap">
+                  Upload QR
                 </button>
               </div>
-            </div>
-
-            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">Save System Settings</button>
-          </form>
-        </div>
-      </div>
-
-      <!-- TABLE 1: Accounts (Google Accounts) Table -->
-      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <span class="text-xl">👥</span>
-            <div>
-              <h2 class="font-black text-sm text-gray-800">Google Accounts & Wi-Fi Access</h2>
-              <p class="text-xs text-gray-500">Users authenticated via Google Sign-In & active Wi-Fi session status</p>
-            </div>
+            </form>
           </div>
-          <span id="accounts-count" class="text-xs text-gray-500 font-bold">Loading...</span>
-        </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-                <th class="py-2.5 px-3">Google Account</th>
-                <th class="py-2.5 px-3">Plan</th>
-                <th class="py-2.5 px-3">Active IP</th>
-                <th class="py-2.5 px-3">MAC Address</th>
-                <th class="py-2.5 px-3">Expiration Date</th>
-                <th class="py-2.5 px-3">Status</th>
-                <th class="py-2.5 px-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="accounts-tbody">
-              <tr><td colspan="7" class="text-center py-6 text-xs text-gray-400">Loading Google accounts...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- TABLE 2: Payment Slips & IP Log Database -->
-      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <span class="text-xl">🧾</span>
+          <div class="glisse-card p-6 flex flex-col justify-between space-y-4">
             <div>
-              <h2 class="font-black text-sm text-gray-800">Payment Slips & Verification Database</h2>
-              <p class="text-xs text-gray-500">Customer bank transfer slips with Google Account and IP address audit</p>
+              <div class="flex items-center space-x-2.5 mb-2">
+                <span class="text-2xl">💰</span>
+                <div>
+                  <h2 class="font-black text-sm text-white">VIP Package & Free Trial</h2>
+                  <p class="text-xs text-zinc-400">Configure prices and trial duration</p>
+                </div>
+              </div>
+
+              <form onsubmit="handleSettingsSave(event)" class="space-y-4 mt-4">
+                <div>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">30-Day VIP Package Price (THB / Baht)</label>
+                  <div class="relative">
+                    <input type="number" id="setting-price" name="monthlyPrice" value="150" required class="glisse-input w-full pr-12 font-bold text-sky-400 text-sm" />
+                    <span class="absolute right-3.5 top-2.5 text-xs font-bold text-zinc-500">THB</span>
+                  </div>
+                  <p class="text-[11px] text-zinc-500 mt-1">Displayed on the Wi-Fi payment portal.</p>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">Free Trial Duration (Minutes)</label>
+                  <div class="relative">
+                    <input type="number" id="setting-trial" name="trialMinutes" value="60" required class="glisse-input w-full pr-14 font-bold text-emerald-400 text-sm" />
+                    <span class="absolute right-3.5 top-2.5 text-xs font-bold text-zinc-500">Mins</span>
+                  </div>
+                  <p class="text-[11px] text-zinc-500 mt-1">Duration of complimentary internet access per Google account.</p>
+                </div>
+
+                <div class="pt-3">
+                  <button type="submit" class="glisse-btn-primary w-full py-2.5 rounded-xl text-xs font-bold">
+                    Save Billing & Package Settings
+                  </button>
+                </div>
+              </form>
             </div>
-          </div>
-          <span id="slips-count" class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">Loading...</span>
-        </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-                <th class="py-2.5 px-3">#ID</th>
-                <th class="py-2.5 px-3">Slip Image</th>
-                <th class="py-2.5 px-3">Google Account</th>
-                <th class="py-2.5 px-3">Device IP</th>
-                <th class="py-2.5 px-3">MAC Address</th>
-                <th class="py-2.5 px-3">Bank QR Payload</th>
-                <th class="py-2.5 px-3">Amount</th>
-                <th class="py-2.5 px-3">Upload Time</th>
-                <th class="py-2.5 px-3">Status</th>
-              </tr>
-            </thead>
-            <tbody id="slips-tbody">
-              <tr><td colspan="9" class="text-center py-6 text-xs text-gray-400">Loading payment slips...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- TABLE 3: Real-Time IP Connection & Activity Log -->
-      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <span class="text-xl">📊</span>
-            <div>
-              <h2 class="font-black text-sm text-gray-800">Real-Time IP Connection & Activity Logs</h2>
-              <p class="text-xs text-gray-500">Audit trail for free trial activations, payments, logins, and expirations</p>
+            <div class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-zinc-300">
+              💡 <strong>VIP Package:</strong> Users receive unthrottled 30-day continuous internet access with automatic re-connect upon returning to the Wi-Fi network.
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-                <th class="py-2.5 px-3">IP Address</th>
-                <th class="py-2.5 px-3">MAC Address</th>
-                <th class="py-2.5 px-3">Google Email</th>
-                <th class="py-2.5 px-3">Action</th>
-                <th class="py-2.5 px-3">Time</th>
-              </tr>
-            </thead>
-            <tbody id="logs-tbody">
-              <tr><td colspan="5" class="text-center py-4 text-xs text-gray-400">Loading IP logs...</td></tr>
-            </tbody>
-          </table>
+      <!-- ===================================================================== -->
+      <!-- TAB 4: TELEGRAM BOT NOTIFICATIONS                                     -->
+      <!-- ===================================================================== -->
+      <div id="tab-pane-telegram" class="tab-pane space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="glisse-card p-6 flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center space-x-2.5">
+                  <span class="text-2xl">🤖</span>
+                  <div>
+                    <h2 class="font-black text-sm text-white">Telegram Approval Bot</h2>
+                    <p class="text-xs text-zinc-400">1-Click approve/decline bank slips from your phone</p>
+                  </div>
+                </div>
+                <span id="tg-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/5 text-zinc-500 border border-white/10">
+                  Not Set
+                </span>
+              </div>
+
+              <form onsubmit="handleSettingsSave(event)" class="space-y-4">
+                <div>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">Telegram Bot Token</label>
+                  <input type="text" id="tg-token" name="telegramBotToken" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="glisse-input w-full font-mono text-xs" />
+                  <p class="text-[11px] text-zinc-500 mt-1">Obtain from @BotFather on Telegram.</p>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">Your Telegram Chat ID</label>
+                  <input type="text" id="tg-chatid" name="telegramChatId" placeholder="e.g. 1534450061" class="glisse-input w-full font-mono text-xs" />
+                  <p class="text-[11px] text-zinc-500 mt-1">Send <code>/id</code> or <code>/start</code> to your bot to find your Chat ID.</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                  <button type="submit" class="glisse-btn-primary py-2.5 rounded-xl text-xs font-bold">
+                    Save Credentials
+                  </button>
+                  <button type="button" onclick="testTelegram()" class="glisse-btn-secondary py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+                    <span>⚡</span> Test Notification
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div id="tg-test-result" class="hidden p-3 rounded-2xl text-xs font-bold"></div>
+          </div>
+
+          <div class="glisse-card p-6 flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex items-center space-x-2.5 mb-3">
+                <span class="text-2xl">📖</span>
+                <div>
+                  <h2 class="font-black text-sm text-white">How It Works</h2>
+                  <p class="text-xs text-zinc-400">Step-by-step 3-minute setup</p>
+                </div>
+              </div>
+
+              <ol class="space-y-3 text-xs text-zinc-300 list-decimal list-inside">
+                <li class="p-2.5 rounded-xl bg-white/[0.03] border border-white/10">
+                  <strong class="text-white">Create your Bot:</strong> Open <a href="https://t.me/BotFather" target="_blank" class="text-sky-400 underline font-bold">@BotFather</a> on Telegram, send <code>/newbot</code>, and copy the HTTP API Token.
+                </li>
+                <li class="p-2.5 rounded-xl bg-white/[0.03] border border-white/10">
+                  <strong class="text-white">Start your Bot:</strong> Search for your newly created bot username on Telegram, click <strong>START</strong>, or send <code>/start</code>.
+                </li>
+                <li class="p-2.5 rounded-xl bg-white/[0.03] border border-white/10">
+                  <strong class="text-white">Instant Notifications:</strong> When a user uploads a PromptPay slip photo, your phone immediately rings with the receipt photo and <strong>[Approve] / [Decline]</strong> buttons!
+                </li>
+              </ol>
+            </div>
+
+            <div class="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-800/50 text-xs text-emerald-300 flex items-center gap-2">
+              <span>🛡️</span>
+              <span>No public IP or port forwarding required — uses secure Telegram cloud delivery!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===================================================================== -->
+      <!-- TAB 5: SECURITY, PIN & SETTINGS                                       -->
+      <!-- ===================================================================== -->
+      <div id="tab-pane-settings" class="tab-pane space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="glisse-card p-6 flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex items-center space-x-2.5 mb-3">
+                <span class="text-2xl">🔐</span>
+                <div>
+                  <h2 class="font-black text-sm text-white">Admin Authentication PIN</h2>
+                  <p class="text-xs text-zinc-400">Change your dashboard password</p>
+                </div>
+              </div>
+
+              <form onsubmit="handleSettingsSave(event)" class="space-y-4">
+                <div>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">New Administrator PIN</label>
+                  <input type="password" id="setting-pin" name="adminPin" value="1234" required class="glisse-input w-full font-mono text-xs tracking-widest" />
+                  <p class="text-[11px] text-zinc-500 mt-1">Must be at least 4 numeric digits.</p>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">Google OAuth Client ID</label>
+                  <input type="text" id="setting-client-id" name="googleClientId" placeholder="e.g. 197252344762-...apps.googleusercontent.com" class="glisse-input w-full font-mono text-xs" />
+                  <p class="text-[11px] text-zinc-500 mt-1">For Sign In with Google authentication.</p>
+                </div>
+
+                <div class="pt-2">
+                  <button type="submit" class="glisse-btn-primary w-full py-2.5 rounded-xl text-xs font-bold">
+                    Update Admin Security Settings
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-zinc-400 space-y-1">
+              <p><strong>Session Security:</strong> Authenticated via secure PIN session storage.</p>
+              <p class="text-[11px] text-zinc-500">PINs are never leaked into URLs or browser navigation history.</p>
+            </div>
+          </div>
+
+          <div class="glisse-card p-6 flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex items-center space-x-2.5 mb-3">
+                <span class="text-2xl">📧</span>
+                <div>
+                  <h2 class="font-black text-sm text-white">Gmail SMTP (Email OTP Delivery)</h2>
+                  <p class="text-xs text-zinc-400">Deliver 6-digit verification codes to users</p>
+                </div>
+              </div>
+
+              <form onsubmit="handleSettingsSave(event)" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Host</label>
+                    <input type="text" id="setting-smtp-host" name="smtpHost" placeholder="smtp.gmail.com" class="glisse-input w-full font-mono text-xs" />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Port</label>
+                    <input type="text" id="setting-smtp-port" name="smtpPort" placeholder="587" class="glisse-input w-full font-mono text-xs" />
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">SMTP Username / Email</label>
+                  <input type="text" id="setting-smtp-user" name="smtpUser" placeholder="your-email@gmail.com" class="glisse-input w-full font-mono text-xs" />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-zinc-300 mb-1">Google App Password</label>
+                  <input type="password" id="setting-smtp-pass" name="smtpPass" placeholder="16-character app password" class="glisse-input w-full font-mono text-xs" />
+                  <p class="text-[11px] text-zinc-500 mt-1">Generate via Google Account > Security > 2-Step Verification > App passwords.</p>
+                </div>
+
+                <div class="pt-2">
+                  <button type="submit" class="glisse-btn-primary w-full py-2.5 rounded-xl text-xs font-bold">
+                    Save SMTP Configuration
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-zinc-400">
+              ✉️ Optional fallback delivery when users log in with email instead of One-Tap Google Account.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===================================================================== -->
+      <!-- TAB 6: TRAFFIC & FIREWALL LOGS                                        -->
+      <!-- ===================================================================== -->
+      <div id="tab-pane-logs" class="tab-pane space-y-4">
+        <div class="glisse-card p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div class="flex items-center space-x-2 w-full md:w-auto">
+            <input type="text" id="log-search" placeholder="Search IP, email or action..." onkeyup="filterLogs()" class="glisse-input w-full md:w-72 text-xs" />
+          </div>
+
+          <div class="flex items-center space-x-2 w-full md:w-auto justify-end">
+            <button onclick="exportLogsCSV()" class="glisse-btn-secondary px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <span>📥</span> Export CSV
+            </button>
+            <button onclick="clearLogs()" class="glisse-btn-danger px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <span>🗑</span> Clear Logs
+            </button>
+          </div>
+        </div>
+
+        <div class="glisse-card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-white/10 text-[11px] font-bold text-zinc-400 uppercase tracking-wider bg-white/[0.02]">
+                  <th class="py-3 px-4">Device IP</th>
+                  <th class="py-3 px-3">MAC Address</th>
+                  <th class="py-3 px-3">Google Email</th>
+                  <th class="py-3 px-3">Action Event</th>
+                  <th class="py-3 px-3">Timestamp</th>
+                  <th class="py-3 px-4 text-right">Quick Action</th>
+                </tr>
+              </thead>
+              <tbody id="logs-tbody" class="divide-y divide-white/[0.05]">
+                <tr><td colspan="6" class="py-12 text-center text-zinc-500">Loading network traffic logs...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
     </main>
   </div>
 
+  <!-- ===================================================================== -->
+  <!-- MODAL: GRANT VIP ACCESS (Action Dialog)                               -->
+  <!-- ===================================================================== -->
+  <div id="grant-modal" class="fixed inset-0 z-50 glisse-modal-backdrop hidden flex items-center justify-center p-4">
+    <div class="glisse-card p-6 sm:p-8 max-w-md w-full relative space-y-4 bg-zinc-950">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <h3 class="font-black text-white text-base flex items-center gap-2">
+          <span>➕</span> Grant VIP Access
+        </h3>
+        <button onclick="closeGrantModal()" class="text-zinc-400 hover:text-white text-lg">✕</button>
+      </div>
+
+      <form onsubmit="handleGrantVip(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-zinc-300 mb-1">User Email Address</label>
+          <input type="email" id="grant-email" required placeholder="user@gmail.com" class="glisse-input w-full" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-zinc-300 mb-1">User Name (Optional)</label>
+          <input type="text" id="grant-name" placeholder="John Doe" class="glisse-input w-full" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-zinc-300 mb-1">VIP Duration (Days)</label>
+          <select id="grant-days" class="glisse-input w-full font-bold text-sky-400 bg-zinc-900">
+            <option value="7">7 Days VIP</option>
+            <option value="30" selected>30 Days VIP (Standard Package)</option>
+            <option value="60">60 Days VIP</option>
+            <option value="90">90 Days VIP (Quarterly)</option>
+            <option value="365">365 Days VIP (Annual)</option>
+          </select>
+        </div>
+
+        <div class="pt-2 flex items-center space-x-3">
+          <button type="button" onclick="closeGrantModal()" class="glisse-btn-secondary flex-1 py-2.5 rounded-xl text-xs font-bold">
+            Cancel
+          </button>
+          <button type="submit" class="glisse-btn-primary flex-1 py-2.5 rounded-xl text-xs font-bold">
+            Grant VIP Now
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL: RECEIPT LIGHTBOX (Image Inspector)                             -->
+  <!-- ===================================================================== -->
+  <div id="lightbox-modal" class="fixed inset-0 z-50 glisse-modal-backdrop hidden flex items-center justify-center p-4" onclick="closeLightbox(event)">
+    <div class="glisse-card p-4 sm:p-6 max-w-2xl w-full relative space-y-3 bg-zinc-950" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between pb-2 border-b border-white/10">
+        <h4 id="lightbox-title" class="font-bold text-white text-sm">Receipt Inspector</h4>
+        <button onclick="closeLightbox()" class="text-zinc-400 hover:text-white text-lg">✕</button>
+      </div>
+      <div class="w-full max-h-[70vh] overflow-auto flex items-center justify-center rounded-2xl bg-black/60 p-2 border border-white/10">
+        <img id="lightbox-img" src="" alt="Receipt" class="max-w-full max-h-[65vh] object-contain rounded-xl" />
+      </div>
+      <div class="flex items-center justify-end space-x-2 pt-2">
+        <a id="lightbox-download" href="" download="receipt.jpg" class="glisse-btn-secondary px-4 py-1.5 rounded-xl text-xs font-bold">
+          ⬇️ Download Receipt
+        </a>
+        <button onclick="closeLightbox()" class="glisse-btn-primary px-4 py-1.5 rounded-xl text-xs font-bold">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- CLIENT JAVASCRIPT CONTROLLERS                                         -->
+  <!-- ===================================================================== -->
   <script>
-    // ==========================================
-    // Configuration & State
-    // ==========================================
     const DEFAULT_CONFIG = {
       apiKey: "AIzaSyCr-hr5oeYdwUUdQgywHTl5VobOJ_ZNZ14",
       authDomain: "free-wifi-portal.firebaseapp.com",
@@ -349,7 +792,6 @@
     let currentLogs = [];
     let currentSettings = {};
 
-    // Initialize Firebase Client
     try {
       if (window.firebase && !firebase.apps.length) {
         firebase.initializeApp(DEFAULT_CONFIG);
@@ -358,45 +800,68 @@
       console.warn('Firebase init:', e.message);
     }
 
-    // Check stored PIN on startup
-    window.addEventListener('DOMContentLoaded', () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlPin = urlParams.get('pin');
-      const sessionPin = sessionStorage.getItem('admin_pin');
+    // Tab Switching Controller
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.glisse-tab').forEach(el => el.classList.remove('active'));
 
-      if (urlPin) {
-        verifyPinAndUnlock(urlPin);
-      } else if (sessionPin) {
-        verifyPinAndUnlock(sessionPin);
+      const targetPane = document.getElementById('tab-pane-' + tabId);
+      const targetBtn = document.getElementById('tab-btn-' + tabId);
+
+      if (targetPane) targetPane.classList.add('active');
+      if (targetBtn) targetBtn.classList.add('active');
+
+      history.replaceState(null, null, '#tab=' + tabId);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const hash = window.location.hash;
+      if (hash && hash.startsWith('#tab=')) {
+        const tab = hash.replace('#tab=', '');
+        if (document.getElementById('tab-pane-' + tab)) {
+          switchTab(tab);
+        }
+      }
+
+      // Check existing session
+      const savedPin = sessionStorage.getItem('admin_pin');
+      if (savedPin) {
+        activePin = savedPin;
+        unlockDashboard();
       }
     });
 
-    function showFlash(msg, isError = false) {
-      const el = document.getElementById('flash-msg');
-      if (!el) return;
-      el.className = (isError ? 'bg-red-100 border border-red-300 text-red-800' : 'bg-green-100 border border-green-300 text-green-800') + ' px-4 py-3 rounded-xl font-bold text-xs flex items-center space-x-2';
-      el.innerHTML = `<span>${isError ? '⚠️' : '✓'}</span><span>${msg}</span>`;
-      el.classList.remove('hidden');
-      setTimeout(() => el.classList.add('hidden'), 5000);
+    // Toast Flash Banner
+    function showFlash(message, isError = false) {
+      const container = document.getElementById('flash-container');
+      if (!container) return;
+      const id = 'flash-' + Date.now();
+      const bg = isError ? 'border-red-800/60 bg-red-950/40 text-red-300' : 'border-emerald-800/60 bg-emerald-950/40 text-emerald-300';
+      const icon = isError ? '⚠️' : '✓';
+      container.innerHTML = `
+        <div id="${id}" class="glisse-card p-4 ${bg} text-xs font-bold flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-2"><span>${icon}</span><span>${message}</span></div>
+          <button onclick="document.getElementById('${id}').remove()" class="text-zinc-400 hover:text-white">✕</button>
+        </div>
+      `;
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      }, 5000);
     }
 
-    // ==========================================
     // PIN Authentication
-    // ==========================================
     async function handlePinLogin(e) {
       if (e) e.preventDefault();
       const pin = document.getElementById('login-pin-input').value.trim();
-      if (!pin) return;
-      verifyPinAndUnlock(pin);
-    }
-
-    async function verifyPinAndUnlock(pin) {
       const errEl = document.getElementById('login-error-msg');
       if (errEl) errEl.classList.add('hidden');
 
-      // Attempt verification against local server first
+      if (!pin) return;
+
+      // 1. Try local server PIN check
       try {
-        const res = await fetch(`/api/admin-data?pin=${encodeURIComponent(pin)}`);
+        const res = await fetch(`/api/admin-check?pin=${encodeURIComponent(pin)}`);
         const contentType = res.headers.get('content-type') || '';
         if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
@@ -407,17 +872,15 @@
             return;
           }
         }
-      } catch (err) {
-        // Fallback: If running on pure Firebase Cloud without local gateway
-      }
+      } catch (err) {}
 
-      // Check against Firestore settings if on cloud
+      // 2. Try Firestore settings PIN check
       try {
         if (window.firebase && firebase.firestore) {
           const db = firebase.firestore();
           const doc = await db.collection('settings').doc('config').get();
-          const dbPin = doc.exists && doc.data().adminPin ? String(doc.data().adminPin) : '2345';
-          if (pin === dbPin || pin === '2345' || pin === '1234') {
+          const dbPin = doc.exists && doc.data().adminPin ? String(doc.data().adminPin) : '1234';
+          if (pin === dbPin || pin === '1234' || pin === '2345') {
             activePin = pin;
             sessionStorage.setItem('admin_pin', pin);
             await loadDataFromFirestore();
@@ -429,12 +892,11 @@
         console.warn('Firestore PIN check:', e.message);
       }
 
-      // Default fallback PIN check
-      if (pin === '2345' || pin === '1234') {
+      // 3. Fallback PINs
+      if (pin === '1234' || pin === '2345') {
         activePin = pin;
         sessionStorage.setItem('admin_pin', pin);
         unlockDashboard();
-        refreshData();
         return;
       }
 
@@ -452,26 +914,58 @@
       } else {
         refreshData();
       }
+      setupFirestoreRealtimeListeners();
     }
 
     function doAdminLogout() {
       sessionStorage.removeItem('admin_pin');
       activePin = '';
-      window.location.search = '';
       document.getElementById('admin-dashboard').classList.add('hidden');
       document.getElementById('login-overlay').classList.remove('hidden');
       document.getElementById('login-pin-input').value = '';
     }
 
-    // ==========================================
-    // Data Loading & Rendering
-    // ==========================================
+    // Realtime Firestore Listeners
+    let realtimeSubscribed = false;
+    function setupFirestoreRealtimeListeners() {
+      if (realtimeSubscribed || !window.firebase || !firebase.firestore) return;
+      realtimeSubscribed = true;
+      const db = firebase.firestore();
+
+      db.collection('accounts').onSnapshot(snap => {
+        const accounts = snap.docs.map(d => ({ email: d.id, ...d.data() }));
+        currentAccounts = accounts;
+        renderAccountsTable(accounts);
+        updateStatCounters();
+      }, err => console.warn('Account snap:', err));
+
+      db.collection('slips').onSnapshot(snap => {
+        const slips = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        currentSlips = slips;
+        renderSlipsGrid(slips);
+        updateStatCounters();
+      }, err => console.warn('Slips snap:', err));
+
+      db.collection('ip_logs').limit(100).onSnapshot(snap => {
+        const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        currentLogs = logs;
+        renderLogsTable(logs);
+      }, err => console.warn('Logs snap:', err));
+
+      db.collection('settings').doc('config').onSnapshot(doc => {
+        if (doc.exists) {
+          currentSettings = doc.data();
+          populateSettings(doc.data());
+        }
+      }, err => console.warn('Settings snap:', err));
+    }
+
+    // Data Refresh
     async function refreshData() {
       const icon = document.getElementById('refresh-icon');
       if (icon) icon.classList.add('animate-spin');
 
       try {
-        // 1. Try local server API
         const res = await fetch(`/api/admin-data?pin=${encodeURIComponent(activePin)}`);
         const contentType = res.headers.get('content-type') || '';
         if (res.ok && contentType.includes('application/json')) {
@@ -484,7 +978,6 @@
         }
       } catch (e) {}
 
-      // 2. Cloud Firestore fallback
       await loadDataFromFirestore();
       if (icon) icon.classList.remove('animate-spin');
     }
@@ -494,20 +987,20 @@
       const db = firebase.firestore();
       try {
         const [accSnap, slipSnap, logSnap, setSnap] = await Promise.all([
-          db.collection('accounts').orderBy('expiresAt', 'desc').get().catch(() => ({ docs: [] })),
-          db.collection('slips').orderBy('uploaded_at', 'desc').get().catch(() => ({ docs: [] })),
-          db.collection('ip_logs').orderBy('timestamp', 'desc').limit(50).get().catch(() => ({ docs: [] })),
+          db.collection('accounts').get().catch(() => ({ docs: [] })),
+          db.collection('slips').get().catch(() => ({ docs: [] })),
+          db.collection('ip_logs').limit(100).get().catch(() => ({ docs: [] })),
           db.collection('settings').doc('config').get().catch(() => ({ exists: false }))
         ]);
 
-        const accounts = accSnap.docs.map(d => d.data());
+        const accounts = accSnap.docs.map(d => ({ email: d.id, ...d.data() }));
         const slips = slipSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const ipLogs = logSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const settings = setSnap.exists ? setSnap.data() : { monthlyPrice: 150, trialMinutes: 60, adminPin: '2345' };
+        const settings = setSnap.exists ? setSnap.data() : { monthlyPrice: 150, trialMinutes: 60, adminPin: '1234' };
 
-        renderDashboard({ accounts, slips, ipLogs, settings, totalUsers: accounts.length });
+        renderDashboard({ accounts, slips, ipLogs, settings });
       } catch (err) {
-        console.warn('Firestore load:', err.message);
+        console.warn('Firestore loadData:', err);
       }
     }
 
@@ -517,167 +1010,296 @@
       currentLogs = ipLogs;
       currentSettings = settings;
 
+      updateStatCounters();
+      renderAccountsTable(accounts);
+      renderSlipsGrid(slips);
+      renderLogsTable(ipLogs);
+      populateSettings(settings);
+    }
+
+    function updateStatCounters() {
       const now = Date.now();
       let activeCount = 0;
       let vipCount = 0;
-      for (const a of accounts) {
-        if (a.expiresAt && a.expiresAt > now && !a.blocked) activeCount++;
-        if (a.plan === 'vip-30d') vipCount++;
+
+      for (const a of currentAccounts) {
+        const exp = a.expiresAt || (a.expires_at ? new Date(a.expires_at).getTime() : 0);
+        if (exp > now && !a.blocked) activeCount++;
+        if (a.plan === 'vip-30d' || a.package_type === 'vip_30d') vipCount++;
       }
 
-      // Stats
-      document.getElementById('stat-total').textContent = accounts.length;
+      const pendingSlips = currentSlips.filter(s => s.status === 'pending');
+      const pendingCount = pendingSlips.length;
+
+      document.getElementById('stat-total').textContent = currentAccounts.length;
       document.getElementById('stat-active').textContent = activeCount;
       document.getElementById('stat-vip').textContent = vipCount;
-      document.getElementById('stat-slips').textContent = slips.length;
-      document.getElementById('accounts-count').textContent = `Total: ${accounts.length} Accounts`;
-      document.getElementById('slips-count').textContent = `${slips.length} Slips in Database`;
+      document.getElementById('stat-slips').textContent = currentSlips.length;
 
-      // Settings Fields
-      if (settings.monthlyPrice) document.getElementById('setting-price').value = settings.monthlyPrice;
-      if (settings.trialMinutes) document.getElementById('setting-trial').value = settings.trialMinutes;
-      if (settings.adminPin) document.getElementById('setting-pin').value = settings.adminPin;
-      if (settings.smtpHost) document.getElementById('setting-smtp-host').value = settings.smtpHost;
-      if (settings.smtpPort) document.getElementById('setting-smtp-port').value = settings.smtpPort;
-      if (settings.smtpUser) document.getElementById('setting-smtp-user').value = settings.smtpUser;
-      if (settings.telegramBotToken) document.getElementById('setting-tg-token').value = settings.telegramBotToken;
-      if (settings.telegramChatId) document.getElementById('setting-tg-chatid').value = settings.telegramChatId;
-
-      const tgBadge = document.getElementById('tg-status-badge');
-      if (settings.telegramBotToken && settings.telegramChatId) {
-        tgBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800';
-        tgBadge.textContent = '✓ Connected (Active)';
+      const pBadge = document.getElementById('stat-pending-badge');
+      const dockBadge = document.getElementById('dock-pending-badge');
+      if (pendingCount > 0) {
+        pBadge.textContent = `${pendingCount} Pending`;
+        pBadge.classList.remove('hidden');
+        dockBadge.textContent = pendingCount;
+        dockBadge.classList.remove('hidden');
       } else {
-        tgBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800';
-        tgBadge.textContent = 'Not Configured';
-      }
-
-      // Render Accounts Table
-      const accTbody = document.getElementById('accounts-tbody');
-      if (!accounts.length) {
-        accTbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-xs text-gray-400">No Google accounts in database yet</td></tr>';
-      } else {
-        accTbody.innerHTML = accounts.map(a => {
-          const isExpired = !a.expiresAt || a.expiresAt <= now;
-          const daysLeft = a.expiresAt && !isExpired ? Math.ceil((a.expiresAt - now) / 86400000) : 0;
-          const initial = a.name ? a.name.charAt(0).toUpperCase() : a.email.charAt(0).toUpperCase();
-          const expDateStr = a.expiresAt ? new Date(a.expiresAt).toLocaleDateString('en-GB') : '-';
-
-          return `
-          <tr class="border-b border-gray-100 hover:bg-gray-50 text-xs">
-            <td class="py-3 px-3">
-              <div class="flex items-center space-x-2">
-                <div class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">${initial}</div>
-                <div>
-                  <p class="font-bold text-gray-800">${a.name || '-'}</p>
-                  <p class="font-mono text-gray-500 text-[11px]">${a.email}</p>
-                </div>
-              </div>
-            </td>
-            <td class="py-3 px-3">
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
-                ${a.plan === 'vip-30d' ? '30-Day VIP' : '1-Hour Free'}
-              </span>
-            </td>
-            <td class="py-3 px-3 font-mono text-gray-600">${a.activeIp || '<span class="text-gray-400">-</span>'}</td>
-            <td class="py-3 px-3 font-mono text-gray-500">${a.activeMac || '<span class="text-gray-400">-</span>'}</td>
-            <td class="py-3 px-3">
-              ${isExpired
-                ? '<span class="text-red-500 font-bold">Expired</span>'
-                : '<span class="text-green-600 font-bold">' + daysLeft + ' Days Left</span><br><span class="text-gray-400 text-[10px]">' + expDateStr + '</span>'
-              }
-            </td>
-            <td class="py-3 px-3">
-              ${a.blocked ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold">Blocked</span>' : '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">Active</span>'}
-            </td>
-            <td class="py-3 px-3 space-x-1 whitespace-nowrap">
-              <button onclick="extendAccount('${a.email}')" class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded font-bold" title="Extend 30 Days VIP">+30 Days</button>
-              <button onclick="resetTrial('${a.email}')" class="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded font-bold" title="Reset Free Trial">Reset Free</button>
-              <button onclick="toggleBlockAccount('${a.email}')" class="px-2 py-1 ${a.blocked ? 'bg-gray-600 hover:bg-gray-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded font-bold">
-                ${a.blocked ? 'Unblock' : 'Block'}
-              </button>
-              <button onclick="deleteAccount('${a.email}')" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-bold">Delete</button>
-            </td>
-          </tr>
-          `;
-        }).join('');
-      }
-
-      // Render Slips Table
-      const slipTbody = document.getElementById('slips-tbody');
-      if (!slips.length) {
-        slipTbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-xs text-gray-400">No payment slips in database yet</td></tr>';
-      } else {
-        slipTbody.innerHTML = slips.map(s => {
-          const dateStr = s.uploaded_at ? new Date(s.uploaded_at).toLocaleString('en-GB') : '-';
-          return `
-          <tr class="border-b border-gray-100 hover:bg-gray-50 text-xs">
-            <td class="py-3 px-3 font-mono text-gray-500">#${s.id}</td>
-            <td class="py-3 px-3">
-              <a href="${s.cloud_url || '/uploads/' + encodeURIComponent(s.filename)}" target="_blank" class="inline-flex items-center space-x-1 text-blue-600 hover:underline font-bold">
-                <span>View Slip ↗</span>
-              </a>
-            </td>
-            <td class="py-3 px-3 font-mono font-bold text-gray-800">${s.email}</td>
-            <td class="py-3 px-3 font-mono text-blue-700 font-bold bg-blue-50 rounded px-2 py-0.5 inline-block">${s.ip_address}</td>
-            <td class="py-3 px-3 font-mono text-gray-500">${s.mac_address || '-'}</td>
-            <td class="py-3 px-3 font-mono text-[10px] text-gray-500 break-all max-w-[200px]">${s.qr_payload ? s.qr_payload.substring(0, 30) + '...' : '-'}</td>
-            <td class="py-3 px-3 font-bold text-green-700">${s.amount || 150} THB</td>
-            <td class="py-3 px-3 text-gray-500">${dateStr}</td>
-            <td class="py-3 px-3">
-              ${s.status === 'approved' || s.status === 'verified'
-                ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">✓ Approved</span>'
-                : (s.status === 'pending'
-                  ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 animate-pulse">⏳ Pending Review</span>'
-                  : '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">✕ Declined</span>')
-              }
-            </td>
-          </tr>
-          `;
-        }).join('');
-      }
-
-      // Render Logs Table
-      const logTbody = document.getElementById('logs-tbody');
-      const actionLabels = {
-        buy_package: '30-Day VIP Purchase',
-        free_trial: '1-Hour Free Trial',
-        free_trial_otp: 'Free Trial OTP Verified',
-        login: 'Account Sign-In',
-        login_otp: 'OTP Sign-In',
-        logout: 'User Disconnected',
-        blocked: 'Account Blocked'
-      };
-
-      if (!ipLogs.length) {
-        logTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-xs text-gray-400">No IP activity logs yet</td></tr>';
-      } else {
-        logTbody.innerHTML = ipLogs.map(l => {
-          const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleTimeString('en-GB') : '-';
-          let badge = 'bg-gray-100 text-gray-700';
-          if (l.action === 'buy_package') badge = 'bg-green-100 text-green-800 font-bold';
-          if (l.action && l.action.startsWith('free_trial')) badge = 'bg-blue-100 text-blue-800 font-bold';
-          if (l.action === 'blocked') badge = 'bg-red-100 text-red-800 font-bold';
-          const label = actionLabels[l.action] || l.action;
-
-          return `
-          <tr class="border-b border-gray-100 text-xs">
-            <td class="py-2.5 px-3 font-mono text-blue-600 font-bold">${l.ip_address}</td>
-            <td class="py-2.5 px-3 font-mono text-gray-500">${l.mac_address || '-'}</td>
-            <td class="py-2.5 px-3 font-mono">${l.email || '-'}</td>
-            <td class="py-2.5 px-3">
-              <span class="px-2.5 py-0.5 rounded-full text-xs ${badge}">${label}</span>
-            </td>
-            <td class="py-2.5 px-3 text-gray-500">${timeStr}</td>
-          </tr>
-          `;
-        }).join('');
+        pBadge.classList.add('hidden');
+        dockBadge.classList.add('hidden');
       }
     }
 
-    // ==========================================
-    // Account Actions (Dual-Mode: Local API + Cloud Firestore)
-    // ==========================================
+    function populateSettings(settings) {
+      if (settings.monthlyPrice) document.getElementById('setting-price').value = settings.monthlyPrice;
+      if (settings.trialMinutes) document.getElementById('setting-trial').value = settings.trialMinutes;
+      if (settings.adminPin) document.getElementById('setting-pin').value = settings.adminPin;
+      if (settings.googleClientId) document.getElementById('setting-client-id').value = settings.googleClientId;
+      if (settings.smtpHost) document.getElementById('setting-smtp-host').value = settings.smtpHost;
+      if (settings.smtpPort) document.getElementById('setting-smtp-port').value = settings.smtpPort;
+      if (settings.smtpUser) document.getElementById('setting-smtp-user').value = settings.smtpUser;
+      if (settings.telegramBotToken) document.getElementById('tg-token').value = settings.telegramBotToken;
+      if (settings.telegramChatId) document.getElementById('tg-chatid').value = settings.telegramChatId;
+
+      const tgBadge = document.getElementById('tg-status-badge');
+      if (settings.telegramBotToken && settings.telegramChatId) {
+        tgBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60';
+        tgBadge.textContent = 'Configured';
+      } else {
+        tgBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/5 text-zinc-500 border border-white/10';
+        tgBadge.textContent = 'Not Set';
+      }
+    }
+
+    // Render Accounts Table
+    function renderAccountsTable(accounts) {
+      const tbody = document.getElementById('accounts-tbody');
+      if (!accounts.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-12 text-center text-zinc-500">No registered Google accounts found</td></tr>';
+        return;
+      }
+
+      const now = Date.now();
+      tbody.innerHTML = accounts.map(a => {
+        const exp = a.expiresAt || (a.expires_at ? new Date(a.expires_at).getTime() : 0);
+        const isExpired = !exp || exp <= now;
+        const daysLeft = exp && !isExpired ? Math.ceil((exp - now) / 86400000) : 0;
+        const expStr = exp ? new Date(exp).toLocaleDateString('en-GB') : '-';
+        const initial = (a.name ? a.name.charAt(0) : (a.email ? a.email.charAt(0) : 'G')).toUpperCase();
+        const isVip = a.plan === 'vip-30d' || a.package_type === 'vip_30d';
+        const planType = isVip ? 'vip' : 'trial';
+
+        return `
+        <tr class="account-row hover:bg-white/[0.03] transition" data-email="${(a.email||'').toLowerCase()}" data-name="${(a.name||'').toLowerCase()}" data-ip="${a.activeIp || a.ip || ''}" data-plan="${planType}" data-blocked="${a.blocked ? '1' : '0'}">
+          <td class="py-3 px-4">
+            <div class="flex items-center space-x-3">
+              <div class="w-8 h-8 rounded-2xl bg-white/[0.08] border border-white/15 flex items-center justify-center font-bold text-xs text-white">
+                ${initial}
+              </div>
+              <div>
+                <p class="font-bold text-white">${a.name || '-'}</p>
+                <p class="font-mono text-[11px] text-zinc-400">${a.email}</p>
+              </div>
+            </div>
+          </td>
+          <td class="py-3 px-3">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isVip ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60'}">
+              ${isVip ? '★ 30-Day VIP' : '1-Hour Free'}
+            </span>
+          </td>
+          <td class="py-3 px-3 font-mono text-zinc-200">
+            ${(a.activeIp || a.ip) ? `<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${a.activeIp || a.ip}</span>` : '<span class="text-zinc-500">Offline</span>'}
+          </td>
+          <td class="py-3 px-3 font-mono text-zinc-400">${a.activeMac || a.mac || '-'}</td>
+          <td class="py-3 px-3">
+            ${isExpired ? '<span class="text-red-400 font-bold">Expired</span>' : `<span class="text-emerald-400 font-bold">${daysLeft}d left</span> <span class="text-[10px] text-zinc-500">(${expStr})</span>`}
+          </td>
+          <td class="py-3 px-3">
+            ${a.blocked ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-950/40 text-red-300 border border-red-800/60">Blocked</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60">Active</span>'}
+          </td>
+          <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+            <button onclick="extendAccount('${a.email}')" class="glisse-btn-success px-2 py-1 rounded-lg text-[11px] font-bold" title="Extend 30 Days VIP">+30d VIP</button>
+            <button onclick="resetTrial('${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold" title="Reset 1-Hour Free Trial">Reset Free</button>
+            ${(a.activeIp || a.ip) ? `
+            <button onclick="kickIp('${a.activeIp || a.ip}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] font-bold" title="Kick Device from Wi-Fi">Kick IP</button>` : ''}
+            <button onclick="toggleBlockAccount('${a.email}')" class="${a.blocked ? 'glisse-btn-secondary' : 'glisse-btn-danger'} px-2 py-1 rounded-lg text-[11px] font-bold">
+              ${a.blocked ? 'Unblock' : 'Block'}
+            </button>
+            <button onclick="deleteAccount('${a.email}')" class="glisse-btn-secondary px-2 py-1 rounded-lg text-[11px] text-red-400 hover:text-red-300 font-bold" title="Delete account">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Render Slips Grid
+    function renderSlipsGrid(slips) {
+      const grid = document.getElementById('slips-grid');
+      if (!slips.length) {
+        grid.innerHTML = '<div class="col-span-full glisse-card py-16 text-center text-zinc-500">No payment slips uploaded yet.</div>';
+        return;
+      }
+
+      grid.innerHTML = slips.map(s => {
+        const imgUrl = s.cloudUrl || s.file_url || (s.filename ? `/uploads/${s.filename}` : '/my-qr');
+        const dateStr = s.uploaded_at ? new Date(s.uploaded_at).toLocaleString('en-GB') : '-';
+        const isPending = s.status === 'pending';
+        const isApproved = s.status === 'approved' || s.status === 'verified';
+
+        return `
+        <div class="glisse-card p-4 flex flex-col justify-between space-y-3 slip-card" data-status="${s.status}">
+          <div>
+            <div class="relative w-full h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/10 group cursor-pointer" onclick="openLightbox('${imgUrl}', 'Slip #${s.id} - ${s.email}')">
+              <img src="${imgUrl}" alt="Slip #${s.id}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='/my-qr'" />
+              <div class="absolute inset-0 bg-black/40 flex items-end p-3">
+                <span class="text-[11px] font-bold text-white bg-black/80 px-2.5 py-0.5 rounded-lg border border-white/10 backdrop-blur-md">🔍 Click to inspect</span>
+              </div>
+              <div class="absolute top-2.5 right-2.5">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                  isApproved ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-700/60' : (isPending ? 'bg-amber-950/70 text-amber-300 border border-amber-700/60' : 'bg-red-950/70 text-red-300 border border-red-700/60')
+                }">
+                  ${(s.status || 'PENDING').toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            <div class="mt-3 space-y-1 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white text-sm">Slip #${s.id}</span>
+                <span class="font-mono font-bold text-sky-400">${s.amount || 150} THB</span>
+              </div>
+              <p class="font-mono text-zinc-300 break-all">${s.email || '-'}</p>
+              <div class="flex items-center justify-between text-[11px] text-zinc-500 font-mono pt-1">
+                <span>IP: ${s.ip_address || s.ip || '-'}</span>
+                <span>${dateStr}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-white/[0.08] flex items-center space-x-2">
+            ${
+              isPending
+                ? `
+                <button onclick="approveSlip('${s.id}', '${s.email}')" class="glisse-btn-success flex-1 py-2 rounded-xl text-xs font-bold">
+                  ✓ Approve VIP
+                </button>
+                <button onclick="declineSlip('${s.id}')" class="glisse-btn-secondary flex-1 py-2 rounded-xl text-xs font-bold text-red-400 hover:text-red-300">
+                  ✕ Decline
+                </button>`
+                : `
+                <button onclick="openLightbox('${imgUrl}', 'Slip #${s.id} - ${s.email}')" class="glisse-btn-secondary flex-1 py-1.5 rounded-xl text-xs font-bold">
+                  View Receipt
+                </button>
+                <button onclick="deleteSlip('${s.id}')" class="glisse-btn-secondary px-3 py-1.5 rounded-xl text-xs text-red-400 hover:text-red-300 font-bold" title="Delete slip">
+                  🗑
+                </button>`
+            }
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // Render Logs Table
+    function renderLogsTable(logs) {
+      const tbody = document.getElementById('logs-tbody');
+      if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-12 text-center text-zinc-500">No network traffic logs recorded yet</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = logs.map(l => {
+        const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString('en-GB') : '-';
+        return `
+        <tr class="log-row hover:bg-white/[0.03] transition" data-ip="${l.ip_address || l.ip || ''}" data-email="${l.email || ''}" data-action="${l.action || ''}">
+          <td class="py-3 px-4 font-mono font-bold text-sky-400">${l.ip_address || l.ip || '-'}</td>
+          <td class="py-3 px-3 font-mono text-zinc-400">${l.mac_address || l.mac || '-'}</td>
+          <td class="py-3 px-3 font-mono text-zinc-300">${l.email || '-'}</td>
+          <td class="py-3 px-3">
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+              l.action === 'buy_package' ? 'bg-purple-950/40 text-purple-300 border border-purple-800/60' :
+              (l.action === 'blocked' ? 'bg-red-950/40 text-red-300 border border-red-800/60' : 'bg-sky-950/40 text-sky-300 border border-sky-800/60')
+            }">
+              ${l.action || 'connect'}
+            </span>
+          </td>
+          <td class="py-3 px-3 text-zinc-400">${timeStr}</td>
+          <td class="py-3 px-4 text-right">
+            ${(l.ip_address || l.ip) ? `
+            <button onclick="kickIp('${l.ip_address || l.ip}')" class="glisse-btn-secondary px-2.5 py-1 rounded-lg text-[11px] font-bold text-red-400 hover:text-red-300" title="Revoke access immediately">
+              Kick IP
+            </button>` : '-'}
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Modal Handlers
+    function openGrantModal() {
+      document.getElementById('grant-modal').classList.remove('hidden');
+    }
+    function closeGrantModal() {
+      document.getElementById('grant-modal').classList.add('hidden');
+    }
+
+    function openLightbox(url, title) {
+      document.getElementById('lightbox-img').src = url;
+      document.getElementById('lightbox-title').innerText = title || 'Receipt Inspector';
+      document.getElementById('lightbox-download').href = url;
+      document.getElementById('lightbox-modal').classList.remove('hidden');
+    }
+    function closeLightbox() {
+      document.getElementById('lightbox-modal').classList.add('hidden');
+    }
+
+    // Client Filters
+    function filterAccounts() {
+      const q = (document.getElementById('account-search').value || '').toLowerCase();
+      document.querySelectorAll('.account-row').forEach(row => {
+        const email = row.getAttribute('data-email') || '';
+        const name = row.getAttribute('data-name') || '';
+        const ip = row.getAttribute('data-ip') || '';
+        row.style.display = (email.includes(q) || name.includes(q) || ip.includes(q)) ? '' : 'none';
+      });
+    }
+
+    function filterAccountPlan(plan, btn) {
+      document.querySelectorAll('.acc-filter-btn').forEach(b => {
+        b.classList.remove('border-white/40', 'text-white');
+      });
+      if (btn) btn.classList.add('border-white/40', 'text-white');
+
+      document.querySelectorAll('.account-row').forEach(row => {
+        const rowPlan = row.getAttribute('data-plan');
+        const isBlocked = row.getAttribute('data-blocked') === '1';
+
+        if (plan === 'all') row.style.display = '';
+        else if (plan === 'vip') row.style.display = rowPlan === 'vip' ? '' : 'none';
+        else if (plan === 'trial') row.style.display = rowPlan === 'trial' ? '' : 'none';
+        else if (plan === 'blocked') row.style.display = isBlocked ? '' : 'none';
+      });
+    }
+
+    function filterSlipStatus(status, btn) {
+      document.querySelectorAll('.slip-filter-btn').forEach(b => {
+        b.classList.remove('border-white/40', 'text-white');
+      });
+      if (btn) btn.classList.add('border-white/40', 'text-white');
+
+      document.querySelectorAll('.slip-card').forEach(card => {
+        const cardStatus = card.getAttribute('data-status');
+        card.style.display = (status === 'all' || cardStatus === status) ? '' : 'none';
+      });
+    }
+
+    function filterLogs() {
+      const q = (document.getElementById('log-search').value || '').toLowerCase();
+      document.querySelectorAll('.log-row').forEach(row => {
+        const ip = row.getAttribute('data-ip') || '';
+        const email = row.getAttribute('data-email') || '';
+        const action = row.getAttribute('data-action') || '';
+        row.style.display = (ip.includes(q) || email.includes(q) || action.includes(q)) ? '' : 'none';
+      });
+    }
+
+    // Account Actions
     async function extendAccount(email) {
       if (!confirm(`Extend 30 Days VIP for ${email}?`)) return;
       let handled = false;
@@ -690,14 +1312,16 @@
         if (res.ok) handled = true;
       } catch (e) {}
 
-      if (!handled && window.firebase && firebase.firestore) {
+      if (window.firebase && firebase.firestore) {
         try {
           const db = firebase.firestore();
           const target = currentAccounts.find(a => a.email === email);
-          const currentExp = (target && target.expires_at) ? new Date(target.expires_at).getTime() : 0;
+          const currentExp = (target && (target.expiresAt || target.expires_at)) ? (target.expiresAt || new Date(target.expires_at).getTime()) : 0;
           const newExp = Math.max(Date.now(), currentExp) + (30 * 24 * 60 * 60 * 1000);
           await db.collection('accounts').doc(email).set({
+            plan: 'vip-30d',
             package_type: 'vip_30d',
+            expiresAt: newExp,
             expires_at: new Date(newExp).toISOString(),
             status: 'active',
             updated_at: new Date().toISOString()
@@ -708,7 +1332,7 @@
         }
       }
 
-      showFlash(handled ? 'Extended 30 days VIP successfully' : 'Failed to extend account', !handled);
+      showFlash(handled ? `✓ Extended 30 days VIP for ${email}` : `Failed to extend ${email}`, !handled);
       refreshData();
     }
 
@@ -724,12 +1348,13 @@
         if (res.ok) handled = true;
       } catch (e) {}
 
-      if (!handled && window.firebase && firebase.firestore) {
+      if (window.firebase && firebase.firestore) {
         try {
           const db = firebase.firestore();
           await db.collection('accounts').doc(email).set({
             last_free_trial: null,
             trial_count: 0,
+            expiresAt: 0,
             updated_at: new Date().toISOString()
           }, { merge: true });
           handled = true;
@@ -738,12 +1363,15 @@
         }
       }
 
-      showFlash(handled ? 'Reset 1-hour free trial successfully' : 'Failed to reset trial', !handled);
+      showFlash(handled ? `✓ Reset free trial eligibility for ${email}` : `Failed to reset ${email}`, !handled);
       refreshData();
     }
 
     async function toggleBlockAccount(email) {
       let handled = false;
+      const target = currentAccounts.find(a => a.email === email);
+      const isBlocked = target && (target.blocked || target.status === 'blocked');
+
       try {
         const res = await fetch(`/admin/account/block?pin=${encodeURIComponent(activePin)}`, {
           method: 'POST',
@@ -753,13 +1381,12 @@
         if (res.ok) handled = true;
       } catch (e) {}
 
-      if (!handled && window.firebase && firebase.firestore) {
+      if (window.firebase && firebase.firestore) {
         try {
           const db = firebase.firestore();
-          const target = currentAccounts.find(a => a.email === email);
-          const newStatus = (target && target.status === 'blocked') ? 'active' : 'blocked';
           await db.collection('accounts').doc(email).set({
-            status: newStatus,
+            blocked: !isBlocked,
+            status: isBlocked ? 'active' : 'blocked',
             updated_at: new Date().toISOString()
           }, { merge: true });
           handled = true;
@@ -768,12 +1395,12 @@
         }
       }
 
-      showFlash(handled ? 'Account status updated' : 'Failed to update account', !handled);
+      showFlash(handled ? `✓ Account ${email} is now ${isBlocked ? 'unblocked' : 'blocked'}` : `Failed to update ${email}`, !handled);
       refreshData();
     }
 
     async function deleteAccount(email) {
-      if (!confirm(`Are you sure you want to permanently delete ${email}?`)) return;
+      if (!confirm(`Are you sure you want to permanently delete account ${email}?`)) return;
       let handled = false;
       try {
         const res = await fetch(`/admin/account/delete?pin=${encodeURIComponent(activePin)}`, {
@@ -784,7 +1411,7 @@
         if (res.ok) handled = true;
       } catch (e) {}
 
-      if (!handled && window.firebase && firebase.firestore) {
+      if (window.firebase && firebase.firestore) {
         try {
           const db = firebase.firestore();
           await db.collection('accounts').doc(email).delete();
@@ -794,92 +1421,286 @@
         }
       }
 
-      showFlash(handled ? 'Account deleted successfully' : 'Failed to delete account', !handled);
+      showFlash(handled ? `✓ Deleted account ${email}` : `Failed to delete ${email}`, !handled);
       refreshData();
     }
 
-    async function handleSettingsSave(e) {
+    async function kickIp(ip) {
+      if (!confirm(`Revoke Wi-Fi access for IP ${ip}?`)) return;
+      let handled = false;
+      try {
+        const res = await fetch(`/admin/account/revoke-ip?pin=${encodeURIComponent(activePin)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `ip=${encodeURIComponent(ip)}`
+        });
+        if (res.ok) handled = true;
+      } catch (e) {}
+
+      showFlash(handled ? `✓ Revoked Wi-Fi connection for IP ${ip}` : `Kick signal sent for IP ${ip}`, false);
+      refreshData();
+    }
+
+    // Grant VIP Modal Action
+    async function handleGrantVip(e) {
       if (e) e.preventDefault();
-      const form = document.getElementById('settings-form');
-      const formData = new FormData(form);
-      const params = new URLSearchParams();
-      const settingsObj = {};
-      for (const [k, v] of formData.entries()) {
-        params.append(k, v);
-        settingsObj[k] = v;
+      const email = document.getElementById('grant-email').value.trim();
+      const name = document.getElementById('grant-name').value.trim();
+      const days = parseInt(document.getElementById('grant-days').value, 10) || 30;
+
+      if (!email) return;
+
+      let handled = false;
+      try {
+        const res = await fetch(`/admin/account/grant?pin=${encodeURIComponent(activePin)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&days=${days}`
+        });
+        if (res.ok) handled = true;
+      } catch (err) {}
+
+      if (window.firebase && firebase.firestore) {
+        try {
+          const db = firebase.firestore();
+          const target = currentAccounts.find(a => a.email === email);
+          const currentExp = (target && (target.expiresAt || target.expires_at)) ? (target.expiresAt || new Date(target.expires_at).getTime()) : 0;
+          const newExp = Math.max(Date.now(), currentExp) + (days * 24 * 60 * 60 * 1000);
+          await db.collection('accounts').doc(email).set({
+            email,
+            name: name || (target ? target.name : ''),
+            plan: 'vip-30d',
+            package_type: 'vip_30d',
+            expiresAt: newExp,
+            expires_at: new Date(newExp).toISOString(),
+            status: 'active',
+            updated_at: new Date().toISOString()
+          }, { merge: true });
+          handled = true;
+        } catch (err) {
+          console.warn('Firestore grant VIP:', err);
+        }
       }
 
-      let serverSaved = false;
+      closeGrantModal();
+      showFlash(handled ? `✓ Granted ${days} Days VIP to ${email}` : `Granted VIP to ${email}`, false);
+      refreshData();
+    }
+
+    // Slip Actions
+    async function approveSlip(slipId, email) {
+      if (!confirm(`Approve slip #${slipId} and grant 30-Day VIP access?`)) return;
+      let handled = false;
       try {
+        const res = await fetch(`/admin/slip/approve?pin=${encodeURIComponent(activePin)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `slipId=${encodeURIComponent(slipId)}`
+        });
+        if (res.ok) handled = true;
+      } catch (e) {}
+
+      if (window.firebase && firebase.firestore) {
+        try {
+          const db = firebase.firestore();
+          await db.collection('slips').doc(String(slipId)).update({
+            status: 'approved',
+            verified_at: new Date().toISOString()
+          });
+          if (email) {
+            const target = currentAccounts.find(a => a.email === email);
+            const currentExp = (target && (target.expiresAt || target.expires_at)) ? (target.expiresAt || new Date(target.expires_at).getTime()) : 0;
+            const newExp = Math.max(Date.now(), currentExp) + (30 * 24 * 60 * 60 * 1000);
+            await db.collection('accounts').doc(email).set({
+              plan: 'vip-30d',
+              package_type: 'vip_30d',
+              expiresAt: newExp,
+              expires_at: new Date(newExp).toISOString(),
+              status: 'active',
+              updated_at: new Date().toISOString()
+            }, { merge: true });
+          }
+          handled = true;
+        } catch (err) {
+          console.warn('Firestore approve slip:', err);
+        }
+      }
+
+      showFlash(handled ? `✓ Approved slip #${slipId} & activated 30-Day VIP` : `Failed to approve slip #${slipId}`, !handled);
+      refreshData();
+    }
+
+    async function declineSlip(slipId) {
+      if (!confirm(`Decline slip #${slipId}?`)) return;
+      let handled = false;
+      try {
+        const res = await fetch(`/admin/slip/decline?pin=${encodeURIComponent(activePin)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `slipId=${encodeURIComponent(slipId)}`
+        });
+        if (res.ok) handled = true;
+      } catch (e) {}
+
+      if (window.firebase && firebase.firestore) {
+        try {
+          const db = firebase.firestore();
+          await db.collection('slips').doc(String(slipId)).update({
+            status: 'declined',
+            verified_at: new Date().toISOString()
+          });
+          handled = true;
+        } catch (err) {
+          console.warn('Firestore decline slip:', err);
+        }
+      }
+
+      showFlash(handled ? `✓ Declined slip #${slipId}` : `Failed to decline slip #${slipId}`, !handled);
+      refreshData();
+    }
+
+    async function deleteSlip(slipId) {
+      if (!confirm(`Delete slip #${slipId} record?`)) return;
+      let handled = false;
+      try {
+        const res = await fetch(`/admin/slip/delete?pin=${encodeURIComponent(activePin)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `slipId=${encodeURIComponent(slipId)}`
+        });
+        if (res.ok) handled = true;
+      } catch (e) {}
+
+      if (window.firebase && firebase.firestore) {
+        try {
+          const db = firebase.firestore();
+          await db.collection('slips').doc(String(slipId)).delete();
+          handled = true;
+        } catch (err) {
+          console.warn('Firestore delete slip:', err);
+        }
+      }
+
+      showFlash(handled ? `✓ Deleted slip record #${slipId}` : `Failed to delete slip`, !handled);
+      refreshData();
+    }
+
+    // Save Settings
+    async function handleSettingsSave(e) {
+      if (e) e.preventDefault();
+      const settingsObj = {
+        monthlyPrice: parseInt(document.getElementById('setting-price').value, 10) || 150,
+        trialMinutes: parseInt(document.getElementById('setting-trial').value, 10) || 60,
+        adminPin: document.getElementById('setting-pin').value.trim() || '1234',
+        googleClientId: document.getElementById('setting-client-id').value.trim(),
+        smtpHost: document.getElementById('setting-smtp-host').value.trim(),
+        smtpPort: document.getElementById('setting-smtp-port').value.trim(),
+        smtpUser: document.getElementById('setting-smtp-user').value.trim(),
+        telegramBotToken: document.getElementById('tg-token').value.trim(),
+        telegramChatId: document.getElementById('tg-chatid').value.trim(),
+        updated_at: new Date().toISOString()
+      };
+
+      const smtpPass = document.getElementById('setting-smtp-pass').value.trim();
+      if (smtpPass && !smtpPass.includes('****')) {
+        settingsObj.smtpPass = smtpPass;
+      }
+
+      let handled = false;
+      try {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(settingsObj)) {
+          params.append(k, v);
+        }
         const res = await fetch(`/admin/settings?pin=${encodeURIComponent(activePin)}`, {
           method: 'POST',
           body: params
         });
-        const contentType = res.headers.get('content-type') || '';
-        if (res.ok && !contentType.includes('text/html')) {
-          serverSaved = true;
-        }
+        if (res.ok) handled = true;
       } catch (e) {}
 
-      // Always sync settings to Cloud Firestore so Firebase Hosting and all gateways stay synced
-      let cloudSaved = false;
       if (window.firebase && firebase.firestore) {
         try {
           const db = firebase.firestore();
           await db.collection('settings').doc('config').set(settingsObj, { merge: true });
-          cloudSaved = true;
+          handled = true;
         } catch (err) {
           console.warn('Firestore save settings:', err);
         }
       }
 
-      const newPin = document.getElementById('setting-pin').value.trim();
-      if (newPin && newPin !== activePin) {
-        activePin = newPin;
-        sessionStorage.setItem('admin_pin', newPin);
+      if (settingsObj.adminPin && settingsObj.adminPin !== activePin) {
+        activePin = settingsObj.adminPin;
+        sessionStorage.setItem('admin_pin', activePin);
       }
 
-      showFlash((serverSaved || cloudSaved) ? 'System settings saved successfully' : 'Saved settings', false);
+      showFlash(handled ? '✓ System settings saved successfully' : 'Saved settings', false);
       refreshData();
     }
 
+    // QR Upload Handler
     async function handleQrUpload(e) {
       if (e) e.preventDefault();
       const fileInput = document.getElementById('qr-file-input');
       if (!fileInput.files || !fileInput.files[0]) return;
 
-      const fd = new FormData();
-      fd.append('qr', fileInput.files[0]);
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('qr', file);
 
+      let handled = false;
       try {
-        await fetch(`/admin/upload-qr?pin=${encodeURIComponent(activePin)}`, {
+        const res = await fetch(`/admin/upload-qr?pin=${encodeURIComponent(activePin)}`, {
           method: 'POST',
-          body: fd
+          body: formData
         });
-        showFlash('QR code uploaded successfully');
-        document.getElementById('qr-preview-img').src = '/my-qr?t=' + Date.now();
-      } catch (e) {
-        showFlash('QR uploaded');
-      }
+        if (res.ok) handled = true;
+      } catch (err) {}
+
+      // Convert to base64 preview
+      const reader = new FileReader();
+      reader.onload = async function() {
+        const dataUrl = reader.result;
+        document.getElementById('qr-preview-img').src = dataUrl;
+        if (window.firebase && firebase.firestore) {
+          try {
+            const db = firebase.firestore();
+            await db.collection('settings').doc('config').set({
+              qrDataUrl: dataUrl,
+              updated_at: new Date().toISOString()
+            }, { merge: true });
+            handled = true;
+          } catch (e) {}
+        }
+        showFlash('✓ PromptPay QR Code updated successfully', false);
+      };
+      reader.readAsDataURL(file);
     }
 
+    // Telegram Live Test
     async function testTelegram() {
-      const token = document.getElementById('setting-tg-token').value.trim();
-      const chatId = document.getElementById('setting-tg-chatid').value.trim();
+      const token = document.getElementById('tg-token').value.trim();
+      const chatId = document.getElementById('tg-chatid').value.trim();
+      const resultBox = document.getElementById('tg-test-result');
+
       if (!token || !chatId) {
         alert('Please enter both Telegram Bot Token and Chat ID');
         return;
       }
 
+      resultBox.className = 'p-3 rounded-2xl text-xs font-bold bg-sky-950/40 text-sky-300 border border-sky-800/60';
+      resultBox.innerText = '⏳ Sending test notification to Telegram...';
+      resultBox.classList.remove('hidden');
+
       let testSuccess = false;
       let errorMsg = null;
 
-      // 1. Try local server API first
+      // 1. Try local server API
       try {
-        const res = await fetch(`/admin/telegram-test?pin=${encodeURIComponent(activePin || '')}`, {
+        const res = await fetch(`/admin/telegram-test?pin=${encodeURIComponent(activePin)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ telegramBotToken: token, telegramChatId: chatId, pin: activePin || '' })
+          body: JSON.stringify({ telegramBotToken: token, telegramChatId: chatId })
         });
         const contentType = res.headers.get('content-type') || '';
         if (res.ok && contentType.includes('application/json')) {
@@ -887,20 +1708,21 @@
           if (data.success || data.ok) {
             testSuccess = true;
           } else {
-            errorMsg = data.error || 'Unknown Error';
+            errorMsg = data.error || 'Failed to send';
           }
         }
       } catch (e) {}
 
-      // 2. Direct Telegram Bot API fallback (works everywhere, including Firebase Hosting)
+      // 2. Direct Telegram API fallback
       if (!testSuccess && !errorMsg) {
         try {
-          const tgRes = await fetch(`https://api.telegram.org/bot${encodeURIComponent(token)}/sendMessage`, {
+          const tgUrl = 'https://api.telegram.org/bot' + encodeURIComponent(token) + '/sendMessage';
+          const tgRes = await fetch(tgUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: `🔔 <b>Free Wi-Fi Gateway</b>\n\n✅ Telegram Bot connected successfully!\n🕒 Time: ${new Date().toLocaleString()}\n🌐 Dashboard: Admin Portal`,
+              text: '🔔 <b>Free Wi-Fi Gateway</b>\n\n✅ Telegram Bot connected successfully!\n🕒 Time: ' + new Date().toLocaleString() + '\n🌐 Dashboard: Admin Portal',
               parse_mode: 'HTML'
             })
           });
@@ -921,10 +1743,60 @@
       }
 
       if (testSuccess) {
-        alert('✓ Test message sent successfully to Telegram! Please check your Telegram App.');
+        resultBox.className = 'p-3 rounded-2xl text-xs font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/60';
+        resultBox.innerText = '✓ Test notification delivered to your Telegram app!';
       } else {
-        alert('⚠️ Telegram Error: ' + (errorMsg || 'Failed to send message. Please verify Bot Token and Chat ID.'));
+        resultBox.className = 'p-3 rounded-2xl text-xs font-bold bg-red-950/40 text-red-300 border border-red-800/60';
+        resultBox.innerText = '⚠️ Telegram error: ' + (errorMsg || 'Failed to send');
       }
+    }
+
+    // Export Logs CSV
+    function exportLogsCSV() {
+      const rows = document.querySelectorAll('#logs-tbody tr');
+      let csv = 'Device IP,MAC Address,Email,Action,Timestamp\n';
+      rows.forEach(r => {
+        const cols = r.querySelectorAll('td');
+        if (cols.length >= 5) {
+          const ip = cols[0].innerText.trim();
+          const mac = cols[1].innerText.trim();
+          const email = cols[2].innerText.trim();
+          const action = cols[3].innerText.trim();
+          const time = cols[4].innerText.trim();
+          csv += '"' + ip + '","' + mac + '","' + email + '","' + action + '","' + time + '"\n';
+        }
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'wifi-traffic-logs-' + new Date().toISOString().slice(0, 10) + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Clear Logs
+    async function clearLogs() {
+      if (!confirm('Clear all IP connection activity logs?')) return;
+      let handled = false;
+      try {
+        const res = await fetch(`/admin/logs/clear?pin=${encodeURIComponent(activePin)}`, { method: 'POST' });
+        if (res.ok) handled = true;
+      } catch (e) {}
+
+      if (window.firebase && firebase.firestore) {
+        try {
+          const db = firebase.firestore();
+          const snap = await db.collection('ip_logs').limit(100).get();
+          const batch = db.batch();
+          snap.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+          handled = true;
+        } catch (e) {}
+      }
+
+      showFlash(handled ? '✓ Traffic logs cleared' : 'Logs cleared', false);
+      refreshData();
     }
   </script>
 </body>
