@@ -3077,6 +3077,25 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   applySavedAccountToVip();
+
+  // Auto-fill OTP if present in URL query (?otp=123456)
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlOtp = urlParams.get('otp');
+    if (urlOtp && /^\d{6}$/.test(urlOtp.trim())) {
+      const cleanOtp = urlOtp.trim();
+      ['free', 'login'].forEach(mode => {
+        const step1 = document.getElementById(mode + '-step-1');
+        const step2 = document.getElementById(mode + '-step-2');
+        if (step1 && step2) {
+          step1.classList.add('hidden');
+          step2.classList.remove('hidden');
+        }
+        const otpInput = document.getElementById(mode + '-otp-code');
+        if (otpInput) otpInput.value = cleanOtp;
+      });
+    }
+  } catch (e) {}
 });
 </script>
 </body>

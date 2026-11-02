@@ -58,7 +58,7 @@ async function requestOtp(email, mode = 'free', name = '') {
   console.log(`======================================================\n`);
 
   // Attempt sending email via SMTP if configured
-  const emailResult = await sendOtpEmail(cleanEmail, otp, mode);
+  const emailResult = await sendOtpEmail(cleanEmail, otp, mode, name);
 
   return {
     ok: true,
@@ -144,13 +144,18 @@ function verifyOtp(email, inputOtp, expectedMode = null) {
 
 /**
  * High-deliverability transactional email dispatcher with anti-spam optimization
+ * Formatted specifically for Gmail's native OTP Quick-Action Card ("Code Requested" [Copy code])
  */
-async function sendOtpEmail(email, otp, mode) {
+async function sendOtpEmail(email, otp, mode = 'free', name = '') {
   try {
     const settings = await db.getAllSettings();
     if (!settings.smtpHost || !settings.smtpUser || !settings.smtpPass) {
       return { sent: false, reason: 'SMTP_NOT_CONFIGURED' };
     }
+
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const rawName = (name || cleanEmail.split('@')[0] || 'User').trim();
+    const capitalizedName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
     const smtpPort = parseInt(settings.smtpPort, 10) || 587;
     const isSecure = smtpPort === 465;
@@ -169,75 +174,127 @@ async function sendOtpEmail(email, otp, mode) {
       }
     });
 
-    // Clean, trusted verification subject (avoids promotional spam triggers)
-    const subject = `${otp} is your Free Wi-Fi verification code`;
+    // Subject matching Gmail OTP trigger specifications ("Your Security Code")
+    const subject = 'Your Security Code';
 
-    // Multipart plain-text alternative (avoids MIME_HTML_ONLY anti-spam penalty)
+    // Plain-text alternative formatted for instant parser recognition
     const textBody = 
-`Free Wi-Fi Verification Code: ${otp}
+`Your security code
 
-Your one-time security code is: ${otp}
+Hi ${capitalizedName},
 
-Enter this code on the Wi-Fi sign-in screen to complete your connection.
+Code Requested: ${otp}
+
+Your security code is: ${otp}
+
+Please enter this 6-digit code on the Free Wi-Fi sign-in screen to complete your connection.
 • Valid for 5 minutes only.
 • For your security, never share this code with anyone.
-• Free Wi-Fi staff will never ask for your verification code.
 
 If you did not request this verification code, you can safely ignore this message.
 
 --
-Free Wi-Fi Captive Portal Service
+Free Wi-Fi Captive Portal
 `;
 
-    // High-deliverability responsive HTML email body
+    // Responsive HTML email designed to trigger Gmail's "Code Requested" [Copy code] Card
     const htmlBody = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Free Wi-Fi Verification Code</title>
+<title>Your Security Code</title>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "EmailMessage",
+  "description": "Code Requested: ${otp}",
+  "potentialAction": {
+    "@type": "ViewAction",
+    "name": "Copy code",
+    "target": "https://free-wifi-portal.web.app?otp=${otp}"
+  }
+}
+</script>
 </head>
-<body style="margin: 0; padding: 20px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
-  <div style="max-width: 460px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-    
-    <!-- Header -->
-    <div style="background-color: #2563eb; padding: 24px 20px; text-align: center;">
-      <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">Free Wi-Fi Service</h1>
-      <p style="margin: 4px 0 0; color: #bfdbfe; font-size: 13px;">Security Verification / รหัสยืนยันตัวตน</p>
-    </div>
+<body style="margin: 0; padding: 32px 16px; background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #111827; -webkit-font-smoothing: antialiased;">
+  <!-- Gmail Preheader (hidden from view, triggers OTP extraction in notifications & summary cards) -->
+  <div style="display: none; max-height: 0px; overflow: hidden; font-size: 1px; line-height: 1px; color: #ffffff; opacity: 0; mso-hide: all;">
+    Code Requested: ${otp}. Your security code is ${otp}. Use this code to complete sign-in to Free Wi-Fi.
+  </div>
 
-    <!-- Body Content -->
-    <div style="padding: 28px 24px;">
-      <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.5; color: #334155; text-align: center;">
-        Here is your one-time verification code to connect to <strong>Free Wi-Fi</strong>:
-      </p>
+  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 480px; margin: 0 auto; background-color: #ffffff;">
+    <!-- Centered Brand Logo Badge -->
+    <tr>
+      <td style="text-align: center; padding-bottom: 28px;">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+          <tr>
+            <td style="width: 52px; height: 52px; background-color: #000000; border-radius: 12px; text-align: center; vertical-align: middle; box-shadow: 0 4px 12px rgba(0,0,0,0.12);">
+              <span style="color: #ffffff; font-size: 26px; line-height: 1;">⚡</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
 
-      <!-- OTP Display Box -->
-      <div style="background-color: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 18px 12px; text-align: center; margin: 20px 0;">
-        <span style="font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #0f172a; display: inline-block;">${otp}</span>
-      </div>
+    <!-- Main Title -->
+    <tr>
+      <td style="text-align: center; padding-bottom: 24px;">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #000000; letter-spacing: -0.5px; line-height: 1.2;">
+          Your security code
+        </h1>
+      </td>
+    </tr>
 
-      <p style="margin: 16px 0 8px; font-size: 13px; color: #475569; text-align: center;">
-        ⏱ This code expires in <strong>5 minutes</strong> and can only be used once.
-      </p>
+    <!-- Greeting Line -->
+    <tr>
+      <td style="padding-bottom: 16px; font-size: 16px; color: #111827; line-height: 1.5;">
+        Hi ${capitalizedName},
+      </td>
+    </tr>
 
-      <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 12px 14px; margin-top: 20px;">
-        <p style="margin: 0; font-size: 12px; line-height: 1.4; color: #92400e;">
-          🔒 <strong>Security Tip:</strong> Never share this code. Free Wi-Fi staff will never ask for your verification code.
-        </p>
-      </div>
-    </div>
+    <!-- Instructional Text -->
+    <tr>
+      <td style="padding-bottom: 24px; font-size: 15px; color: #374151; line-height: 1.5;">
+        Please use the following 6-digit security code to complete your sign-in to <strong>Free Wi-Fi</strong>:
+      </td>
+    </tr>
+
+    <!-- 6-Digit Code Container -->
+    <tr>
+      <td style="padding-bottom: 20px;">
+        <div style="background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 14px; padding: 22px 16px; text-align: center;">
+          <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', monospace; font-size: 38px; font-weight: 900; letter-spacing: 12px; color: #000000; display: inline-block; user-select: all; -webkit-user-select: all;">${otp}</span>
+        </div>
+      </td>
+    </tr>
+
+    <!-- In-Email "Copy code" Button -->
+    <tr>
+      <td style="text-align: center; padding-bottom: 28px;">
+        <a href="https://free-wifi-portal.web.app?otp=${otp}" target="_blank" style="display: inline-block; background-color: #0b57d0; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 11px 28px; border-radius: 24px; box-shadow: 0 2px 6px rgba(11,87,208,0.25);">
+          Copy code
+        </a>
+      </td>
+    </tr>
+
+    <!-- Security Disclaimers -->
+    <tr>
+      <td style="border-top: 1px solid #f3f4f6; padding-top: 20px; font-size: 13px; line-height: 1.6; color: #6b7280;">
+        <p style="margin: 0 0 6px;">• This security code will expire in <strong>5 minutes</strong>.</p>
+        <p style="margin: 0 0 6px;">• Never share this code with anyone. Free Wi-Fi staff will never ask for your code.</p>
+        <p style="margin: 0;">• If you did not request this security code, you can safely ignore this email.</p>
+      </td>
+    </tr>
 
     <!-- Footer -->
-    <div style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 16px 20px; text-align: center;">
-      <p style="margin: 0; font-size: 11px; line-height: 1.4; color: #94a3b8;">
-        This automated security message was sent because a Wi-Fi connection was requested for <strong>${email}</strong>.<br>
-        If you did not request this, you can safely ignore this email.
-      </p>
-    </div>
-
-  </div>
+    <tr>
+      <td style="padding-top: 28px; text-align: center; font-size: 12px; color: #9ca3af;">
+        Free Wi-Fi Captive Portal • High-Speed Wireless Service
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
 `;
@@ -249,7 +306,7 @@ Free Wi-Fi Captive Portal Service
 
     const mailOptions = {
       from: `"Free Wi-Fi" <${fromAddress}>`,
-      to: email,
+      to: cleanEmail,
       replyTo: fromAddress,
       subject: subject,
       text: textBody,
@@ -265,12 +322,12 @@ Free Wi-Fi Captive Portal Service
       messageId: messageId,
       envelope: {
         from: fromAddress,
-        to: email
+        to: cleanEmail
       }
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[OTP EMAIL SENT] To: ${email} MessageId: ${info.messageId || messageId}`);
+    console.log(`[OTP EMAIL SENT] To: ${cleanEmail} Subject: "${subject}" MessageId: ${info.messageId || messageId}`);
 
     return { sent: true, messageId: info.messageId || messageId };
   } catch (err) {
@@ -303,10 +360,11 @@ async function syncPendingFirestoreOtps() {
         const email = decodeURIComponent(parts[parts.length - 1]);
         const otp = fields.otp?.stringValue;
         const mode = fields.mode?.stringValue || 'free';
+        const name = fields.name?.stringValue || '';
 
         if (email && otp) {
           console.log(`📧 [FIREBASE OTP] Dispatching OTP email to ${email} via Gmail SMTP...`);
-          const resEmail = await sendOtpEmail(email, otp, mode);
+          const resEmail = await sendOtpEmail(email, otp, mode, name);
           if (resEmail.sent) {
             console.log(`✅ [FIREBASE OTP] Email sent successfully to ${email}`);
             await fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/otps/${encodeURIComponent(email)}?updateMask.fieldPaths=status&updateMask.fieldPaths=sent_at`, {
