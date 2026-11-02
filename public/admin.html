@@ -751,7 +751,7 @@
       <div class="flex items-center justify-between pb-2.5 border-b border-white/10 gap-3">
         <div class="flex items-center space-x-2 min-w-0 flex-1 overflow-hidden" style="min-width: 0;">
           <span class="text-base flex-shrink-0">🧾</span>
-          <h4 id="lightbox-title" class="font-bold text-white text-xs sm:text-sm" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;">Receipt Inspector</h4>
+          <h4 id="lightbox-title" class="font-bold text-white text-xs sm:text-sm" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;">Payment Slip</h4>
         </div>
         <div class="flex items-center space-x-1 flex-shrink-0" style="flex-shrink: 0;">
           <button type="button" onclick="zoomLightbox(-0.25)" class="glisse-btn-secondary px-2 py-0.5 rounded-lg text-xs font-bold" title="Zoom Out">−</button>
@@ -1160,7 +1160,7 @@
         return `
         <div class="glisse-card p-4 flex flex-col justify-between space-y-3 slip-card" data-status="${s.status || 'pending'}">
           <div>
-            <div class="relative w-full h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/10 group cursor-pointer" onclick="openLightbox('${imgUrl}', 'Slip #${slipNum} • ${userEmail}')" title="Click to view slip">
+            <div class="relative w-full h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/10 group cursor-pointer" onclick="openLightbox('${imgUrl}', 'Slip #${slipNum} • ${userEmail}')">
               <img src="${imgUrl}" alt="Slip #${slipNum}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='/my-qr'" />
               <div class="absolute top-2.5 right-2.5">
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${
@@ -1255,8 +1255,8 @@
       document.getElementById('lightbox-img').src = url;
       const titleEl = document.getElementById('lightbox-title');
       if (titleEl) {
-        titleEl.innerText = title || 'Receipt Inspector';
-        titleEl.title = title || 'Receipt Inspector';
+        titleEl.innerText = title || 'Payment Slip';
+        titleEl.title = title || 'Payment Slip';
       }
       document.getElementById('lightbox-download').href = url;
       document.getElementById('lightbox-modal').classList.remove('hidden');
