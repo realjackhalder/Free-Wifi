@@ -27,6 +27,7 @@ const fb = require('./firebase-backend');
 const otp = require('./otp');
 const telegram = require('./telegram');
 const crypto = require('crypto');
+const { renderAdminLogin, renderAdmin } = require('./admin-ui');
 
 const adminApp = express();
 const userApp = express();
@@ -866,8 +867,9 @@ adminApp.get('/admin', async (req, res) => {
   const firebaseConfig = fb.getClientConfig();
   const msg = req.query.msg || null;
   const err = req.query.err || null;
+  const activeTab = req.query.tab || 'accounts';
 
-  return res.send(renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive, firebaseConfig, msg, err }));
+  return res.send(renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive, firebaseConfig, msg, err, activeTab }));
 });
 
 // --- GET /api/admin-data (JSON endpoint for admin portal & dashboard) ---
@@ -1026,7 +1028,136 @@ adminApp.post('/admin/account/delete', async (req, res) => {
     }
   }
   await db.deleteAccount(email);
-  return res.redirect(`/admin?msg=${encodeURIComponent('Account deleted successfully')}`);
+  return res.redirect(`/admin?tab=accounts&msg=${encodeURIComponent('Account deleted successfully')}`);
+});
+
+// --- POST /admin/account/grant (Manually add/grant VIP access) ---
+adminApp.post('/admin/account/grant', async (req, res) => {
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+  const email = (req.body.email || '').trim().toLowerCase();
+  const name = (req.body.name || '').trim() || email.split('@')[0];
+  const days = parseInt(req.body.days || '30', 10) || 30;
+  if (!email || !email.includes('@')) {
+    return res.redirect(`/admin?tab=accounts&err=${encodeURIComponent('Please enter a valid email address')}`);
+  }
+
+  let acc = await db.getAccount(email);
+  const addDuration = days * 24 * 60 * 60 * 1000;
+  const base = acc && acc.expiresAt && acc.expiresAt > Date.now() ? acc.expiresAt : Date.now();
+  if (!acc) {
+    acc = {
+      email,
+      name,
+      picture: '',
+      plan: `vip-${days}d`,
+      expiresAt: base + addDuration,
+      activeIp: null,
+      activeMac: null,
+      blocked: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+  } else {
+    acc.name = name || acc.name;
+    acc.expiresAt = base + addDuration;
+    acc.plan = `vip-${days}d`;
+    acc.blocked = 0;
+  }
+  await db.saveAccount(acc);
+  return res.redirect(`/admin?tab=accounts&msg=${encodeURIComponent(`Granted ${days} days VIP access to ${email}`)}`);
+});
+
+// --- POST /admin/account/revoke-ip (Kick active session) ---
+adminApp.post('/admin/account/revoke-ip', async (req, res) => {
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+  const email = req.body.email || req.query.email;
+  const ip = req.body.ip || req.query.ip;
+  if (email) {
+    const acc = await db.getAccount(email);
+    if (acc && acc.activeIp) {
+      try { await revokeIp(acc.activeIp); } catch (e) {}
+      await db.logIpAction({ email: acc.email, ip: acc.activeIp, mac: acc.activeMac, action: 'logout' });
+      acc.activeIp = null;
+      acc.activeMac = null;
+      await db.saveAccount(acc);
+    }
+  } else if (ip) {
+    try { await revokeIp(ip); } catch (e) {}
+    await db.logIpAction({ email: 'manual_kick', ip, mac: null, action: 'logout' });
+  }
+  return res.redirect(`/admin?tab=accounts&msg=${encodeURIComponent('Active network session revoked successfully')}`);
+});
+
+// --- POST /admin/slip/approve (Approve slip from web dashboard) ---
+adminApp.post('/admin/slip/approve', async (req, res) => {
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+  const slipId = parseInt(req.body.slipId || req.query.slipId, 10);
+  if (!slipId) return res.redirect(`/admin?tab=slips&err=${encodeURIComponent('Missing slipId')}`);
+
+  const slip = await db.getSlipById(slipId);
+  if (!slip) return res.redirect(`/admin?tab=slips&err=${encodeURIComponent('Slip not found')}`);
+
+  const cleanEmail = slip.email.toLowerCase();
+  const targetIp = slip.ip_address;
+  const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+
+  let acc = await db.getAccount(cleanEmail);
+  if (!acc) {
+    acc = {
+      email: cleanEmail,
+      name: cleanEmail.split('@')[0],
+      picture: '',
+      plan: 'vip-30d',
+      expiresAt: Date.now() + thirtyDays,
+      activeIp: targetIp,
+      activeMac: slip.mac_address || null,
+      blocked: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+  } else {
+    const base = acc.expiresAt && acc.expiresAt > Date.now() ? acc.expiresAt : Date.now();
+    acc.expiresAt = base + thirtyDays;
+    acc.plan = 'vip-30d';
+    if (targetIp) acc.activeIp = targetIp;
+    if (slip.mac_address) acc.activeMac = slip.mac_address;
+  }
+  await db.saveAccount(acc);
+
+  if (targetIp) {
+    try { await allowIp(targetIp); } catch (e) {}
+  }
+  await db.updateSlipStatus(slipId, 'approved');
+  await db.logIpAction({ email: cleanEmail, ip: targetIp, mac: slip.mac_address, action: 'buy_package' });
+
+  return res.redirect(`/admin?tab=slips&msg=${encodeURIComponent(`Approved Slip #${slipId} for ${cleanEmail}! 30-Day VIP granted.`)}`);
+});
+
+// --- POST /admin/slip/decline (Decline slip from web dashboard) ---
+adminApp.post('/admin/slip/decline', async (req, res) => {
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+  const slipId = parseInt(req.body.slipId || req.query.slipId, 10);
+  if (!slipId) return res.redirect(`/admin?tab=slips&err=${encodeURIComponent('Missing slipId')}`);
+
+  await db.updateSlipStatus(slipId, 'declined');
+  return res.redirect(`/admin?tab=slips&msg=${encodeURIComponent(`Slip #${slipId} marked as declined.`)}`);
+});
+
+// --- POST /admin/slip/delete (Delete slip record) ---
+adminApp.post('/admin/slip/delete', async (req, res) => {
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+  const slipId = parseInt(req.body.slipId || req.query.slipId, 10);
+  if (slipId) {
+    await db.deleteSlip(slipId);
+  }
+  return res.redirect(`/admin?tab=slips&msg=${encodeURIComponent('Slip record deleted successfully')}`);
+});
+
+// --- POST /admin/logs/clear (Clear IP activity logs) ---
+adminApp.post('/admin/logs/clear', async (req, res) => {
+  if (!await isAuthorizedAdmin(req)) return res.status(403).send('Unauthorized');
+  await db.clearIpLogs();
+  return res.redirect(`/admin?tab=logs&msg=${encodeURIComponent('IP connection activity logs cleared successfully')}`);
 });
 
 // Admin fallback: redirect unknown paths on port 3000 to /admin
@@ -2599,481 +2730,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
-</script>
-</body>
-</html>`;
-}
-
-function renderAdminLogin(error = null) {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Login — Free Wi-Fi</title>
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-</style>
-</head>
-<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
-  <div class="bg-gray-800 rounded-3xl p-8 max-w-sm w-full border border-gray-700 shadow-2xl text-center">
-    <div class="inline-flex p-3 bg-blue-600 rounded-2xl mb-3 text-3xl shadow-lg">🛡️</div>
-    <h1 class="text-xl font-black mb-1 tracking-tight">Free Wi-Fi Admin</h1>
-    <p class="text-xs text-gray-400 mb-6 font-medium">Administrator Access Portal</p>
-    
-    ${error ? `<div class="bg-red-900/60 border border-red-500/50 text-red-200 text-xs px-3 py-2 rounded-xl mb-4 font-semibold">${error}</div>` : ''}
-
-    <form method="post" action="/admin/login" class="space-y-4">
-      <div>
-        <label class="block text-left text-xs font-bold text-gray-400 mb-1.5 uppercase">Enter Admin PIN</label>
-        <input type="password" name="pin" placeholder="Enter Admin PIN" autofocus required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3.5 text-center text-lg font-mono focus:border-blue-500 outline-none text-white tracking-widest" />
-      </div>
-      <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 font-bold rounded-xl py-3.5 text-sm transition shadow-md active:scale-95">
-        Enter Dashboard
-      </button>
-    </form>
-  </div>
-</body>
-</html>`;
-}
-
-function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = false, firebaseConfig = {}, msg = null, err = null }) {
-  const totalUsers = accounts.length;
-  const now = Date.now();
-  let activeUsers = 0;
-  let vipUsers = 0;
-  let blockedUsers = 0;
-
-  for (const a of accounts) {
-    if (a.expiresAt && a.expiresAt > now && !a.blocked) activeUsers++;
-    if (a.plan === 'vip-30d') vipUsers++;
-    if (a.blocked) blockedUsers++;
-  }
-
-  // Action mapping for IP Activity logs in English
-  const actionLabels = {
-    buy_package: '30-Day VIP Purchase',
-    free_trial: '1-Hour Free Trial',
-    free_trial_otp: 'Free Trial OTP Verified',
-    login: 'Account Sign-In',
-    login_otp: 'OTP Sign-In',
-    logout: 'User Disconnected',
-    blocked: 'Account Blocked'
-  };
-
-  // Account Rows (Google Email + Name)
-  const accountRows = accounts
-    .map((a) => {
-      const isExpired = !a.expiresAt || a.expiresAt <= now;
-      const daysLeft = a.expiresAt && !isExpired ? Math.ceil((a.expiresAt - now) / 86400000) : 0;
-      const initial = a.name ? a.name.charAt(0).toUpperCase() : a.email.charAt(0).toUpperCase();
-      const expDateStr = a.expiresAt ? new Date(a.expiresAt).toLocaleDateString('en-GB') : '-';
-
-      return `
-      <tr class="border-b border-gray-100 hover:bg-gray-50 text-xs">
-        <td class="py-3 px-3">
-          <div class="flex items-center space-x-2">
-            <div class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">${initial}</div>
-            <div>
-              <p class="font-bold text-gray-800">${a.name || '-'}</p>
-              <p class="font-mono text-gray-500 text-[11px]">${a.email}</p>
-            </div>
-          </div>
-        </td>
-        <td class="py-3 px-3">
-          <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${a.plan === 'vip-30d' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
-            ${a.plan === 'vip-30d' ? '30-Day VIP' : '1-Hour Free'}
-          </span>
-        </td>
-        <td class="py-3 px-3 font-mono text-gray-600">${a.activeIp || '<span class="text-gray-400">-</span>'}</td>
-        <td class="py-3 px-3 font-mono text-gray-500">${a.activeMac || '<span class="text-gray-400">-</span>'}</td>
-        <td class="py-3 px-3">
-          ${
-            isExpired
-              ? '<span class="text-red-500 font-bold">Expired</span>'
-              : '<span class="text-green-600 font-bold">' + daysLeft + ' Days Left</span><br><span class="text-gray-400 text-[10px]">' + expDateStr + '</span>'
-          }
-        </td>
-        <td class="py-3 px-3">
-          ${a.blocked ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold">Blocked</span>' : '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">Active</span>'}
-        </td>
-        <td class="py-3 px-3 space-x-1 whitespace-nowrap">
-          <form method="post" action="/admin/account/extend" class="inline">
-            <input type="hidden" name="email" value="${a.email}" />
-            <button class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded font-bold" title="Extend 30 Days VIP">+30 Days</button>
-          </form>
-          <form method="post" action="/admin/account/reset-trial" class="inline">
-            <input type="hidden" name="email" value="${a.email}" />
-            <button class="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded font-bold" title="Reset Free Trial">Reset Free</button>
-          </form>
-          <form method="post" action="/admin/account/block" class="inline">
-            <input type="hidden" name="email" value="${a.email}" />
-            <button class="px-2 py-1 ${a.blocked ? 'bg-gray-600 hover:bg-gray-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded font-bold">
-              ${a.blocked ? 'Unblock' : 'Block'}
-            </button>
-          </form>
-          <form method="post" action="/admin/account/delete" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete this Google account?')">
-            <input type="hidden" name="email" value="${a.email}" />
-            <button class="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-bold">Delete</button>
-          </form>
-        </td>
-      </tr>
-      `;
-    })
-    .join('');
-
-  // Payment Slips Rows
-  const slipRows = slips
-    .map((s) => {
-      const dateStr = new Date(s.uploaded_at).toLocaleString('en-GB');
-      return `
-      <tr class="border-b border-gray-100 hover:bg-gray-50 text-xs">
-        <td class="py-3 px-3 font-mono text-gray-500">#${s.id}</td>
-        <td class="py-3 px-3">
-          <a href="${s.cloud_url || '/uploads/' + encodeURIComponent(s.filename)}" target="_blank" class="inline-flex items-center space-x-1 text-blue-600 hover:underline font-bold">
-            <svg class="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            <span>${s.cloud_url ? 'Cloud Storage Slip ↗' : 'View Slip'}</span>
-          </a>
-        </td>
-        <td class="py-3 px-3 font-mono font-bold text-gray-800">${s.email}</td>
-        <td class="py-3 px-3 font-mono text-blue-700 font-bold bg-blue-50 rounded px-2 py-0.5 inline-block">${s.ip_address}</td>
-        <td class="py-3 px-3 font-mono text-gray-500">${s.mac_address || '-'}</td>
-        <td class="py-3 px-3 font-mono text-[10px] text-gray-500 break-all max-w-[200px]">${s.qr_payload ? s.qr_payload.substring(0, 30) + '...' : '-'}</td>
-        <td class="py-3 px-3 font-bold text-green-700">${s.amount} THB</td>
-        <td class="py-3 px-3 text-gray-500">${dateStr}</td>
-        <td class="py-3 px-3">
-          ${
-            s.status === 'approved' || s.status === 'verified'
-              ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">✓ Approved</span>'
-              : (s.status === 'pending'
-                ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 animate-pulse">⏳ Pending Review</span>'
-                : (s.status === 'declined'
-                  ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">✕ Declined</span>'
-                  : '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-800">' + s.status + '</span>'))
-          }
-        </td>
-      </tr>
-      `;
-    })
-    .join('');
-
-  // IP Activity Logs Rows
-  const logRows = ipLogs
-    .map((l) => {
-      const timeStr = new Date(l.timestamp).toLocaleTimeString('en-GB');
-      let badge = 'bg-gray-100 text-gray-700';
-      if (l.action === 'buy_package') badge = 'bg-green-100 text-green-800 font-bold';
-      if (l.action && l.action.startsWith('free_trial')) badge = 'bg-blue-100 text-blue-800 font-bold';
-      if (l.action === 'blocked') badge = 'bg-red-100 text-red-800 font-bold';
-
-      const actionText = actionLabels[l.action] || l.action;
-
-      return `
-      <tr class="border-b border-gray-100 text-xs">
-        <td class="py-2.5 px-3 font-mono text-blue-600 font-bold">${l.ip_address}</td>
-        <td class="py-2.5 px-3 font-mono text-gray-500">${l.mac_address || '-'}</td>
-        <td class="py-2.5 px-3 font-mono">${l.email || '-'}</td>
-        <td class="py-2.5 px-3">
-          <span class="px-2.5 py-0.5 rounded-full text-xs ${badge}">${actionText}</span>
-        </td>
-        <td class="py-2.5 px-3 text-gray-500">${timeStr}</td>
-      </tr>
-      `;
-    })
-    .join('');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard — Free Wi-Fi Gateway</title>
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-</style>
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen">
-
-<!-- Top Bar -->
-<header class="bg-gray-900 text-white py-4 px-4 sm:px-6 shadow-md">
-  <div class="max-w-6xl mx-auto flex items-center justify-between flex-wrap gap-2">
-    <div class="flex items-center space-x-3">
-      <span class="text-2xl">📡</span>
-      <div>
-        <h1 class="text-lg font-black tracking-tight">Free Wi-Fi Gateway Admin</h1>
-        <p class="text-xs text-gray-400">Google Accounts, Bank Slips & IP Connection Database (SQLite & Firestore)</p>
-      </div>
-    </div>
-    <div class="flex items-center space-x-2 sm:space-x-3">
-      <a href="/admin/logout" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg font-bold">Sign Out</a>
-    </div>
-  </div>
-</header>
-
-<main class="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
-
-  ${
-    msg
-      ? '<div class="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-xl font-bold text-xs flex items-center space-x-2"><span>✓</span><span>' + msg + '</span></div>'
-      : ''
-  }
-  ${
-    err
-      ? '<div class="bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded-xl font-bold text-xs flex items-center space-x-2"><span>⚠️</span><span>' + err + '</span></div>'
-      : ''
-  }
-
-  <!-- Stats Cards -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-      <p class="text-xs text-gray-500 font-bold uppercase">Total Accounts</p>
-      <p class="text-2xl font-black text-gray-800 mt-1">${totalUsers}</p>
-    </div>
-    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-      <p class="text-xs text-gray-500 font-bold uppercase">Active Connected Users</p>
-      <p class="text-2xl font-black text-green-600 mt-1">${activeUsers}</p>
-    </div>
-    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-      <p class="text-xs text-gray-500 font-bold uppercase">30-Day VIP Subscribers</p>
-      <p class="text-2xl font-black text-indigo-600 mt-1">${vipUsers}</p>
-    </div>
-    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-      <p class="text-xs text-gray-500 font-bold uppercase">Payment Slips</p>
-      <p class="text-2xl font-black text-blue-600 mt-1">${slips.length}</p>
-    </div>
-  </div>
-
-  <!-- Settings & QR Upload Grid -->
-  <div class="grid md:grid-cols-2 gap-6">
-    <!-- QR Photo Upload -->
-    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-      <div class="flex items-center space-x-2">
-        <span class="text-xl">💳</span>
-        <h2 class="font-black text-sm text-gray-800">PromptPay Bank QR Code Photo</h2>
-      </div>
-      <p class="text-xs text-gray-500">Upload your PromptPay QR image for customers to scan and transfer payment</p>
-      <div class="flex items-center space-x-4">
-        <div class="w-24 h-24 bg-gray-100 rounded-xl border border-gray-200 p-1 flex items-center justify-center flex-shrink-0">
-          <img src="/my-qr" alt="QR Preview" class="max-w-full max-h-full object-contain" />
-        </div>
-        <form method="post" action="/admin/upload-qr" enctype="multipart/form-data" class="space-y-2 flex-1">
-          <input type="file" name="qr" accept="image/*" required class="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-          <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">Upload / Replace QR Code</button>
-        </form>
-      </div>
-    </div>
-
-    <!-- System Settings Form -->
-    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-      <div class="flex items-center space-x-2">
-        <span class="text-xl">⚙️</span>
-        <h2 class="font-black text-sm text-gray-800">System Settings</h2>
-      </div>
-      <form method="post" action="/admin/settings" class="space-y-3">
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-gray-600 mb-1">30-Day VIP Package Price (THB)</label>
-            <input type="number" name="monthlyPrice" value="${settings.monthlyPrice || 150}" required class="w-full border border-gray-300 rounded-lg p-2 text-xs font-bold" />
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-600 mb-1">Free Trial Duration (Minutes)</label>
-            <input type="number" name="trialMinutes" value="${settings.trialMinutes || 60}" required class="w-full border border-gray-300 rounded-lg p-2 text-xs font-bold" />
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-gray-600 mb-1">Administrator PIN Code</label>
-          <input type="text" name="adminPin" value="${settings.adminPin || '1234'}" required class="w-full border border-gray-300 rounded-lg p-2 text-xs font-mono font-bold" />
-        </div>
-
-        <div class="pt-3 border-t border-gray-100">
-          <div class="flex items-center space-x-1 mb-2">
-            <span class="text-xs font-bold text-gray-700">📧 OTP Email Delivery Settings (Gmail SMTP)</span>
-          </div>
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">SMTP Host</label>
-              <input type="text" name="smtpHost" value="${settings.smtpHost || ''}" placeholder="smtp.gmail.com" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Port (465 or 587)</label>
-              <input type="text" name="smtpPort" value="${settings.smtpPort || '587'}" placeholder="587" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-2 text-xs mt-2">
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Gmail / Sender Address</label>
-              <input type="email" name="smtpUser" value="${settings.smtpUser || ''}" placeholder="mywifi@gmail.com" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Google App Password (16 chars)</label>
-              <input type="password" name="smtpPass" placeholder="${settings.smtpPass ? '•••••••••••••••• (Leave blank to keep unchanged)' : 'abcd efgh ijkl mnop'}" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-            </div>
-          </div>
-          <p class="text-[10px] text-gray-400 mt-1.5">
-            💡 For Gmail, go to Google Account > Security > 2-Step Verification > <strong>App Passwords</strong> and generate a 16-character password. Anti-Spam headers and Plain Text fallbacks are embedded automatically.
-          </p>
-        </div>
-
-        <div class="pt-3 border-t border-gray-100">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-bold text-gray-700">🤖 Telegram Bot Slip Approval (One-Click Approval)</span>
-            ${
-              settings.telegramBotToken && settings.telegramChatId
-                ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">✓ Connected (Active)</span>'
-                : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800">Not Configured</span>'
-            }
-          </div>
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Telegram Bot Token</label>
-              <input type="text" name="telegramBotToken" id="tg-token" value="${settings.telegramBotToken || ''}" placeholder="7123456789:AAH..." class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-500 mb-0.5">Admin Chat ID / Group ID</label>
-              <input type="text" name="telegramChatId" id="tg-chatid" value="${settings.telegramChatId || ''}" placeholder="123456789" class="w-full border rounded p-1.5 font-mono text-xs bg-gray-50" />
-            </div>
-          </div>
-          <div class="flex items-center justify-between mt-2 flex-wrap gap-2">
-            <p class="text-[10px] text-gray-400">
-              💡 Get Bot Token from @BotFather. To find your Chat ID, send /start to @userinfobot or send /id to your bot.
-            </p>
-            <button type="button" onclick="testTelegram()" class="px-2.5 py-1 text-[11px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded transition active:scale-95 whitespace-nowrap">
-              Send Test Message
-            </button>
-          </div>
-        </div>
-
-        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition active:scale-95">Save System Settings</button>
-      </form>
-    </div>
-  </div>
-
-
-  <!-- TABLE 1: Accounts (Google Accounts) Table -->
-  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <span class="text-xl">👥</span>
-        <div>
-          <h2 class="font-black text-sm text-gray-800">Google Accounts & Wi-Fi Access</h2>
-          <p class="text-xs text-gray-500">Users authenticated via Google Sign-In & active Wi-Fi session status</p>
-        </div>
-      </div>
-      <span class="text-xs text-gray-500">Total: ${totalUsers} Accounts</span>
-    </div>
-
-    <div class="overflow-x-auto">
-      <table class="w-full text-left border-collapse">
-        <thead>
-          <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-            <th class="py-2.5 px-3">Google Account</th>
-            <th class="py-2.5 px-3">Plan</th>
-            <th class="py-2.5 px-3">Active IP</th>
-            <th class="py-2.5 px-3">MAC Address</th>
-            <th class="py-2.5 px-3">Expiration Date</th>
-            <th class="py-2.5 px-3">Status</th>
-            <th class="py-2.5 px-3">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${accountRows || '<tr><td colspan="7" class="text-center py-6 text-xs text-gray-400">No Google accounts in database yet</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- TABLE 2: Payment Slips & IP Log Database -->
-  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <span class="text-xl">🧾</span>
-        <div>
-          <h2 class="font-black text-sm text-gray-800">Payment Slips & Verification Database</h2>
-          <p class="text-xs text-gray-500">Customer bank transfer slips with Google Account and IP address audit</p>
-        </div>
-      </div>
-      <span class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">${slips.length} Slips in Database</span>
-    </div>
-
-    <div class="overflow-x-auto">
-      <table class="w-full text-left border-collapse">
-        <thead>
-          <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-            <th class="py-2.5 px-3">#ID</th>
-            <th class="py-2.5 px-3">Slip Image</th>
-            <th class="py-2.5 px-3">Google Account</th>
-            <th class="py-2.5 px-3">Device IP</th>
-            <th class="py-2.5 px-3">MAC Address</th>
-            <th class="py-2.5 px-3">Bank QR Payload</th>
-            <th class="py-2.5 px-3">Amount</th>
-            <th class="py-2.5 px-3">Upload Time</th>
-            <th class="py-2.5 px-3">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${slipRows || '<tr><td colspan="9" class="text-center py-6 text-xs text-gray-400">No payment slips in database yet</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- TABLE 3: Real-Time IP Connection & Activity Log -->
-  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <span class="text-xl">📊</span>
-        <div>
-          <h2 class="font-black text-sm text-gray-800">Real-Time IP Connection & Activity Logs</h2>
-          <p class="text-xs text-gray-500">Audit trail for free trial activations, payments, logins, and expirations</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="overflow-x-auto">
-      <table class="w-full text-left border-collapse">
-        <thead>
-          <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50">
-            <th class="py-2.5 px-3">IP Address</th>
-            <th class="py-2.5 px-3">MAC Address</th>
-            <th class="py-2.5 px-3">Google Email</th>
-            <th class="py-2.5 px-3">Action</th>
-            <th class="py-2.5 px-3">Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${logRows || '<tr><td colspan="5" class="text-center py-4 text-xs text-gray-400">No IP activity logs yet</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-</main>
-<script>
-async function testTelegram() {
-  const token = document.getElementById('tg-token').value.trim();
-  const chatId = document.getElementById('tg-chatid').value.trim();
-  if (!token || !chatId) {
-    alert('Please enter both Telegram Bot Token and Chat ID');
-    return;
-  }
-  try {
-    const res = await fetch('/admin/telegram-test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ telegramBotToken: token, telegramChatId: chatId })
-    });
-    const data = await res.json();
-    if (data.success) {
-      alert('✓ Test message sent successfully to Telegram! Please check your Telegram App.');
-    } else {
-      alert('⚠️ Failed to send: ' + (data.error || 'Unknown Error'));
-    }
-  } catch (e) {
-    alert('Connection error: ' + e.message);
-  }
-}
 </script>
 </body>
 </html>`;

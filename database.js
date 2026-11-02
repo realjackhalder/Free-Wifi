@@ -442,6 +442,17 @@ async function getRecentIpLogs(limit = 50) {
   return await all(`SELECT * FROM ip_logs ORDER BY timestamp DESC LIMIT ?`, [limit]);
 }
 
+async function clearIpLogs() {
+  return await run(`DELETE FROM ip_logs`);
+}
+
+async function deleteSlip(id) {
+  if (fb.isReady()) {
+    try { await fb.getDb().collection('slips').doc(String(id)).delete(); } catch (e) {}
+  }
+  return await run(`DELETE FROM slips WHERE id = ?`, [id]);
+}
+
 // ============================================================================
 // Settings Operations
 // ============================================================================
@@ -504,8 +515,10 @@ module.exports = {
   updateSlipStatus,
   isSlipUsed,
   getAllSlips,
+  deleteSlip,
   logIpAction,
   getRecentIpLogs,
+  clearIpLogs,
   getSetting,
   setSetting,
   getAllSettings,
