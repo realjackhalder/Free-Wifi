@@ -174,29 +174,30 @@ async function sendOtpEmail(email, otp, mode = 'free', name = '') {
       }
     });
 
-    // Subject matching Gmail OTP trigger specifications ("Your security code")
-    const subject = 'Your security code';
+    // Subject matching Gmail OTP trigger specifications ("Your Security Code" in Title Case)
+    const subject = 'Your Security Code';
 
-    // Plain-text alternative formatted for instant parser recognition
+    // Plain-text alternative formatted for instant parser recognition (matches Epic Games semantic pattern)
     const textBody = 
 `Your security code
 
 Hi ${capitalizedName},
 
-A security code was requested for your Free Wi-Fi account. Please use the following security code to complete your sign-in:
+Thank you for helping us keep your account safe. Please submit the following code to sign in to your Free Wi-Fi account:
+
+${otp}
 
 Your security code is: ${otp}
 
-Code Requested: ${otp}
+This code will expire in 5 minutes.
 
-• Valid for 5 minutes only.
-• For your security, never share this code with anyone.
+If you did not request this security code, someone may be trying to access your account. Please ignore this email or secure your account.
 
-If you did not request this security code, you can safely ignore this email.
-
---
-Free Wi-Fi
+Thanks,
+Free Wi-Fi Team
 `;
+
+    const digits = (otp || '000000').split('');
 
     // Responsive HTML email designed to trigger Gmail's "Code Requested" [Copy code] Card
     const htmlBody = `
@@ -205,44 +206,37 @@ Free Wi-Fi
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Your security code</title>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "EmailMessage",
-  "description": "Code Requested: ${otp}",
-  "potentialAction": {
-    "@type": "ViewAction",
-    "name": "Copy code",
-    "target": "https://free-wifi-portal.web.app?otp=${otp}"
-  }
-}
-</script>
+<title>Your Security Code</title>
 </head>
-<body style="margin: 0; padding: 32px 16px; background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #111827; -webkit-font-smoothing: antialiased;">
+<body style="margin: 0; padding: 40px 16px; background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #111827; -webkit-font-smoothing: antialiased;">
   <!-- Gmail Preheader (triggers OTP extraction in notifications & summary cards) -->
   <div style="display: none; max-height: 0px; overflow: hidden; font-size: 1px; line-height: 1px; color: #ffffff; opacity: 0; mso-hide: all;">
-    Code Requested: ${otp}. Your security code is: ${otp}. Use this code to complete sign-in to Free Wi-Fi.
+    Your security code is ${otp}. Use this code to sign in to Free Wi-Fi. It expires in 5 minutes.
   </div>
 
-  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 480px; margin: 0 auto; background-color: #ffffff;">
+  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 460px; margin: 0 auto; background-color: #ffffff;">
     <!-- Centered Brand Logo Badge -->
     <tr>
       <td style="text-align: center; padding-bottom: 24px;">
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
           <tr>
-            <td style="width: 50px; height: 50px; background-color: #000000; border-radius: 12px; text-align: center; vertical-align: middle; box-shadow: 0 4px 12px rgba(0,0,0,0.12);">
-              <span style="color: #ffffff; font-size: 24px; line-height: 1;">⚡</span>
+            <td style="width: 52px; height: 52px; background-color: #000000; border-radius: 12px; text-align: center; vertical-align: middle;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle;">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                <circle cx="12" cy="20" r="1.5" fill="#ffffff"></circle>
+              </svg>
             </td>
           </tr>
         </table>
       </td>
     </tr>
 
-    <!-- Main Title -->
+    <!-- Main Title: "Your security code" -->
     <tr>
-      <td style="text-align: center; padding-bottom: 20px;">
-        <h1 style="margin: 0; font-size: 26px; font-weight: 800; color: #000000; letter-spacing: -0.5px; line-height: 1.2;">
+      <td style="text-align: center; padding-bottom: 24px;">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #000000; letter-spacing: -0.5px; line-height: 1.2;">
           Your security code
         </h1>
       </td>
@@ -255,30 +249,49 @@ Free Wi-Fi
       </td>
     </tr>
 
-    <!-- Instructional Text -->
+    <!-- Instructional Text (matching Epic Games trigger sentence) -->
     <tr>
-      <td style="padding-bottom: 20px; font-size: 15px; color: #374151; line-height: 1.5;">
-        A security code was requested for your <strong>Free Wi-Fi</strong> account. Please use the following security code to complete your sign-in:
+      <td style="padding-bottom: 24px; font-size: 15px; color: #374151; line-height: 1.6;">
+        Thank you for helping us keep your account safe. Please submit the following code to sign in to your Free Wi-Fi account:
       </td>
     </tr>
 
-    <!-- Contiguous 6-Digit Security Code Container -->
+    <!-- Individual Boxed Numbers Container (matching Gmail Code Requested Card) -->
     <tr>
-      <td style="padding-bottom: 18px; text-align: center;">
+      <td style="padding-bottom: 20px; text-align: center;">
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
           <tr>
-            <td align="center" style="background-color: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 12px; padding: 16px 28px; text-align: center;">
-              <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', monospace; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #000000; display: inline-block; user-select: all; -webkit-user-select: all;">${otp}</span>
+            <td style="padding: 0 4px;">
+              <div style="width: 44px; height: 50px; line-height: 50px; background-color: #f1f3f4; border-radius: 8px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 26px; font-weight: 700; color: #202124;">${digits[0] || '0'}</div>
+            </td>
+            <td style="padding: 0 4px;">
+              <div style="width: 44px; height: 50px; line-height: 50px; background-color: #f1f3f4; border-radius: 8px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 26px; font-weight: 700; color: #202124;">${digits[1] || '0'}</div>
+            </td>
+            <td style="padding: 0 4px;">
+              <div style="width: 44px; height: 50px; line-height: 50px; background-color: #f1f3f4; border-radius: 8px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 26px; font-weight: 700; color: #202124;">${digits[2] || '0'}</div>
+            </td>
+            <td style="padding: 0 4px;">
+              <div style="width: 44px; height: 50px; line-height: 50px; background-color: #f1f3f4; border-radius: 8px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 26px; font-weight: 700; color: #202124;">${digits[3] || '0'}</div>
+            </td>
+            <td style="padding: 0 4px;">
+              <div style="width: 44px; height: 50px; line-height: 50px; background-color: #f1f3f4; border-radius: 8px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 26px; font-weight: 700; color: #202124;">${digits[4] || '0'}</div>
+            </td>
+            <td style="padding: 0 4px;">
+              <div style="width: 44px; height: 50px; line-height: 50px; background-color: #f1f3f4; border-radius: 8px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 26px; font-weight: 700; color: #202124;">${digits[5] || '0'}</div>
             </td>
           </tr>
         </table>
+        <!-- Hidden full-string code for regex & NLP parsers -->
+        <div style="font-size: 1px; color: #ffffff; opacity: 0; line-height: 1px; height: 1px; overflow: hidden;">
+          Your security code is: ${otp}
+        </div>
       </td>
     </tr>
 
     <!-- In-Email "Copy code" Pill Button -->
     <tr>
-      <td style="text-align: center; padding-bottom: 24px;">
-        <a href="https://free-wifi-portal.web.app?otp=${otp}" target="_blank" style="display: inline-block; background-color: #0b57d0; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; text-decoration: none; padding: 10px 28px; border-radius: 20px; box-shadow: 0 2px 6px rgba(11,87,208,0.25);">
+      <td style="text-align: center; padding-bottom: 28px;">
+        <a href="https://free-wifi-portal.web.app?otp=${otp}" target="_blank" style="display: inline-block; background-color: #0b57d0; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; text-decoration: none; padding: 11px 32px; border-radius: 24px; box-shadow: 0 2px 6px rgba(11,87,208,0.25);">
           Copy code
         </a>
       </td>
@@ -286,16 +299,16 @@ Free Wi-Fi
 
     <!-- Security Disclaimers -->
     <tr>
-      <td style="border-top: 1px solid #f3f4f6; padding-top: 18px; font-size: 13px; line-height: 1.6; color: #6b7280;">
-        <p style="margin: 0 0 6px;">• This security code will expire in <strong>5 minutes</strong>.</p>
-        <p style="margin: 0 0 6px;">• Never share this code with anyone. Free Wi-Fi staff will never ask for your code.</p>
-        <p style="margin: 0;">• If you did not request this security code, you can safely ignore this email.</p>
+      <td style="border-top: 1px solid #f3f4f6; padding-top: 20px; font-size: 13px; line-height: 1.6; color: #6b7280;">
+        <p style="margin: 0 0 8px;">• This security code will expire in <strong>5 minutes</strong>.</p>
+        <p style="margin: 0 0 8px;">• Never share this code with anyone. Free Wi-Fi staff will never ask for your code.</p>
+        <p style="margin: 0;">• If you did not request this security code, someone may be trying to access your account. Please ignore this email.</p>
       </td>
     </tr>
 
     <!-- Footer -->
     <tr>
-      <td style="padding-top: 24px; text-align: center; font-size: 12px; color: #9ca3af;">
+      <td style="padding-top: 28px; text-align: center; font-size: 12px; color: #9ca3af;">
         Free Wi-Fi Captive Portal • High-Speed Wireless Service
       </td>
     </tr>

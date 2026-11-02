@@ -56,6 +56,33 @@ function getMacForIp(ip) {
   });
 }
 
+/**
+ * Scan all dynamic ARP entries on the local subnet to identify real Wi-Fi clients
+ */
+function getAllArpEntries() {
+  return new Promise((resolve) => {
+    const isWin = process.platform === 'win32';
+    const args = ['-a'];
+    execFile('arp', args, (error, stdout) => {
+      if (error || !stdout) return resolve([]);
+      const entries = [];
+      const lines = stdout.split('\n');
+      for (const line of lines) {
+        const match = line.match(/^\s*([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\s+([0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2})/i);
+        if (match) {
+          const ip = match[1];
+          const mac = match[2].toLowerCase().replace(/-/g, ':');
+          // Exclude router broadcast, multicast, and localhost
+          if (!ip.endsWith('.255') && !ip.startsWith('224.') && !ip.startsWith('239.') && !ip.startsWith('255.') && !ip.startsWith('127.')) {
+            entries.push({ ip, mac });
+          }
+        }
+      }
+      resolve(entries);
+    });
+  });
+}
+
 async function allowIp(ip) {
   if (!validateIp(ip)) return;
   console.log(`[FIREWALL] Allowing internet access for IP: ${ip}`);
@@ -82,4 +109,4 @@ async function revokeIp(ip) {
   }
 }
 
-module.exports = { DRY_RUN, allowIp, revokeIp, getMacForIp, validateIp };
+module.exports = { DRY_RUN, allowIp, revokeIp, getMacForIp, getAllArpEntries, validateIp };

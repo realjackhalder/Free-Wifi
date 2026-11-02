@@ -980,29 +980,89 @@ const DEFAULT_FIREBASE_CONFIG = {
 
 let firebaseReady = false;
 let firebaseClientConfig = window.__FIREBASE_CONFIG__ || DEFAULT_FIREBASE_CONFIG;
-let currentClientIp = window.__CLIENT_IP__ || '';
-let currentClientMac = window.__CLIENT_MAC__ || '';
+let currentClientIp = window.__CLIENT_IP__ || localStorage.getItem('client_device_ip') || '';
+let currentClientMac = window.__CLIENT_MAC__ || localStorage.getItem('client_device_mac') || '';
 
 async function fetchClientDeviceInfo() {
-  if (currentClientIp && currentClientMac && currentClientMac !== 'Unknown') return;
+  // 1. Try local gateway device-info endpoint directly if relative or on captive portal
   try {
-    const res = await safeFetchJson('/api/device-info', {}, 2000);
+    const res = await safeFetchJson('/api/device-info', {}, 1500);
     if (res.ok && res.data && res.data.ok) {
       if (res.data.ip) currentClientIp = res.data.ip;
-      if (res.data.mac) currentClientMac = res.data.mac;
+      if (res.data.mac && res.data.mac !== 'Unknown') currentClientMac = res.data.mac;
     }
   } catch (e) {}
-  if (!currentClientIp) {
+
+  // 2. Query local Gateway IP published in Firestore (bridges Cloud Portal to Gateway LAN)
+  if (!currentClientIp || !currentClientMac || currentClientMac === 'Unknown') {
     try {
-      const pRes = await fetch('https://api.ipify.org?format=json');
+      let gwIp = window.__GATEWAY_IP__;
+      if (!gwIp) {
+        const gwRes = await fetch('https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/system/gateway', { signal: AbortSignal.timeout(2000) });
+        if (gwRes.ok) {
+          const gwDoc = await gwRes.json();
+          gwIp = gwDoc.fields?.lanIp?.stringValue;
+        }
+      }
+      const candidateGateways = [gwIp, '192.168.1.106', '192.168.1.1', '192.168.8.1', '192.168.0.1'].filter(Boolean);
+      for (const host of candidateGateways) {
+        if (currentClientIp && currentClientMac && currentClientMac !== 'Unknown') break;
+        try {
+          const r = await fetch(`http://${host}:3001/api/device-info`, { signal: AbortSignal.timeout(1200) });
+          if (r.ok) {
+            const d = await r.json();
+            if (d.ok) {
+              if (d.ip) currentClientIp = d.ip;
+              if (d.mac && d.mac !== 'Unknown') currentClientMac = d.mac;
+              break;
+            }
+          }
+        } catch (err) {}
+      }
+    } catch (e) {}
+  }
+
+  // 3. Discover local LAN IP via WebRTC candidate
+  if (!currentClientIp || currentClientIp === '127.0.0.1') {
+    try {
+      const rtcIp = await new Promise((resolve) => {
+        try {
+          const rtc = new (window.RTCPeerConnection || window.webkitRTCPeerConnection)({ iceServers: [] });
+          rtc.createDataChannel('');
+          rtc.createOffer().then(o => rtc.setLocalDescription(o)).catch(() => resolve(null));
+          const tid = setTimeout(() => { try { rtc.close(); } catch (e) {} resolve(null); }, 1200);
+          rtc.onicecandidate = (e) => {
+            if (!e || !e.candidate || !e.candidate.candidate) return;
+            const m = e.candidate.candidate.match(/(?:[0-9]{1,3}\.){3}[0-9]{1,3}/);
+            if (m && !m[0].startsWith('127.')) {
+              clearTimeout(tid);
+              try { rtc.close(); } catch (err) {}
+              resolve(m[0]);
+            }
+          };
+        } catch (err) {
+          resolve(null);
+        }
+      });
+      if (rtcIp) currentClientIp = rtcIp;
+    } catch (e) {}
+  }
+
+  // 4. Fallback to public IP lookup if outside LAN
+  if (!currentClientIp || currentClientIp === '127.0.0.1') {
+    try {
+      const pRes = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(2000) });
       if (pRes.ok) {
         const pData = await pRes.json();
         if (pData && pData.ip) currentClientIp = pData.ip;
       }
     } catch (e) {}
   }
+
+  if (currentClientIp) localStorage.setItem('client_device_ip', currentClientIp);
+  if (currentClientMac && currentClientMac !== 'Unknown') localStorage.setItem('client_device_mac', currentClientMac);
 }
-setTimeout(fetchClientDeviceInfo, 50);
+fetchClientDeviceInfo();
 
 // Initialize Firebase Client SDK Synchronously
 function initFirebaseClient() {
@@ -1586,12 +1646,18 @@ async function handleVerifyOtp(e, mode) {
             createdAt: now,
             expiresAt,
             lastTrialAt: now,
+            activeIp: currentClientIp || '',
+            activeMac: currentClientMac || '',
+            ip: currentClientIp || '',
+            mac: currentClientMac || '',
             status: 'active'
           }, { merge: true });
 
           firebase.firestore().collection('ip_logs').add({
             email,
             action: 'otp_free_trial',
+            ip: currentClientIp || '',
+            mac: currentClientMac || '',
             timestamp: now
           }).catch(() => {});
         } catch (e) {}
@@ -1685,12 +1751,18 @@ async function submitFreeTrial(email, name, picture = null, idToken = null) {
         createdAt: now,
         expiresAt: expiresAt,
         lastTrialAt: now,
+        activeIp: currentClientIp || '',
+        activeMac: currentClientMac || '',
+        ip: currentClientIp || '',
+        mac: currentClientMac || '',
         status: 'active'
       }, { merge: true }).catch(() => {});
 
       fsDb.collection('ip_logs').add({
         email: cleanEmail,
         action: 'free_trial',
+        ip: currentClientIp || '',
+        mac: currentClientMac || '',
         timestamp: now,
         source: 'web_portal'
       }).catch(() => {});
@@ -1808,8 +1880,8 @@ async function sendTelegramSlipDirect(token, chatId, file, slipId, email, amount
   const cleanEmail = (email || 'Unknown').trim();
   const timeStr = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
   const displayNum = slipNum ? String(slipNum).padStart(3, '0') : '001';
-  const targetIp = ip || currentClientIp || 'Wi-Fi Client';
-  const targetMac = mac || currentClientMac || 'Connected';
+  const targetIp = ip || currentClientIp || localStorage.getItem('client_device_ip') || 'Wi-Fi Client';
+  const targetMac = mac || currentClientMac || localStorage.getItem('client_device_mac') || 'Associated';
 
   const captionHtml = 
 `🧾 <b>Slip #${displayNum} • ${cleanEmail}</b>
@@ -1995,6 +2067,9 @@ async function handleBuyPackage(e) {
           }
 
           // 3. Save slip record in Firestore with client real IP and MAC
+          const realIp = currentClientIp || localStorage.getItem('client_device_ip') || '';
+          const realMac = currentClientMac || localStorage.getItem('client_device_mac') || '';
+
           await fsDb.collection('slips').doc(slipId).set({
             slipId,
             slipNum: slipNumStr,
@@ -2005,32 +2080,29 @@ async function handleBuyPackage(e) {
             createdAt: now,
             uploaded_at: new Date(now).toISOString(),
             imageBase64: (base64Data && base64Data.length < 800000) ? base64Data : null,
-            ip: currentClientIp || 'Unknown',
-            ip_address: currentClientIp || 'Unknown',
-            mac: currentClientMac || 'Unknown',
-            mac_address: currentClientMac || 'Unknown',
+            ip: realIp,
+            ip_address: realIp,
+            mac: realMac,
+            mac_address: realMac,
             source: 'web_portal',
             telegram_notified: telegramSent
           });
 
-          // 4. Also register account as pending if not existing
+          // 4. Update user account with real device IP & MAC
           try {
             const userRef = fsDb.collection('accounts').doc(email);
             const userDoc = await userRef.get().catch(() => null);
-            if (!userDoc || !userDoc.exists) {
-              await userRef.set({
-                email,
-                name: email.split('@')[0],
-                plan: 'pending-vip',
-                status: 'pending',
-                activeIp: currentClientIp || null,
-                activeMac: currentClientMac || null,
-                ip: currentClientIp || null,
-                mac: currentClientMac || null,
-                createdAt: now,
-                updated_at: new Date(now).toISOString()
-              }, { merge: true });
-            }
+            await userRef.set({
+              email,
+              name: email.split('@')[0],
+              plan: (userDoc && userDoc.exists && userDoc.data().plan === 'vip-30d') ? 'vip-30d' : 'pending-vip',
+              status: (userDoc && userDoc.exists && userDoc.data().plan === 'vip-30d') ? 'active' : 'pending',
+              activeIp: realIp || null,
+              activeMac: realMac || null,
+              ip: realIp || null,
+              mac: realMac || null,
+              updated_at: new Date(now).toISOString()
+            }, { merge: true });
           } catch (accErr) {}
         }
 

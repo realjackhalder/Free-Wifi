@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const Jimp = require('jimp');
 const db = require('./database');
-const { allowIp } = require('./firewall');
+const { allowIp, getAllArpEntries, getMacForIp } = require('./firewall');
 
 let isPolling = false;
 let pollingAbortController = null;
@@ -320,24 +320,40 @@ async function handleCallbackQuery(query, token) {
           const userEmail = (fsDoc.fields.email?.stringValue || fsDoc.fields.name?.stringValue || '').trim().toLowerCase();
 
           // Lookup real device IP & MAC from user's account if not in slip document
-          if ((!ipAddr || ipAddr === 'Web Portal' || !macAddr) && userEmail) {
+          if ((!ipAddr || ipAddr === 'Web Portal' || ipAddr === 'Unknown' || !macAddr || macAddr === 'Unknown') && userEmail) {
             try {
               const accDocRes = await fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/accounts/${encodeURIComponent(userEmail)}`);
               if (accDocRes.ok) {
                 const accData = await accDocRes.json();
-                if (!ipAddr || ipAddr === 'Web Portal') ipAddr = accData.fields?.activeIp?.stringValue || accData.fields?.ip?.stringValue || '';
-                if (!macAddr) macAddr = accData.fields?.activeMac?.stringValue || accData.fields?.mac?.stringValue || '';
+                if (!ipAddr || ipAddr === 'Web Portal' || ipAddr === 'Unknown') ipAddr = accData.fields?.activeIp?.stringValue || accData.fields?.ip?.stringValue || '';
+                if (!macAddr || macAddr === 'Unknown') macAddr = accData.fields?.activeMac?.stringValue || accData.fields?.mac?.stringValue || '';
               }
             } catch (e) {}
-            if (!ipAddr || ipAddr === 'Web Portal' || !macAddr) {
+            if (!ipAddr || ipAddr === 'Web Portal' || ipAddr === 'Unknown' || !macAddr || macAddr === 'Unknown') {
               try {
                 const localAcc = await db.getAccount(userEmail);
                 if (localAcc) {
-                  if (!ipAddr || ipAddr === 'Web Portal') ipAddr = localAcc.activeIp || localAcc.lastIp || '';
-                  if (!macAddr) macAddr = localAcc.activeMac || localAcc.lastMac || '';
+                  if (!ipAddr || ipAddr === 'Web Portal' || ipAddr === 'Unknown') ipAddr = localAcc.activeIp || localAcc.lastIp || '';
+                  if (!macAddr || macAddr === 'Unknown') macAddr = localAcc.activeMac || localAcc.lastMac || '';
                 }
               } catch (e) {}
             }
+          }
+
+          // If IP or MAC still unresolved, inspect real Wi-Fi clients from gateway ARP table
+          if (!ipAddr || ipAddr === 'Web Portal' || ipAddr === 'Unknown' || !macAddr || macAddr === 'Unknown') {
+            try {
+              const arpEntries = await getAllArpEntries();
+              const clientEntry = arpEntries.find(e => !e.ip.endsWith('.1') && !e.ip.endsWith('.254')) || arpEntries[0];
+              if (clientEntry) {
+                if (!ipAddr || ipAddr === 'Web Portal' || ipAddr === 'Unknown') ipAddr = clientEntry.ip;
+                if (!macAddr || macAddr === 'Unknown') macAddr = clientEntry.mac;
+              }
+            } catch (arpErr) {}
+          }
+
+          if (ipAddr && (!macAddr || macAddr === 'Unknown')) {
+            try { macAddr = await getMacForIp(ipAddr); } catch (e) {}
           }
 
           isFirestoreSlip = true;
@@ -669,27 +685,43 @@ async function checkFirestorePendingSlips(token, chatId) {
         let mac = fields.mac?.stringValue || fields.mac_address?.stringValue || '';
 
         // Resolve client IP and MAC from accounts collection if missing on slip
-        if ((!ip || !mac) && email && email !== 'Unknown') {
+        if ((!ip || ip === 'Unknown' || ip === 'Web Portal' || !mac || mac === 'Unknown') && email && email !== 'Unknown') {
           try {
             const accRes = await fetch(`https://firestore.googleapis.com/v1/projects/free-wifi-portal/databases/(default)/documents/accounts/${encodeURIComponent(email)}`);
             if (accRes.ok) {
               const accDoc = await accRes.json();
-              if (!ip) ip = accDoc.fields?.activeIp?.stringValue || accDoc.fields?.ip?.stringValue || '';
-              if (!mac) mac = accDoc.fields?.activeMac?.stringValue || accDoc.fields?.mac?.stringValue || '';
+              if (!ip || ip === 'Unknown' || ip === 'Web Portal') ip = accDoc.fields?.activeIp?.stringValue || accDoc.fields?.ip?.stringValue || '';
+              if (!mac || mac === 'Unknown') mac = accDoc.fields?.activeMac?.stringValue || accDoc.fields?.mac?.stringValue || '';
             }
           } catch (e) {}
-          if (!ip || !mac) {
+          if (!ip || ip === 'Unknown' || ip === 'Web Portal' || !mac || mac === 'Unknown') {
             try {
               const localAcc = await db.getAccount(email);
               if (localAcc) {
-                if (!ip) ip = localAcc.activeIp || localAcc.lastIp || '';
-                if (!mac) mac = localAcc.activeMac || localAcc.lastMac || '';
+                if (!ip || ip === 'Unknown' || ip === 'Web Portal') ip = localAcc.activeIp || localAcc.lastIp || '';
+                if (!mac || mac === 'Unknown') mac = localAcc.activeMac || localAcc.lastMac || '';
               }
             } catch (e) {}
           }
         }
 
-        console.log(`📡 [TELEGRAM] Found unnotified pending Firestore Slip #${slipNum} (${slipId}) for ${email} (IP: ${ip || 'detecting'}, MAC: ${mac || 'detecting'}). Sending to Telegram...`);
+        // If IP or MAC still missing, inspect live ARP entries on the local gateway
+        if (!ip || ip === 'Unknown' || ip === 'Web Portal' || !mac || mac === 'Unknown') {
+          try {
+            const arpEntries = await getAllArpEntries();
+            const clientEntry = arpEntries.find(e => !e.ip.endsWith('.1') && !e.ip.endsWith('.254')) || arpEntries[0];
+            if (clientEntry) {
+              if (!ip || ip === 'Unknown' || ip === 'Web Portal') ip = clientEntry.ip;
+              if (!mac || mac === 'Unknown') mac = clientEntry.mac;
+            }
+          } catch (arpErr) {}
+        }
+
+        if (ip && (!mac || mac === 'Unknown')) {
+          try { mac = await getMacForIp(ip); } catch (e) {}
+        }
+
+        console.log(`📡 [TELEGRAM] Found unnotified pending Firestore Slip #${slipNum} (${slipId}) for ${email} (IP: ${ip || 'Wi-Fi Client'}, MAC: ${mac || 'Associated'}). Sending to Telegram...`);
         const sent = await sendFirestoreSlipNotification(token, chatId, slipId, email, amount, imageBase64, slipNum, ip, mac);
 
         if (sent) {
