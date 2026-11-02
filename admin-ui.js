@@ -1154,7 +1154,11 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
 
     function getSlipNum(sId) {
       if (!window.allSlips || !Array.isArray(window.allSlips)) return '001';
-      const idx = window.allSlips.findIndex(s => String(s.id) === String(sId));
+      const cleanTarget = String(sId || '').trim();
+      const idx = window.allSlips.findIndex(s => {
+        const sid = String(s.id || s.slipId || '').trim();
+        return sid === cleanTarget || sid.endsWith(cleanTarget) || cleanTarget.endsWith(sid);
+      });
       return idx !== -1 ? String(idx + 1).padStart(3, '0') : '001';
     }
 
@@ -1165,14 +1169,15 @@ function renderAdmin({ accounts, slips, ipLogs, settings, isFirebaseActive = fal
       document.getElementById('lightbox-img').src = url;
       const titleEl = document.getElementById('lightbox-title');
       if (titleEl) {
-        let cleanTitle = title || 'Payment Slip';
-        if (cleanTitle.includes('slip_')) {
-          const match = cleanTitle.match(/slip_\d+/);
-          if (match) {
-            cleanTitle = cleanTitle.replace(match[0], getSlipNum(match[0]));
-          }
-        }
+        let cleanTitle = String(title || 'Payment Slip');
+        cleanTitle = cleanTitle.replace(/#*slip_\d+/gi, (m) => {
+          const rawId = m.replace(/^#+/, '');
+          return '#' + (typeof getSlipNum === 'function' ? getSlipNum(rawId) : '001');
+        });
         cleanTitle = cleanTitle.replace(/#+/g, '#');
+        if (!cleanTitle.includes('Slip #') && cleanTitle.startsWith('#')) {
+          cleanTitle = 'Slip ' + cleanTitle;
+        }
         titleEl.innerText = cleanTitle;
         titleEl.title = cleanTitle;
       }

@@ -1109,7 +1109,11 @@
         const tB = b.uploaded_at ? new Date(b.uploaded_at).getTime() : (b.createdAt || 0);
         return tA - tB;
       });
-      const idx = sorted.findIndex(s => String(s.id || s.slipId) === String(slipId));
+      const cleanTarget = String(slipId || '').trim();
+      const idx = sorted.findIndex(s => {
+        const sid = String(s.id || s.slipId || '').trim();
+        return sid === cleanTarget || sid.endsWith(cleanTarget) || cleanTarget.endsWith(sid);
+      });
       return idx !== -1 ? String(idx + 1).padStart(3, '0') : '001';
     }
 
@@ -1316,14 +1320,15 @@
       document.getElementById('lightbox-img').src = url;
       const titleEl = document.getElementById('lightbox-title');
       if (titleEl) {
-        let cleanTitle = title || 'Payment Slip';
-        if (cleanTitle.includes('slip_')) {
-          const match = cleanTitle.match(/slip_\d+/);
-          if (match && typeof getSlipNum === 'function') {
-            cleanTitle = cleanTitle.replace(match[0], getSlipNum(match[0]));
-          }
-        }
+        let cleanTitle = String(title || 'Payment Slip');
+        cleanTitle = cleanTitle.replace(/#*slip_\d+/gi, (m) => {
+          const rawId = m.replace(/^#+/, '');
+          return '#' + (typeof getSlipNum === 'function' ? getSlipNum(rawId) : '001');
+        });
         cleanTitle = cleanTitle.replace(/#+/g, '#');
+        if (!cleanTitle.includes('Slip #') && cleanTitle.startsWith('#')) {
+          cleanTitle = 'Slip ' + cleanTitle;
+        }
         titleEl.innerText = cleanTitle;
         titleEl.title = cleanTitle;
       }

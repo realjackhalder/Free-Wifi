@@ -13,6 +13,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const express = require('express');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -26,6 +27,7 @@ const vpn = require('./vpn');
 const fb = require('./firebase-backend');
 const otp = require('./otp');
 const telegram = require('./telegram');
+const dnsCaptive = require('./dns-captive');
 const crypto = require('crypto');
 const { renderAdminLogin, renderAdmin } = require('./admin-ui');
 
@@ -105,8 +107,73 @@ async function isAuthenticated(ip) {
 }
 
 // ============================================================================
-// 1. OS Auto-Popup Captive Portal Detection (Critical CNA Routes)
+// 1. OS Auto-Popup Captive Portal Detection (Critical CNA Routes & Port 80 Listener)
 // ============================================================================
+
+let captiveHttpServer = null;
+function startPort80CaptiveServer(lanIp) {
+  try {
+    const s80 = http.createServer(async (req, res) => {
+      try {
+        const clientIp = getClientIp(req);
+        const isAuth = await isAuthenticated(clientIp);
+        const url = req.url || '/';
+
+        if (isAuth) {
+          if (url.includes('204')) {
+            res.writeHead(204);
+            return res.end();
+          }
+          if (url.includes('hotspot-detect') || url.includes('library/test/success')) {
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            return res.end('<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>');
+          }
+          if (url.includes('connecttest') || url.includes('ncsi')) {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            return res.end('Microsoft Connect Test');
+          }
+          if (url.includes('success.txt')) {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            return res.end('success\n');
+          }
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          return res.end('Internet Connected');
+        }
+
+        // Unauthenticated client: immediately redirect to User Portal on Port 3001
+        const portalUrl = `http://${lanIp}:${USER_PORT}/portal`;
+        res.writeHead(302, {
+          'Location': portalUrl,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        });
+        res.end(`Redirecting to Captive Portal: ${portalUrl}`);
+      } catch (err) {
+        try {
+          res.writeHead(302, { 'Location': `http://${lanIp}:${USER_PORT}/portal` });
+          res.end();
+        } catch (e) {}
+      }
+    });
+
+    s80.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`[Port 80] Port 80 in use by another service. Captive CNA routes active on port ${USER_PORT}.`);
+      } else {
+        console.warn(`[Port 80] Server warning:`, err.message);
+      }
+    });
+
+    s80.listen(80, '0.0.0.0', () => {
+      console.log(`🌐 Captive Portal Port 80 active -> Redirecting all unauthenticated HTTP traffic to http://${lanIp}:${USER_PORT}/portal`);
+    });
+    return s80;
+  } catch (err) {
+    console.warn('[Port 80] Listener skipped:', err.message);
+    return null;
+  }
+}
 
 async function cnaHandler(req, res) {
   const ip = getClientIp(req);
@@ -153,22 +220,35 @@ userApp.get('/gen_204', cnaHandler204);
 userApp.get('/connecttest.txt', cnaHandlerWindows);
 userApp.get('/ncsi.txt', cnaHandlerWindows);
 
+// Firefox / Others
+userApp.get('/success.txt', (req, res) => {
+  const ip = getClientIp(req);
+  isAuthenticated(ip).then(auth => {
+    if (auth) return res.status(200).send('success\n');
+    return res.redirect(302, `http://${getServerIp()}:${USER_PORT}/portal`);
+  });
+});
+
 // ============================================================================
 // 2. Telecom-Style Portal Route (GET /portal & GET / on Port 3001)
 // ============================================================================
 
 userApp.get('/portal', async (req, res) => {
   const ip = getClientIp(req);
+  const mac = await getMacForIp(ip);
   const account = await db.getAccountByIp(ip);
   const settings = await db.getAllSettings();
-  res.status(200).send(renderPortal(account, settings));
+  const expiredAccount = !account ? await db.getExpiredAccount({ ip, mac }) : null;
+  res.status(200).send(renderPortal(account, settings, expiredAccount));
 });
 
 userApp.get('/', async (req, res) => {
   const ip = getClientIp(req);
+  const mac = await getMacForIp(ip);
   const account = await db.getAccountByIp(ip);
   const settings = await db.getAllSettings();
-  res.status(200).send(renderPortal(account, settings));
+  const expiredAccount = !account ? await db.getExpiredAccount({ ip, mac }) : null;
+  res.status(200).send(renderPortal(account, settings, expiredAccount));
 });
 
 // ============================================================================
@@ -1231,7 +1311,12 @@ async function handleSlipApprove(req, res) {
   await db.updateSlipStatus(slipId, 'approved');
   await db.logIpAction({ email: cleanEmail, ip: targetIp, mac: slip.mac_address, action: 'buy_package' });
 
-  const msg = `Approved Slip #${slipId} for ${cleanEmail}! 30-Day VIP granted.`;
+  const allSlips = await db.getAllSlips();
+  const sortedSlips = [...allSlips].sort((a, b) => (a.uploaded_at || 0) - (b.uploaded_at || 0));
+  const sIdx = sortedSlips.findIndex(s => String(s.id) === String(slipId));
+  const displayNum = sIdx !== -1 ? String(sIdx + 1).padStart(3, '0') : '001';
+
+  const msg = `Approved Slip #${displayNum} for ${cleanEmail}! 30-Day VIP granted.`;
   if (req.xhr || req.headers.accept?.includes('application/json')) {
     return res.json({ success: true, message: msg });
   }
@@ -1250,7 +1335,13 @@ async function handleSlipDecline(req, res) {
   }
 
   await db.updateSlipStatus(slipId, 'declined');
-  const msg = `Slip #${slipId} marked as declined.`;
+
+  const allSlips = await db.getAllSlips();
+  const sortedSlips = [...allSlips].sort((a, b) => (a.uploaded_at || 0) - (b.uploaded_at || 0));
+  const sIdx = sortedSlips.findIndex(s => String(s.id) === String(slipId));
+  const displayNum = sIdx !== -1 ? String(sIdx + 1).padStart(3, '0') : '001';
+
+  const msg = `Slip #${displayNum} marked as declined.`;
   if (req.xhr || req.headers.accept?.includes('application/json')) {
     return res.json({ success: true, message: msg });
   }
@@ -1305,7 +1396,7 @@ userApp.use(async (req, res, next) => {
 });
 
 // ============================================================================
-// Auto-revoke expired sessions background daemon (Every 30 seconds)
+// Auto-revoke expired sessions background daemon (Every 5 seconds for immediate disconnect)
 // ============================================================================
 
 setInterval(async () => {
@@ -1314,13 +1405,15 @@ setInterval(async () => {
     const now = Date.now();
     for (const acc of allAccounts) {
       if (acc.activeIp && acc.expiresAt && now >= acc.expiresAt) {
-        console.log(`[Auto-Revoke] Expired session for ${acc.email} (IP: ${acc.activeIp})`);
+        console.log(`[Auto-Revoke] Limit reached for ${acc.email} (IP: ${acc.activeIp}). Revoking internet...`);
         try {
           await revokeIp(acc.activeIp);
         } catch (e) {
           console.error('[Auto-Revoke]', e.message);
         }
-        await db.logIpAction({ email: acc.email, ip: acc.activeIp, mac: acc.activeMac, action: 'session_expired' });
+        await db.logIpAction({ email: acc.email, ip: acc.activeIp, mac: acc.activeMac, action: 'limit_reached_disconnect' });
+        acc.lastIp = acc.activeIp;
+        acc.lastMac = acc.activeMac;
         acc.activeIp = null;
         acc.activeMac = null;
         await db.saveAccount(acc);
@@ -1329,10 +1422,10 @@ setInterval(async () => {
   } catch (err) {
     console.error('[Auto-Revoke daemon error]', err.message);
   }
-}, 30000);
+}, 5000);
 
 // ============================================================================
-// Start Servers (Admin on Port 3000, User Portal on Port 3001)
+// Start Servers (Admin on Port 3000, User Portal on Port 3001, Port 80 CNA & Port 53 DNS)
 // ============================================================================
 
 (async () => {
@@ -1365,6 +1458,12 @@ setInterval(async () => {
     }
   });
 
+  // 3. Port 80 Captive Portal HTTP Server (CNA Redirect)
+  captiveHttpServer = startPort80CaptiveServer(lanIp);
+
+  // 4. UDP Port 53 Captive DNS Server (Walled Garden Redirect)
+  dnsCaptive.startCaptiveDns(lanIp, isAuthenticated);
+
   console.log(`\n  =============================================================`);
   console.log(`    Free Wi-Fi Gateway Server (Dual-Port Architecture)        `);
   console.log(`    Admin Server (3000): http://localhost:${ADMIN_PORT} (PIN: 1234)`);
@@ -1380,13 +1479,14 @@ setInterval(async () => {
 // HTML Page Renderers (Google Account Mobile-First UI)
 // ============================================================================
 
-function renderPortal(account, settings) {
+function renderPortal(account, settings, expiredAccount = null) {
   const connected = !!account;
-  const email = account ? account.email : '';
-  const name = account ? account.name : '';
+  const isExpired = !connected && !!expiredAccount;
+  const email = account ? account.email : (expiredAccount ? expiredAccount.email : '');
+  const name = account ? account.name : (expiredAccount ? expiredAccount.name : '');
   const picture = account ? account.picture : '';
-  const plan = account ? account.plan : '';
-  const expiresAt = account ? account.expiresAt : 0;
+  const plan = account ? account.plan : (expiredAccount ? expiredAccount.plan : '');
+  const expiresAt = account ? account.expiresAt : (expiredAccount ? expiredAccount.expiresAt : 0);
   const price = settings.monthlyPrice || 150;
   const trialMin = settings.trialMinutes || 60;
 
@@ -1663,12 +1763,12 @@ ${
 <div class="card overflow-hidden mb-4">
   <!-- Tabs Header -->
   <div class="grid grid-cols-3 border-b border-gray-100 text-center">
-    <button class="tab-btn active py-2.5 sm:py-3 px-1 flex flex-col items-center justify-center min-h-[52px]" onclick="switchTab('tab-free')">
+    <button class="tab-btn ${isExpired ? '' : 'active'} py-2.5 sm:py-3 px-1 flex flex-col items-center justify-center min-h-[52px]" onclick="switchTab('tab-free')">
       <span class="text-base sm:text-lg mb-0.5 leading-none">🎁</span>
       <span class="text-xs sm:text-sm font-bold truncate max-w-full px-1" data-i18n="tab_free_title">เน็ตฟรี 1 ชม.</span>
-      <span class="text-[10px] text-gray-400 font-medium leading-none" data-i18n="tab_free_sub">Free 1-Hr</span>
+      <span class="text-[10px] text-gray-400 font-medium leading-none" data-i18n="tab_free_sub">${isExpired ? 'สิทธิ์หมดแล้ว' : 'Free 1-Hr'}</span>
     </button>
-    <button class="tab-btn py-2.5 sm:py-3 px-1 flex flex-col items-center justify-center min-h-[52px]" onclick="switchTab('tab-vip')">
+    <button class="tab-btn ${isExpired ? 'active' : ''} py-2.5 sm:py-3 px-1 flex flex-col items-center justify-center min-h-[52px]" onclick="switchTab('tab-vip')">
       <span class="text-base sm:text-lg mb-0.5 leading-none">👑</span>
       <span class="text-xs sm:text-sm font-bold truncate max-w-full px-1" data-i18n="tab_vip_title">แพ็กเกจ 30 วัน</span>
       <span class="text-[10px] text-gray-400 font-medium leading-none" data-i18n="tab_vip_sub">30-Day VIP</span>
@@ -1681,7 +1781,13 @@ ${
   </div>
 
   <!-- Tab 1: Free 1-Hour Wi-Fi (Google Account Sign-In / OTP) -->
-  <div id="tab-free" class="tab-content active p-4 sm:p-6 text-center">
+  <div id="tab-free" class="tab-content ${isExpired ? '' : 'active'} p-4 sm:p-6 text-center">
+    ${isExpired ? `
+    <div class="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-2xl text-red-900 text-left text-xs shadow-sm">
+      <p class="font-bold text-red-950 mb-0.5">⚠️ สิทธิ์ใช้งานเน็ตฟรีของคุณหมดลงแล้วสำหรับวันนี้</p>
+      <p class="text-red-800 leading-relaxed">อุปกรณ์หรือบัญชีนี้ได้รับสิทธิ์ฟรี 1 ชั่วโมงครบแล้ว กรุณาสมัครแพ็กเกจ VIP 30 วัน เพื่อเชื่อมต่ออินเทอร์เน็ตต่อทันที</p>
+      <button type="button" onclick="switchTab('tab-vip')" class="mt-2.5 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs transition">ไปที่แพ็กเกจ VIP 30 วัน (150 บาท) →</button>
+    </div>` : ''}
     <div class="mb-4">
       <span class="inline-block p-2 bg-blue-50 text-blue-600 rounded-full mb-1">⚡</span>
       <h2 class="text-lg font-black text-gray-800" data-i18n="free_heading">รับเน็ตฟรี ${trialMin} นาที</h2>
@@ -1772,13 +1878,24 @@ ${
   </div>
 
   <!-- Tab 2: Buy 30-Day VIP Package (with Google Account) -->
-  <div id="tab-vip" class="tab-content p-4 sm:p-6">
+  <div id="tab-vip" class="tab-content ${isExpired ? 'active' : ''} p-4 sm:p-6">
     <div class="text-center mb-3">
       <div class="inline-flex items-center px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-bold mb-1.5" data-i18n="vip_badge_banner">
         ★ UNLIMITED WI-FI 30 DAYS
       </div>
       <h2 class="text-lg font-black text-gray-800" data-i18n="vip_heading">สมัครแพ็กเกจ 30 วัน (${price} บาท)</h2>
       <p class="text-xs text-gray-500" data-i18n="vip_sub">ผูกกับบัญชี Google เข้าใช้งานได้ตลอด 30 วัน</p>
+    </div>
+
+    <!-- Expired Warning Notice -->
+    <div id="vip-expired-banner" class="${isExpired ? '' : 'hidden'} mb-3.5 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-left shadow-sm">
+      <div class="flex items-start space-x-2.5">
+        <span class="text-xl flex-shrink-0">⏰</span>
+        <div class="text-xs">
+          <p class="font-black text-amber-950 mb-0.5" id="vip-expired-title">สิทธิ์เน็ตฟรี 1 ชั่วโมงของคุณหมดลงแล้ว!</p>
+          <p class="text-amber-800 leading-relaxed" id="vip-expired-desc">กรุณาสมัครแพ็กเกจ 30 วัน (${price} บาท) เพื่อเชื่อมต่อและใช้งานอินเทอร์เน็ตความเร็วสูงได้ต่อเนื่องตลอด 30 วัน</p>
+        </div>
+      </div>
     </div>
 
     <div class="bg-gray-50 border border-gray-200 rounded-xl p-3.5 mb-3 text-center">
@@ -1789,10 +1906,22 @@ ${
     </div>
 
     <form onsubmit="handleBuyPackage(event)" class="space-y-3">
-      <div>
+      <!-- Saved Linked Account Card (No Need to Re-type Email) -->
+      <div id="vip-saved-badge" class="${email ? '' : 'hidden'} bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-2.5 min-w-0">
+          <span class="text-emerald-600 text-lg flex-shrink-0">✓</span>
+          <div class="min-w-0">
+            <p class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">บัญชีที่ผูกไว้ / Linked Account</p>
+            <p id="vip-saved-email-text" class="text-xs font-mono font-black text-emerald-950 truncate">${email}</p>
+          </div>
+        </div>
+        <button type="button" onclick="changeVipEmail()" class="text-[11px] text-emerald-700 hover:text-emerald-900 underline font-bold px-1.5 py-1">เปลี่ยน / Change</button>
+      </div>
+
+      <div id="vip-email-container" class="${email ? 'hidden' : ''}">
         <label class="block text-xs font-bold text-gray-600 uppercase mb-1" data-i18n="label_google_email">บัญชี Google Email (สำหรับผูกแพ็กเกจ)</label>
         <div class="relative">
-          <input type="email" id="vip-email" placeholder="your.name@gmail.com" required class="input-field pr-10" />
+          <input type="email" id="vip-email" value="${email}" placeholder="your.name@gmail.com" required class="input-field pr-10" />
           <span class="absolute right-3 top-3.5 text-gray-400">📧</span>
         </div>
       </div>
@@ -2187,14 +2316,75 @@ function showToast(data, fallbackType = 'success') {
   setTimeout(() => el.remove(), 4000);
 }
 
+function saveDeviceAccount({ email, name, picture } = {}) {
+  if (!email) return;
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const data = {
+      email: cleanEmail,
+      name: name || cleanEmail.split('@')[0],
+      picture: picture || null,
+      savedAt: Date.now()
+    };
+    localStorage.setItem('wifi_saved_account', JSON.stringify(data));
+    localStorage.setItem('wifi_account_email', cleanEmail);
+  } catch (e) {}
+}
+
+function getSavedDeviceAccount() {
+  try {
+    const raw = localStorage.getItem('wifi_saved_account');
+    if (raw) return JSON.parse(raw);
+    const email = localStorage.getItem('wifi_account_email');
+    if (email) return { email: email.trim().toLowerCase(), name: email.split('@')[0] };
+  } catch (e) {}
+  return null;
+}
+
+function applySavedAccountToVip() {
+  const saved = getSavedDeviceAccount();
+  const vipEmailInput = document.getElementById('vip-email');
+  const badgeEl = document.getElementById('vip-saved-badge');
+  const emailContainer = document.getElementById('vip-email-container');
+  const badgeEmailText = document.getElementById('vip-saved-email-text');
+
+  if (saved && saved.email) {
+    if (vipEmailInput) vipEmailInput.value = saved.email;
+    if (badgeEmailText) badgeEmailText.textContent = saved.email;
+    if (badgeEl) badgeEl.classList.remove('hidden');
+    if (emailContainer) emailContainer.classList.add('hidden');
+  } else if (!vipEmailInput?.value) {
+    if (badgeEl) badgeEl.classList.add('hidden');
+    if (emailContainer) emailContainer.classList.remove('hidden');
+  }
+}
+
+function changeVipEmail() {
+  const badgeEl = document.getElementById('vip-saved-badge');
+  const emailContainer = document.getElementById('vip-email-container');
+  const vipEmailInput = document.getElementById('vip-email');
+  if (badgeEl) badgeEl.classList.add('hidden');
+  if (emailContainer) {
+    emailContainer.classList.remove('hidden');
+    if (vipEmailInput) {
+      vipEmailInput.focus();
+      vipEmailInput.select();
+    }
+  }
+}
+
 function switchTab(id) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  const target = document.getElementById(id);
+  if (target) target.classList.add('active');
   const btns = document.querySelectorAll('.tab-btn');
-  if (id === 'tab-free') btns[0].classList.add('active');
-  if (id === 'tab-vip') btns[1].classList.add('active');
-  if (id === 'tab-login') btns[2].classList.add('active');
+  if (id === 'tab-free' && btns[0]) btns[0].classList.add('active');
+  if (id === 'tab-vip' && btns[1]) {
+    btns[1].classList.add('active');
+    applySavedAccountToVip();
+  }
+  if (id === 'tab-login' && btns[2]) btns[2].classList.add('active');
 }
 
 function onFileSelected(input) {
@@ -2575,6 +2765,7 @@ async function handleVerifyOtp(e, mode) {
     showToast(data);
 
     if (data.ok) {
+      saveDeviceAccount({ email });
       setTimeout(() => location.reload(), 1000);
     } else {
       if (btn) {
@@ -2605,6 +2796,7 @@ async function submitFreeTrial(email, name, picture = null, idToken = null) {
     const data = await res.json();
     showToast(data);
     if (data.ok) {
+      saveDeviceAccount({ email, name, picture });
       setTimeout(() => location.reload(), 1000);
     }
   } catch (err) {
@@ -2622,6 +2814,7 @@ async function submitGoogleLogin(email, idToken = null) {
     const data = await res.json();
     showToast(data);
     if (data.ok) {
+      saveDeviceAccount({ email });
       setTimeout(() => location.reload(), 1000);
     }
   } catch (err) {
@@ -2631,7 +2824,18 @@ async function submitGoogleLogin(email, idToken = null) {
 
 async function handleBuyPackage(e) {
   e.preventDefault();
-  const email = document.getElementById('vip-email').value.trim();
+  const saved = getSavedDeviceAccount();
+  const inputEmail = document.getElementById('vip-email')?.value?.trim();
+  const email = (inputEmail || (saved && saved.email ? saved.email : '')).trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    return showToast({ 
+      ok: false, 
+      msg_th: 'กรุณาระบุอีเมลบัญชี Google ของคุณ',
+      msg_mm: 'ကျေးဇူးပြု၍ Google အီးမေးလ် ရိုက်ထည့်ပါ',
+      msg_en: 'Please enter your Google account email'
+    });
+  }
+  saveDeviceAccount({ email });
   const fileInput = document.getElementById('slip-file');
   if (!fileInput.files || !fileInput.files[0]) {
     return showToast({ 
@@ -2736,6 +2940,7 @@ function showApprovalWaitingModal(slipId) {
             badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800';
             badgeEl.innerText = '✓ APPROVED';
           }
+          localStorage.removeItem('wifi_expired_notice');
           setTimeout(() => location.reload(), 1500);
         } else if (data.status === 'declined') {
           clearInterval(pollInterval);
@@ -2812,6 +3017,7 @@ async function doLogout(email) {
 
     if (diff <= 0) {
       clearInterval(timer);
+      localStorage.setItem('wifi_expired_notice', 'true');
       setTimeout(() => location.reload(), 1500);
     }
   }
@@ -2869,6 +3075,8 @@ document.addEventListener('DOMContentLoaded', () => {
       this.value = text.replace(/[^0-9]/g, '').slice(0, 6);
     });
   });
+
+  applySavedAccountToVip();
 });
 </script>
 </body>

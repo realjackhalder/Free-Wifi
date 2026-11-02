@@ -400,6 +400,17 @@
       <p class="text-xs text-gray-500" data-i18n="vip_sub">ผูกกับบัญชี Google เข้าใช้งานได้ตลอด 30 วัน</p>
     </div>
 
+    <!-- Expired Warning Notice -->
+    <div id="vip-expired-banner" class="hidden mb-3 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-left shadow-sm">
+      <div class="flex items-start space-x-2.5">
+        <span class="text-xl flex-shrink-0">⏰</span>
+        <div class="text-xs">
+          <p class="font-black text-amber-950 mb-0.5" id="vip-expired-title">สิทธิ์เน็ตฟรี 1 ชั่วโมงของคุณหมดลงแล้ว!</p>
+          <p class="text-amber-800 leading-relaxed" id="vip-expired-desc">กรุณาสมัครแพ็กเกจ 30 วัน (150 บาท) เพื่อเชื่อมต่อและใช้งานอินเทอร์เน็ตความเร็วสูงได้ต่อเนื่องตลอด 30 วัน</p>
+        </div>
+      </div>
+    </div>
+
     <div class="bg-gray-50 border border-gray-200 rounded-xl p-3.5 mb-3 text-center">
       <div class="bg-white p-2 rounded-lg border border-gray-200 inline-block shadow-sm">
         <img src="/thaiqr.jpg" onerror="this.onerror=null;this.src='/150B.jpg';" alt="PromptPay QR" class="w-40 sm:w-48 h-40 sm:h-48 object-contain mx-auto" />
@@ -408,7 +419,19 @@
     </div>
 
     <form onsubmit="handleBuyPackage(event)" class="space-y-3">
-      <div>
+      <!-- Saved Linked Account Card (No Need to Re-type Email) -->
+      <div id="vip-saved-badge" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-2.5 min-w-0">
+          <span class="text-emerald-600 text-lg flex-shrink-0">✓</span>
+          <div class="min-w-0">
+            <p class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">บัญชีที่ผูกไว้ / Linked Account</p>
+            <p id="vip-saved-email-text" class="text-xs font-mono font-black text-emerald-950 truncate"></p>
+          </div>
+        </div>
+        <button type="button" onclick="changeVipEmail()" class="text-[11px] text-emerald-700 hover:text-emerald-900 underline font-bold px-1.5 py-1">เปลี่ยน / Change</button>
+      </div>
+
+      <div id="vip-email-container">
         <label class="block text-xs font-bold text-gray-600 uppercase mb-1" data-i18n="label_google_email">บัญชี Google Email (สำหรับผูกแพ็กเกจ)</label>
         <div class="relative">
           <input type="email" id="vip-email" placeholder="your.name@gmail.com" required class="input-field pr-10" />
@@ -805,13 +828,107 @@ function showToast(data, fallbackType = 'success') {
   setTimeout(() => el.remove(), 4000);
 }
 
+function saveDeviceAccount({ email, name, picture } = {}) {
+  if (!email) return;
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const data = {
+      email: cleanEmail,
+      name: name || cleanEmail.split('@')[0],
+      picture: picture || null,
+      savedAt: Date.now()
+    };
+    localStorage.setItem('wifi_saved_account', JSON.stringify(data));
+    localStorage.setItem('wifi_account_email', cleanEmail);
+  } catch (e) {}
+}
+
+function getSavedDeviceAccount() {
+  try {
+    const raw = localStorage.getItem('wifi_saved_account');
+    if (raw) return JSON.parse(raw);
+    const email = localStorage.getItem('wifi_account_email');
+    if (email) return { email: email.trim().toLowerCase(), name: email.split('@')[0] };
+  } catch (e) {}
+  return null;
+}
+
+function applySavedAccountToVip() {
+  const saved = getSavedDeviceAccount();
+  const vipEmailInput = document.getElementById('vip-email');
+  const badgeEl = document.getElementById('vip-saved-badge');
+  const emailContainer = document.getElementById('vip-email-container');
+  const badgeEmailText = document.getElementById('vip-saved-email-text');
+
+  if (saved && saved.email) {
+    if (vipEmailInput) vipEmailInput.value = saved.email;
+    if (badgeEmailText) badgeEmailText.textContent = saved.email;
+    if (badgeEl) badgeEl.classList.remove('hidden');
+    if (emailContainer) emailContainer.classList.add('hidden');
+  } else {
+    if (badgeEl) badgeEl.classList.add('hidden');
+    if (emailContainer) emailContainer.classList.remove('hidden');
+  }
+}
+
+function changeVipEmail() {
+  const badgeEl = document.getElementById('vip-saved-badge');
+  const emailContainer = document.getElementById('vip-email-container');
+  const vipEmailInput = document.getElementById('vip-email');
+  if (badgeEl) badgeEl.classList.add('hidden');
+  if (emailContainer) {
+    emailContainer.classList.remove('hidden');
+    if (vipEmailInput) {
+      vipEmailInput.focus();
+      vipEmailInput.select();
+    }
+  }
+}
+
+function checkExpiredSessionNotice() {
+  try {
+    const isExpired = localStorage.getItem('wifi_expired_notice') === 'true';
+    if (isExpired) {
+      const banner = document.getElementById('vip-expired-banner');
+      if (banner) {
+        banner.classList.remove('hidden');
+        const titleEl = document.getElementById('vip-expired-title');
+        const descEl = document.getElementById('vip-expired-desc');
+        if (titleEl && descEl) {
+          if (currentLang === 'mm') {
+            titleEl.textContent = 'သင်၏ အခမဲ့ ၁ နာရီ ကုန်ဆုံးသွားပါပြီ!';
+            descEl.textContent = 'အင်တာနက် ဆက်လက်သုံးရန် ၃၀ ရက် VIP (၁၅၀ ဘတ်) ဝယ်ယူပါ။';
+          } else if (currentLang === 'en') {
+            titleEl.textContent = 'Your 1-Hour Free Wi-Fi limit has expired!';
+            descEl.textContent = 'Please purchase the 30-Day VIP pass (150 Baht) to continue using high-speed internet.';
+          } else {
+            titleEl.textContent = 'สิทธิ์เน็ตฟรี 1 ชั่วโมงของคุณหมดลงแล้ว!';
+            descEl.textContent = 'กรุณาสมัครแพ็กเกจ 30 วัน (150 บาท) เพื่อเชื่อมต่อและใช้งานอินเทอร์เน็ตความเร็วสูงต่อเนื่อง';
+          }
+        }
+      }
+      // Auto switch to VIP tab
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      const vipTab = document.getElementById('tab-vip');
+      if (vipTab) vipTab.classList.add('active');
+      const btns = document.querySelectorAll('.tab-btn');
+      if (btns && btns[1]) btns[1].classList.add('active');
+      applySavedAccountToVip();
+    }
+  } catch (e) {}
+}
+
 function switchTab(id) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   const btns = document.querySelectorAll('.tab-btn');
   if (id === 'tab-free') btns[0].classList.add('active');
-  if (id === 'tab-vip') btns[1].classList.add('active');
+  if (id === 'tab-vip') {
+    btns[1].classList.add('active');
+    applySavedAccountToVip();
+  }
   if (id === 'tab-login') btns[2].classList.add('active');
 }
 
@@ -948,13 +1065,17 @@ function startCountdown(expiresAt) {
     if (diff <= 0) {
       clearInterval(countdownTimer);
       localStorage.removeItem('active_wifi_session');
+      localStorage.setItem('wifi_expired_notice', 'true');
       showToast({
         ok: false,
-        msg_th: 'เวลาใช้งานของคุณหมดแล้ว',
-        msg_mm: 'အသုံးပြုခွင့် သက်တမ်းကုန်သွားပါပြီ',
-        msg_en: 'Your Wi-Fi session has expired.'
+        msg_th: '⏰ สิทธิ์การใช้งานเน็ตฟรีหมดลงแล้ว! กรุณาสมัครแพ็กเกจ 30 วัน (150 บาท)',
+        msg_mm: '⏰ အင်တာနက် သက်တမ်းကုန်သွားပါပြီ။ ၃၀ ရက် VIP (၁၅၀ ဘတ်) ဝယ်ယူပါ',
+        msg_en: '⏰ Your Wi-Fi limit has expired! Please buy the 30-Day VIP pass.'
       });
-      setTimeout(() => showLoginView(), 1200);
+      setTimeout(() => {
+        showLoginView();
+        checkExpiredSessionNotice();
+      }, 1000);
     }
   }
 
@@ -1008,6 +1129,8 @@ function showLoginView() {
   if (connCard) connCard.classList.add('hidden');
   if (loginCard) loginCard.classList.remove('hidden');
   if (countdownTimer) clearInterval(countdownTimer);
+  applySavedAccountToVip();
+  checkExpiredSessionNotice();
 }
 
 // Handle redirect result if signInWithRedirect was used by browser
@@ -1019,7 +1142,11 @@ if (window.firebase && firebase.auth) {
       const email = user.email;
       const name = user.displayName || email.split('@')[0];
       const picture = user.photoURL || null;
+
+      saveDeviceAccount({ email, name, picture });
       const mode = localStorage.getItem('pending_auth_mode') || 'free';
+
+      saveDeviceAccount({ email, name, picture });
 
       showToast({
         msg_th: 'เข้าสู่ระบบด้วย ' + email + ' สำเร็จ! กำลังเปิดใช้งาน Wi-Fi...',
@@ -1135,6 +1262,8 @@ function triggerGoogleAuth(mode) {
       const email = user.email;
       const name = user.displayName || email.split('@')[0];
       const picture = user.photoURL || null;
+
+      saveDeviceAccount({ email, name, picture });
 
       showToast({
         msg_th: 'เข้าสู่ระบบด้วย Google สำเร็จ: ' + email,
@@ -1740,7 +1869,18 @@ Approve 30-Day VIP Wi-Fi access for this user?`;
 
 async function handleBuyPackage(e) {
   e.preventDefault();
-  const email = document.getElementById('vip-email').value.trim();
+  const saved = getSavedDeviceAccount();
+  const inputEmail = document.getElementById('vip-email')?.value?.trim();
+  const email = (inputEmail || (saved && saved.email ? saved.email : '')).trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    return showToast({ 
+      ok: false, 
+      msg_th: 'กรุณาระบุอีเมลบัญชี Google ของคุณ', 
+      msg_mm: 'ကျေးဇူးပြု၍ Google အီးမေးလ် ရိုက်ထည့်ပါ', 
+      msg_en: 'Please provide your Google email address' 
+    });
+  }
+  saveDeviceAccount({ email });
   const fileInput = document.getElementById('slip-file');
   if (!fileInput.files || !fileInput.files[0]) {
     return showToast({ 
@@ -1956,6 +2096,9 @@ function showApprovalWaitingModal(slipId, targetEmail = '') {
           plan: 'vip-30d',
           expiresAt: Date.now() + 30 * 24 * 3600 * 1000
         };
+        localStorage.removeItem('wifi_expired_notice');
+        const vipExpiredBanner = document.getElementById('vip-expired-banner');
+        if (vipExpiredBanner) vipExpiredBanner.classList.add('hidden');
         saveActiveSession(vipSession);
         setTimeout(() => {
           modal.remove();
