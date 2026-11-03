@@ -1100,11 +1100,6 @@ adminApp.get('/', (req, res) => {
   return res.redirect('/admin');
 });
 
-// Admin shortcut to open user captive portal on port 3001
-adminApp.get('/portal', (req, res) => {
-  const host = req.hostname || 'localhost';
-  return res.redirect(`http://${host}:${USER_PORT}/portal`);
-});
 
 // Admin login POST handler
 adminApp.post('/admin/login', async (req, res) => {
@@ -1665,6 +1660,9 @@ async function syncFirestoreActiveAccounts() {
 }
 // Sync active accounts from Cloud Firestore every 30 seconds (conserves Firestore 50k daily free tier quota)
 setInterval(syncFirestoreActiveAccounts, 30000);
+
+// Single-port Cloud Ingress fallback: route any non-admin requests on port 3000 to userApp
+adminApp.use(userApp);
 
 // ============================================================================
 // Start Servers (Admin on Port 3000, User Portal on Port 3001, Port 80 CNA & Port 53 DNS)
