@@ -8,6 +8,25 @@
 const fs = require('fs');
 const path = require('path');
 
+// Auto-load .env configuration if present (zero external dependencies)
+try {
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let val = match[2] || '';
+        val = val.trim().replace(/^['"]|['"]$/g, '');
+        if (typeof process.env[key] === 'undefined') {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+} catch (e) {}
+
 function logCrash(type, data) {
   const time = new Date().toISOString();
   const text = (data && data.stack) ? data.stack : (typeof data === 'object' ? JSON.stringify(data) : String(data));
@@ -85,6 +104,14 @@ function getClientIp(req) {
 let _serverIp = null;
 function getServerIp() {
   if (_serverIp) return _serverIp;
+  if (process.env.PORTAL_IP) {
+    _serverIp = process.env.PORTAL_IP.trim();
+    return _serverIp;
+  }
+  if (process.env.PUBLIC_IP) {
+    _serverIp = process.env.PUBLIC_IP.trim();
+    return _serverIp;
+  }
   const interfaces = os.networkInterfaces();
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {

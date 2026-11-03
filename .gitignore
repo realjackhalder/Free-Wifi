@@ -4,7 +4,9 @@ uploads/*
 public/qr.jpg
 public/qr.png
 db.json
-.env*
+.env
+.env.*
+!.env.example
 
 
 # Local agent credentials
